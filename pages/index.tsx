@@ -14,12 +14,12 @@ const Home: NextPage = () => {
 
       <div>
         <h1> Homepage</h1>
-        <p>This is the home page</p>
-        <Link href='/stakingCharts'>
-          <a className={styles.btn}>Staking Charts</a>
+        <p>This is the home page. Not much to see here.</p>
+        <Link href='/overview-charts'>
+          <a className={styles.btn}>Overview Charts</a>
         </Link>
-        <Link href='/page2'>
-          <a className={styles.btn}>Page 2</a>
+        <Link href='/operator-charts'>
+          <a className={styles.btn}>Operator Charts</a>
         </Link>
       </div>
     </>

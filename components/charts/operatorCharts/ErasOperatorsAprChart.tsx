@@ -1,41 +1,19 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner from '../Spinner';
-import { defaultChartZoomOptions, operatorsNames } from '../../constants/constants';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { operatorsNames, BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import * as d3 from 'd3';
-import BN from 'bn.js';
-import { useErasExposure, useErasPoints, useErasRewards } from '../../hooks/StakingQueries';
+import { BN, BN_HUNDRED } from '@polkadot/util';
+import { useErasExposure, useErasPoints, useErasRewards } from '../../../hooks/StakingQueries';
+import { useSdk } from '../../../hooks/useSdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
 interface IProps {
   highlight?: string[] | undefined;
 }
-
-const chartOptions = {
-  responsive: true,
-  scales: {
-    x: { title: { display: true, text: 'Era' } },
-    y: { title: { display: true, text: `APR [%]` } },
-  },
-  plugins: {
-    title: {
-      display: true,
-      text: `Operator APR per Era (excl. commission)`,
-      font: { size: 20 },
-    },
-    legend: {
-      position: 'bottom' as const,
-      labels: {
-        usePointStyle: true,
-        pointStyle: 'line',
-      },
-    },
-    zoom: defaultChartZoomOptions,
-  },
-};
 
 const ErasOperatorsAprChart = ({ highlight }: IProps) => {
   // Define reference for tracking mounted state
@@ -48,8 +26,10 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
     };
   }, []);
 
+  const {
+    chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
+  } = useSdk();
   const [chartData, setChartData] = useState<{ datasets: any; labels: string[] }>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
   const erasExposure = useErasExposure({ enabled: false });
   const erasPoints = useErasPoints({ enabled: false });
   const erasRewards = useErasRewards({ enabled: false });
@@ -59,6 +39,28 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
   };
+
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = 'APR [%]';
+    options.plugins.title.text = 'Operator APR per Era (excl. commission)';
+
+    return options;
+  }, []);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
+
+  const erasPerYear = useMemo(
+    () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)),
+    [epochDuration, expectedBlockTime, sessionsPerEra]
+  );
 
   useEffect(() => {
     if (!erasExposure.data || !erasPoints.data || !erasRewards.data) {
@@ -106,12 +108,14 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
               totalAssigned = 0;
             }
 
-            aprDatasets[id][index] = new BN(365 * 100).mul(allErasRewards![index].eraReward).mul(points).div(eraPoints).toNumber() / totalAssigned;
+            aprDatasets[id][index] =
+              erasPerYear.mul(BN_HUNDRED).mul(allErasRewards![index].eraReward).mul(points).div(eraPoints).toNumber() / totalAssigned;
             sumOfTotals = sumOfTotals.add(new BN(totalAssigned));
           });
           const numberOfOperators = new BN(Object.keys(validators).length);
           let averageTotal = sumOfTotals.div(numberOfOperators);
-          averageApr[index] = new BN(365 * 100).mul(allErasRewards![index].eraReward).div(numberOfOperators).toNumber() / averageTotal.toNumber();
+          averageApr[index] =
+            erasPerYear.mul(BN_HUNDRED).mul(allErasRewards![index].eraReward).div(numberOfOperators).toNumber() / averageTotal.toNumber();
         }
       });
 
@@ -133,7 +137,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(aprDatasets).forEach(([operator, apr], index) => {
-        let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(aprDatasets).length - 1)));
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(aprDatasets).length - 1)));
         color.opacity = 0.9;
         if (highlight?.includes(operator)) {
           aprChartData.datasets.unshift({
@@ -146,7 +150,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.1;
+          color.opacity = 0.2;
           aprChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: apr,
@@ -166,7 +170,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
     }
 
     getAprByOperatorData();
-  }, [erasExposure.data, erasPoints.data, erasRewards.data, highlight]);
+  }, [erasExposure.data, erasPerYear, erasPoints.data, erasRewards.data, highlight]);
 
   return (
     <div className='LineChart'>
@@ -176,6 +180,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

@@ -1,11 +1,11 @@
-import { useRef, useEffect, useState } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner from '../Spinner';
-import { defaultChartZoomOptions } from '../../constants/constants';
-import { useErasRewards } from '../../hooks/StakingQueries';
-import { useSdk } from '../../hooks/useSdk';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { defaultChartOptions } from '../../../constants/constants';
+import { useErasRewards } from '../../../hooks/StakingQueries';
+import { useSdk } from '../../../hooks/useSdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -20,9 +20,9 @@ const ErasRewardsTotalsChart = () => {
     };
   }, []);
 
-  const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
-  const erasRewards = useErasRewards({ enabled: false });
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+
+  const erasRewards = useErasRewards({ enabled: true });
   const {
     chainData: { tokenDecimals, tokenSymbol },
   } = useSdk();
@@ -34,22 +34,22 @@ const ErasRewardsTotalsChart = () => {
     chartRef.current?.resetZoom();
   };
 
-  const chartOptions = {
-    responsive: true,
-    scales: {
-      x: { title: { display: true, text: 'Era' } },
-      y: { title: { display: true, text: `Reward [${tokenSymbol}]` } },
-    },
-    plugins: {
-      title: {
-        display: true,
-        text: `Total ${tokenSymbol} Rewards per Era`,
-        font: { size: 20 },
-      },
-      legend: { display: false },
-      zoom: defaultChartZoomOptions,
-    },
-  };
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = `Reward [${tokenSymbol}]`;
+    options.plugins.title.text = `Total ${tokenSymbol} Rewards per Era`;
+
+    return options;
+  }, [tokenSymbol]);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
 
   useEffect(() => {
     if (!erasRewards.data || !divisor) {
@@ -106,6 +106,7 @@ const ErasRewardsTotalsChart = () => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

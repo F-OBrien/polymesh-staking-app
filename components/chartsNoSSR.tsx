@@ -4,77 +4,84 @@ import dynamic from 'next/dynamic';
 // Rendering to prevent 'Reference error window is not defined'
 export const ErasOperatorsPointsChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsPointsChart');
+    return import('./charts/operatorCharts/ErasOperatorsPointsChart');
+  },
+  { ssr: false }
+);
+
+export const ErasOperatorsPointDeviationsFromAverageChart = dynamic(
+  () => {
+    return import('./charts/operatorCharts/ErasOperatorsPointDeviationsFromAverageChart');
   },
   { ssr: false }
 );
 
 export const ErasPointsTotalsChart = dynamic(
   () => {
-    return import('./charts/ErasPointsTotalsChart');
+    return import('./charts/overviewCharts/ErasPointsTotalsChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsPercentOfPointsChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsPercentOfPointsChart');
+    return import('./charts/operatorCharts/ErasOperatorsPercentOfPointsChart');
   },
   { ssr: false }
 );
 
 export const ErasRewardsTotalsChart = dynamic(
   () => {
-    return import('./charts/ErasRewardsTotalsChart');
+    return import('./charts/overviewCharts/ErasRewardsTotalsChart');
   },
   { ssr: false }
 );
 
 export const ErasAverageAprChart = dynamic(
   () => {
-    return import('./charts/ErasAverageAprChart');
+    return import('./charts/overviewCharts/ErasAverageAprChart');
   },
   { ssr: false }
 );
 
 export const ErasTotalsStakedChart = dynamic(
   () => {
-    return import('./charts/ErasTotalsStakedChart');
+    return import('./charts/overviewCharts/ErasTotalsStakedChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsRewardsChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsRewardsChart');
+    return import('./charts/operatorCharts/ErasOperatorsRewardsChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsTotalStakedChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsTotalStakedChart');
+    return import('./charts/operatorCharts/ErasOperatorsTotalStakedChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsAprChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsAprChart');
+    return import('./charts/operatorCharts/ErasOperatorsAprChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsCommissionChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsCommissionChart');
+    return import('./charts/operatorCharts/ErasOperatorsCommissionChart');
   },
   { ssr: false }
 );
 
 export const ErasOperatorsAprIncCommissionChart = dynamic(
   () => {
-    return import('./charts/ErasOperatorsAprIncCommissionChart');
+    return import('./charts/operatorCharts/ErasOperatorsAprIncCommissionChart');
   },
   { ssr: false }
 );

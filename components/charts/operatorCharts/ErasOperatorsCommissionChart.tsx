@@ -1,40 +1,18 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import * as d3 from 'd3';
-import { defaultChartZoomOptions, operatorsNames } from '../../constants/constants';
-import Spinner from '../Spinner';
-import { useErasPrefs } from '../../hooks/StakingQueries';
+import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
+import Spinner, { MiniSpinner } from '../../Spinner';
+// import { useErasPrefs } from '../../../hooks/StakingQueries';
+import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
 interface IProps {
   highlight?: string[] | undefined;
 }
-
-let chartOptions = {
-  responsive: true,
-  scales: {
-    x: { title: { display: true, text: 'Era' } },
-    y: { title: { display: true, text: 'Percent [%]' } },
-  },
-  plugins: {
-    legend: {
-      position: 'bottom' as const,
-      labels: {
-        usePointStyle: true,
-        pointStyle: 'line',
-      },
-    },
-    title: {
-      display: true,
-      text: 'Operator Commission per Era',
-      font: { size: 20 },
-    },
-    zoom: defaultChartZoomOptions,
-  },
-};
 
 const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
   // Define reference for tracking mounted state
@@ -48,14 +26,30 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
   }, []);
 
   const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
-  const erasPrefs = useErasPrefs({ enabled: false });
+  const erasPrefs = useErasPrefs({ enabled: true });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
   };
+
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = 'Percent [%]';
+    options.plugins.title.text = 'Operator Commission per Era';
+
+    return options;
+  }, []);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
 
   useEffect(() => {
     if (!erasPrefs.data) {
@@ -73,20 +67,21 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
       // Read all era points
       const allErasPrefs = erasPrefs.data;
 
-      allErasPrefs?.forEach(({ era, validators }, index) => {
+      allErasPrefs?.forEach(({ era, operators }, index) => {
         let sum = 0;
         // Build array of x-axis lables with eras.
         labels[index] = era.toString();
 
-        // build array of points for each validator
-        Object.entries(validators).forEach(([id, { commission }]) => {
-          if (!commissionDatasets[id]) {
-            commissionDatasets[id] = new Array(84).fill(0);
-          }
+        // build array of commission for each validator
+        Object.entries(operators).forEach(([id, { commission }]) => {
+          commissionDatasets[id] = commissionDatasets[id] || new Array(allErasPrefs.length).fill(0);
+          // if (!commissionDatasets[id]) {
+          //   commissionDatasets[id] = new Array(84).fill(0);
+          // }
           commissionDatasets[id][index] = commission.toNumber() / 10000000;
           sum = sum + commission.toNumber();
         });
-        averageCommission[index] = sum / (10000000 * Object.keys(validators).length);
+        averageCommission[index] = sum / (10000000 * Object.keys(operators).length);
       });
 
       commissionChartData = {
@@ -106,7 +101,8 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(commissionDatasets).forEach(([operator, commission], index) => {
-        let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(commissionDatasets).length - 1)));
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(commissionDatasets).length - 1)));
+        color.opacity = 0.9;
         if (highlight?.includes(operator)) {
           commissionChartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
@@ -118,7 +114,7 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.1;
+          color.opacity = 0.2;
           commissionChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: commission,
@@ -149,6 +145,7 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

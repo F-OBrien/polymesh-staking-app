@@ -1,36 +1,14 @@
-import { useRef, useEffect, useState } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner from '../Spinner';
-import { defaultChartZoomOptions } from '../../constants/constants';
-import { useSdk } from '../../hooks/useSdk';
-import { useErasPrefs, useErasRewards, useErasTotalStake } from '../../hooks/StakingQueries';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
+import { useSdk } from '../../../hooks/useSdk';
+import { useErasRewards, useErasTotalStake } from '../../../hooks/StakingQueries';
+import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
-
-const chartOptions = {
-  responsive: true,
-  scales: {
-    x: { title: { display: true, text: 'Era' } },
-    y: { title: { display: true, text: `Percent [%]` } },
-  },
-  plugins: {
-    title: {
-      display: true,
-      text: `Average APR / APY per Era`,
-      font: { size: 20 },
-    },
-    legend: {
-      position: 'bottom' as const,
-      labels: {
-        usePointStyle: true,
-        pointStyle: 'line',
-      },
-    },
-    zoom: defaultChartZoomOptions,
-  },
-};
 
 const ErasAverageAprChart = () => {
   // Define reference for tracking mounted state
@@ -43,11 +21,13 @@ const ErasAverageAprChart = () => {
     };
   }, []);
 
-  const { api } = useSdk();
-  const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
-  const eraRewards = useErasRewards();
-  const erasPrefs = useErasPrefs({ enabled: false });
+  const {
+    api,
+    chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
+  } = useSdk();
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const eraRewards = useErasRewards({ enabled: true });
+  const erasPrefs = useErasPrefs({ enabled: true });
   const erasTotals = useErasTotalStake();
 
   // Chart Reference for resetting zoom
@@ -55,23 +35,44 @@ const ErasAverageAprChart = () => {
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
   };
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = 'Percent [%]';
+    options.plugins.title.text = 'Average APR / APY per Era';
+
+    return options;
+  }, []);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
+
+  const erasPerYear = useMemo(
+    () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)).toNumber(),
+    [epochDuration, expectedBlockTime, sessionsPerEra]
+  );
 
   useEffect(() => {
     if (!api || !eraRewards.data || !erasPrefs.data) {
       return;
     }
-
     // Read all era points
     const allErasPrefs = erasPrefs.data;
+
     let averageCommission: number[] = [];
 
-    allErasPrefs?.forEach(({ validators }, index) => {
+    allErasPrefs?.forEach(({ operators }, index) => {
       let sum = 0;
       // build array of points for each validator
-      Object.entries(validators).forEach(([, { commission }]) => {
+      Object.entries(operators).forEach(([, { commission }]) => {
         sum = sum + commission.toNumber();
       });
-      averageCommission[index] = sum / (1000000000 * Object.keys(validators).length);
+      averageCommission[index] = sum / (1000000000 * Object.keys(operators).length);
     });
 
     async function getAverageAprData() {
@@ -104,15 +105,15 @@ const ErasAverageAprChart = () => {
           // Build array of x-axis lables with eras.
           labels[index] = era.toString();
           // Build array of y-axis values
-          apr[index] = (365 * 100 * eraReward.toNumber()) / totals.get(era.toString()).toNumber();
+          apr[index] = (100 * erasPerYear * eraReward.toNumber()) / totals.get(era.toString()).toNumber();
           aprIncCommission[index] = apr[index] * (1 - averageCommission[index]);
-          apy[index] = 100 * ((1 + eraReward.toNumber() / totals.get(era.toString()).toNumber()) ** 365 - 1);
+          apy[index] = 100 * ((1 + eraReward.toNumber() / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
           apyIncCommission[index] =
-            100 * ((1 + ((1 - averageCommission[index]) * eraReward.toNumber()) / totals.get(era.toString()).toNumber()) ** 365 - 1);
+            100 * ((1 + ((1 - averageCommission[index]) * eraReward.toNumber()) / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
         }
         // console.log(era.toNumber(), eraReward.toNumber(), total);
         // apr[index] =
-        //     new BN(365 * 100 * 1000000)
+        //     new BN(erasPerYear * 100 * 1000000)
         //         .mul(new BN(eraReward))
         //         .div(new BN(totals.get(era.toString()).toNumber()))
         //         .toNumber() / 1000000;
@@ -179,6 +180,7 @@ const ErasAverageAprChart = () => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

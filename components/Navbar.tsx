@@ -10,14 +10,11 @@ export const Navbar = (): ReactElement => {
       <Link href='/'>
         <a>Home</a>
       </Link>
-      <Link href='/stakingCharts'>
-        <a>Staking Charts</a>
+      <Link href='/overview-charts'>
+        <a>Overview Charts</a>
       </Link>
-      <Link href='/page2'>
-        <a>Page 2</a>
-      </Link>
-      <Link href='/page3'>
-        <a>Page 3</a>
+      <Link href='/operator-charts'>
+        <a>Operator Charts</a>
       </Link>
     </nav>
   );

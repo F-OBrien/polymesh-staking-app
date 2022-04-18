@@ -2,43 +2,26 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner, { MiniSpinner } from '../Spinner';
-import { defaultChartZoomOptions, operatorsNames } from '../../constants/constants';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { defaultChartOptions, operatorsNames, BN_MILLISECONDS_PER_YEAR } from '../../../constants/constants';
 import * as d3 from 'd3';
-import BN from 'bn.js';
-import { BN_BILLION, BN_ZERO } from '@polkadot/util';
-import { useErasExposure, useErasPoints, useErasPrefs, useErasRewards } from '../../hooks/StakingQueries';
+import { BN, BN_BILLION, BN_ZERO, BN_HUNDRED } from '@polkadot/util';
+import { useErasExposure, useErasPoints, useErasRewards } from '../../../hooks/StakingQueries';
+import { useErasStakers } from '../../../hooks/stakingPalletHooks/useErasStakers';
+import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
+import { EraIndex } from '@polkadot/types/interfaces';
+import { useHistoricalEras } from '../../../hooks/stakingPalletHooks/useHistoricalEras';
+import { useSdk } from '../../../hooks/useSdk';
+import { EraInfo } from '../../../pages/operator-charts';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
 interface IProps {
-  highlight?: string[] | undefined;
+  highlight?: string[];
+  eraInfo: EraInfo;
 }
 
-const chartOptions = {
-  responsive: true,
-  scales: {
-    x: { title: { display: true, text: 'Era' } },
-    y: { title: { display: true, text: `APR [%]` } },
-  },
-  plugins: {
-    title: {
-      display: true,
-      text: `Operator APR per Era (inc. commission)`,
-      font: { size: 20 },
-    },
-    legend: {
-      position: 'bottom' as const,
-      labels: {
-        usePointStyle: true,
-        pointStyle: 'line',
-      },
-    },
-    zoom: defaultChartZoomOptions,
-  },
-};
-
-const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
+const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } }: IProps) => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -49,53 +32,72 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
     };
   }, []);
 
+  const {
+    chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
+  } = useSdk();
   const [chartData, setChartData] = useState<{ datasets: any; labels: string[] }>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
-  const [fetching, setFetching] = useState<boolean>(false);
-  const erasExposure = useErasExposure({ enabled: fetching, staleTime: 12345 });
-  const erasPoints = useErasPoints({ enabled: fetching });
-  const erasRewards = useErasRewards({ enabled: fetching });
-  const erasPrefs = useErasPrefs({ enabled: fetching });
-
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const [previousEra, setPreviousEra] = useState<EraIndex>();
+  // const historicalEras = useHistoricalEras();
+  const erasStakingData = useErasStakers({ staleTime: 50000, enabled: fetchQueries });
+  const erasExposure = useErasExposure({ enabled: fetchQueries /*, staleTime: 12345 */ });
+  const erasPoints = useErasPoints({ enabled: fetchQueries });
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
+  const erasPrefs = useErasPrefs({ enabled: fetchQueries });
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
   };
 
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = 'APR [%]';
+    options.plugins.title.text = 'Operator APR per Era (inc. commission)';
+
+    return options;
+  }, []);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    setFetching(
-      erasExposure.isFetching ||
-        erasPoints.isFetching ||
-        erasRewards.isFetching ||
-        erasPrefs.isFetching ||
-        !erasExposure.data ||
-        !erasPoints.data ||
-        !erasRewards.data ||
-        !erasPrefs.data
-    );
     return erasExposure.isFetching || erasPoints.isFetching || erasRewards.isFetching || erasPrefs.isFetching;
-  }, [
-    erasExposure.data,
-    erasExposure.isFetching,
-    erasPoints.data,
-    erasPoints.isFetching,
-    erasPrefs.data,
-    erasPrefs.isFetching,
-    erasRewards.data,
-    erasRewards.isFetching,
-  ]);
+  }, [erasExposure.isFetching, erasPoints.isFetching, erasPrefs.isFetching, erasRewards.isFetching]);
 
+  // Set `dataMissing` to true while any of the required data is missing.
+  const dataMissing = useMemo(() => {
+    return !erasExposure.data || !erasPoints.data || !erasRewards.data || !erasPrefs.data;
+  }, [erasExposure.data, erasPoints.data, erasPrefs.data, erasRewards.data]);
+
+  const erasPerYear = useMemo(
+    () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)),
+    [epochDuration, expectedBlockTime, sessionsPerEra]
+  );
+
+  // If the era changes or if data is missing, or any data is fetching set `fetchQueries` to true to trigger fetching all data.
   useEffect(() => {
-    // If the API is not connected or we haven't the required data return.
-    if (!erasExposure.data || !erasPoints.data || !erasRewards.data || !erasPrefs.data) return;
+    if (!activeEra) return;
 
-    // Show mini spinner while data is refreshing. Only displays when there is chart data.
-    // If there is no chart data chart first renders with old sata while fetching is happening.
-    if (chartData && dataIsFetching) {
-      setShowMiniSpinner(true);
+    if (previousEra !== activeEra || dataMissing || dataIsFetching) {
+      if (mountedRef.current) {
+        setFetchQueries(true);
+        setPreviousEra(activeEra);
+      }
       return;
     }
+
+    if (mountedRef.current) {
+      setFetchQueries(false);
+      return;
+    }
+  }, [activeEra, dataIsFetching, dataMissing, previousEra]);
+
+  useEffect(() => {
+    // If data is fetching or we don't have required data return.
+    if (dataIsFetching || dataMissing) return;
 
     async function getAprByOperatorData() {
       let labels: string[] = [];
@@ -111,6 +113,8 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
       const allErasRewards = erasRewards.data!;
       // Read all commission preferences
       const allErasPrefs = erasPrefs.data!;
+
+      // console.log(erasStakingData);
 
       // use points and rewards with totals to calculate APRs
       allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
@@ -136,13 +140,23 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
             if (!!eraExposure) {
               const totalAssigned = eraExposure.validators[id].total;
               // commission is scaled by 1 billion
-              const afterCommission = BN_BILLION.sub(allErasPrefs[index].validators[id].commission.toBn());
+              let afterCommission;
+              if (allErasPrefs[index].operators[id]) {
+                afterCommission = BN_BILLION.sub(allErasPrefs[index].operators[id].commission.toBn());
+              } else {
+                afterCommission = BN_ZERO;
+              }
 
               // const afterCommission = BN_BILLION.sub(allErasPrefs[index].validators[id].commission.toBn());
               afterCommissionSum = afterCommissionSum.add(afterCommission);
               aprDatasets[id][index] =
-                new BN(365 * 100).mul(allErasRewards[index].eraReward).mul(points).mul(afterCommission).div(eraPoints.mul(BN_BILLION)).toNumber() /
-                totalAssigned.toNumber();
+                erasPerYear
+                  .mul(BN_HUNDRED)
+                  .mul(allErasRewards[index].eraReward)
+                  .mul(points)
+                  .mul(afterCommission)
+                  .div(eraPoints.mul(BN_BILLION))
+                  .toNumber() / totalAssigned.toNumber();
               sumOfTotals = sumOfTotals.add(totalAssigned.toBn());
             }
           });
@@ -150,8 +164,12 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
           const averageCommission = afterCommissionSum.div(numberOfOperators);
           let averageTotal = sumOfTotals.div(numberOfOperators);
           averageApr[index] =
-            new BN(365 * 100).mul(allErasRewards[index].eraReward).mul(averageCommission).div(numberOfOperators.mul(BN_BILLION)).toNumber() /
-            averageTotal.toNumber();
+            erasPerYear
+              .mul(BN_HUNDRED)
+              .mul(allErasRewards[index].eraReward)
+              .mul(averageCommission)
+              .div(numberOfOperators.mul(BN_BILLION))
+              .toNumber() / averageTotal.toNumber();
         }
       });
 
@@ -172,8 +190,8 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(aprDatasets).forEach(([operator, apr], index) => {
-        let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(aprDatasets).length - 1)));
-        color.opacity = 0.75;
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(aprDatasets).length - 1)));
+        color.opacity = 0.5;
         if (highlight?.includes(operator)) {
           aprChartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
@@ -182,9 +200,13 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
             backgroundColor: color,
             borderWidth: 2,
             pointRadius: 2,
+            stepped: false,
+            tension: 0.0,
+            // hoverBorderColor: 'black',
+            // hoverBackgroundColor: 'black',
           });
         } else {
-          color.opacity = 0.15;
+          color.opacity = 0.2;
           aprChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: apr,
@@ -192,11 +214,13 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
             backgroundColor: color,
             borderWidth: 2,
             pointRadius: 2,
+            stepped: false,
+            tension: 0.0,
+            // hoverBorderColor: 'black',
+            // hoverBackgroundColor: 'black',
           });
         }
       });
-
-      setShowMiniSpinner(false);
 
       // Before setting the chart data ensure the component is still mounted
       // and only update if the chart data has changed..
@@ -207,17 +231,17 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight }: IProps) => {
     }
 
     getAprByOperatorData();
-  }, [chartData, dataIsFetching, erasExposure, erasPoints, erasPrefs, erasRewards, highlight]);
+  }, [chartData, dataIsFetching, dataMissing, erasExposure.data, erasPerYear, erasPoints.data, erasPrefs.data, erasRewards.data, highlight]);
 
   return (
     <div className='LineChart'>
-      {chartData ? (
+      {chartData && chartOptions ? (
         <>
           <Line ref={chartRef} options={chartOptions} data={chartData} />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
-          {showMiniSpinner ? <MiniSpinner /> : <></>}
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

@@ -6,6 +6,7 @@ import { InjectedAccount, InjectedExtension } from '@polkadot/extension-inject/t
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
 import { useQueryClient } from 'react-query';
+import type { u32 } from '@polkadot/types';
 
 export const SdkContext = createContext({} as unknown as SdkProps);
 export const SdkContextProvider = SdkContext.Provider;
@@ -17,7 +18,7 @@ interface Props {
 
 /**
  * Retrieves various chain specific data.
- * @param api Polkadot API instance
+ * @param api Polymesh(Polkadot) API instance
  * @returns Chain Data
  */
 const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
@@ -28,6 +29,7 @@ const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
     api.rpc.system.chainType(),
     api.genesisHash,
   ]);
+
   return {
     systemChain: (systemChain || '<unknown>').toString(),
     systemVersion: systemVersion.toString(),
@@ -37,6 +39,10 @@ const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
     ss58Format: api.registry.chainSS58,
     systemName: systemName.toString(),
     genesisHash: genesisHash.toString(),
+    epochDuration: api.consts.babe.epochDuration,
+    expectedBlockTime: api.consts.babe.expectedBlockTime,
+    sessionsPerEra: api.consts.staking.sessionsPerEra,
+    electionLookahead: api.consts.staking.electionLookahead as u32,
   };
 };
 
@@ -90,12 +96,10 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
       console.log('wallet:', wallet);
 
       // Get and set the selected network from the wallet extension.
-      // TODO: Fix types for polywallet (extends InjectedExtension with network and uid).
       const selectedNetwork = await wallet.network.get();
       setNetwork(selectedNetwork);
       console.log('selected network:', selectedNetwork);
 
-      // TODO Fix types for polywallet (extends InjectedExtension with network and uid).
       wallet.network.subscribe((network) => {
         setNetwork(network);
         console.log('network changed to:', network);
@@ -136,14 +140,12 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
       setApi(polymeshSdk._polkadotApi);
       setLoadingStep('Connected');
       console.log('SDK CONNECTED');
+      console.log('sdk', polymeshSdk);
       console.log('api', polymeshSdk._polkadotApi);
 
       const chainInfo = await retrieveChainData(polymeshSdk._polkadotApi);
       setChainData(chainInfo);
-      console.log('Chain Data:', chainInfo);
-
-      // const noms = await polymeshSdk._polkadotApi.query.staking.nominators('2CaMn5Lj2LhkoV1nkLGginXU77TNaJnpHPuExiCmGSRDuygc');
-      // const noms2 = await api1.query.staking.nominators('2CaMn5Lj2LhkoV1nkLGginXU77TNaJnpHPuExiCmGSRDuygc');
+      console.log('Chain Data:', JSON.stringify(chainInfo, null, 2));
     }
 
     connect();
@@ -169,30 +171,18 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
     return changeAddressFormat(walletAccounts[0].address, chainData.ss58Format);
   }, [chainData?.ss58Format, walletAccounts]);
 
-  // useEffect(()=>{
-  //   if (!api || !sdk) return
-  //   const foo = async () => {
-
-  //     const noms = await api.query.staking.nominators()
-  //     const alsoNoms = await sdk._polkadotApi.query.staking.nominators()
-  //     const alsoNoms1 = await api1.query.staking.nominators()
-  //     console.log(noms);
-
-  //   }
-  //   foo()
-  // })
   /* Test transaction*/
   /* TO BE REMOVED once setting a keyring key and pair is not mandatory in the SDK for api transaxtions*/
   // useEffect(() => {
-  //   if (!sdk?.context || !encodedSelectedAddress || !sdk?._polkadotApi) return;
+  //   if (/* !sdk?.context || */ !encodedSelectedAddress || !sdk?._polkadotApi) return;
   //   ////////////////////////////////////////////////////////
   //   // TODO: REMOVE ONCE BUG REQUIRING KEYRING
   //   // Add a account to the sdk keyring. if not done we get "Error: The address is not present in the keyring set"
   //   // when trying to setPair
-  //   sdk.context.keyring.addFromAddress(encodedSelectedAddress);
+  //   // sdk.context.keyring.addFromAddress(encodedSelectedAddress);
   //   // Set signing address if not set we get "Error: Cannot perform transactions without an active account"
 
-  //   sdk.context.setPair(encodedSelectedAddress);
+  //   // sdk.context.setPair(encodedSelectedAddress);
   //   ///////////////////////////////////////////////////////
 
   //   // TEST TRANSACTION TO BE DELETED
@@ -208,7 +198,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   //     .catch((error: any) => {
   //       console.log(':( transaction failed', error);
   //     });
-  // }, [encodedSelectedAddress, sdk?._polkadotApi, sdk?.context]);
+  // }, [encodedSelectedAddress, sdk?._polkadotApi /* sdk?.context */]);
 
   if (!sdk || !api || !network || !chainData) {
     return (

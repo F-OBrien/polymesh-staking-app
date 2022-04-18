@@ -1,22 +1,26 @@
-import { useRef, useEffect, useState } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner from '../Spinner';
-import { defaultChartZoomOptions, operatorsNames } from '../../constants/constants';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import * as d3 from 'd3';
 import { EraIndex } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
-import { useSdk } from '../../hooks/useSdk';
-import { useErasExposure } from '../../hooks/StakingQueries';
+import { useSdk } from '../../../hooks/useSdk';
+import { useErasExposure } from '../../../hooks/StakingQueries';
+import { EraInfo } from '../../../pages/operator-charts';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
 interface IProps {
-  highlight?: string[] | undefined;
+  highlight?: string[];
+  activeEra?: EraIndex;
+  currentEra?: EraIndex;
+  eraInfo: EraInfo;
 }
 
-const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
+const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, currentEra } }: IProps) => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -28,8 +32,8 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
   }, []);
 
   const { api } = useSdk();
-  const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+
   const erasExposure = useErasExposure({ enabled: false });
   const {
     chainData: { tokenDecimals, tokenSymbol },
@@ -42,31 +46,25 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
     chartRef.current?.resetZoom();
   };
 
-  const chartOptions = {
-    responsive: true,
-    scales: {
-      x: { title: { display: true, text: 'Era' } },
-      y: { title: { display: true, text: `Amount [${tokenSymbol}]` } },
-    },
-    plugins: {
-      title: {
-        display: true,
-        text: `Total ${tokenSymbol} Assigned to Operators per Era`,
-        font: { size: 20 },
-      },
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          usePointStyle: true,
-          pointStyle: 'line',
-        },
-      },
-      zoom: defaultChartZoomOptions,
-    },
-  };
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = `Amount [${tokenSymbol}]`;
+    options.plugins.title.text = `Total ${tokenSymbol} Assigned to Operators per Era`;
+
+    return options;
+  }, [tokenSymbol]);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
 
   useEffect(() => {
-    if (!erasExposure.data || !divisor) {
+    if (!erasExposure.data || !divisor || !activeEra || !currentEra) {
       return;
     }
     // setChartData(undefined);
@@ -76,32 +74,32 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
       let totalsDatasets: { [key: string]: number[] } = {};
       let totalsChartData: { datasets: any; labels: string[] };
       let averageTotal: number[] = [];
-      let activeEraIndex: EraIndex;
+      // let activeEra: EraIndex;
 
       // Read all era exposure (totals staked)
       let allErasExposure = erasExposure.data;
-      const currentEra = await api?.query.staking.currentEra();
-      const activeEraInfo = await api?.query.staking.activeEra();
+      // const currentEra = await api?.query.staking.currentEra();
+      // const activeEraInfo = await api?.query.staking.activeEra();
       // Type is Option<ActiveEraInfo>, so we have to check if the value actually exists
-      if (activeEraInfo?.isSome) {
-        activeEraIndex = activeEraInfo.unwrap().index;
+      // if (activeEraInfo?.isSome) {
+      //   activeEra = activeEraInfo.unwrap().index;
 
-        if (activeEraIndex > allErasExposure![allErasExposure!.length - 1].era) {
-          const activeEraExposure = await api?.derive.staking.eraExposure(activeEraIndex);
-          allErasExposure?.push(activeEraExposure!);
-        }
+      if (activeEra! > allErasExposure![allErasExposure!.length - 1].era) {
+        const activeEraExposure = await api?.derive.staking.eraExposure(activeEra!);
+        allErasExposure?.push(activeEraExposure!);
       }
+      // }
       // Type is Option<EraIndex>, so we have to check if the value actually exists
-      if (currentEra?.isSome) {
-        const era = currentEra.unwrap();
-        // if next era is already planned get its info.
+      // if (currentEra?.isSome) {
+      //   const era = currentEra.unwrap();
+      // if next era is already planned get its info.
 
-        if (era > allErasExposure![allErasExposure!.length - 1].era) {
-          const plannedEra = await api?.derive.staking.eraExposure(era);
-          allErasExposure?.push(plannedEra!);
-          allErasExposure?.shift();
-        }
+      if (currentEra! > allErasExposure![allErasExposure!.length - 1].era) {
+        const plannedEra = await api?.derive.staking.eraExposure(currentEra!);
+        allErasExposure?.push(plannedEra!);
+        allErasExposure?.shift();
       }
+      // }
 
       allErasExposure?.forEach(({ era, validators }, index) => {
         labels[index] = era.toString();
@@ -135,7 +133,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(totalsDatasets).forEach(([operator, total], index) => {
-        let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(totalsDatasets).length - 1)));
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(totalsDatasets).length - 1)));
         color.opacity = 0.9;
         if (highlight?.includes(operator)) {
           totalsChartData.datasets.unshift({
@@ -148,7 +146,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.1;
+          color.opacity = 0.2;
           totalsChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: total,
@@ -168,7 +166,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
     }
 
     getTotalsStakedByOperatorData();
-  }, [api, divisor, erasExposure.data, highlight]);
+  }, [activeEra, api, currentEra, divisor, erasExposure.data, highlight]);
 
   return (
     <div className='LineChart'>
@@ -178,6 +176,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

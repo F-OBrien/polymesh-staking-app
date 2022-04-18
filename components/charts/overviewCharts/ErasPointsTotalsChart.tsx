@@ -1,31 +1,12 @@
-import { useRef, useEffect, useState } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
-import Spinner from '../Spinner';
-import { defaultChartZoomOptions } from '../../constants/constants';
-import { useErasPoints } from '../../hooks/StakingQueries';
+import Spinner, { MiniSpinner } from '../../Spinner';
+import { defaultChartOptions } from '../../../constants/constants';
+import { useErasPoints } from '../../../hooks/StakingQueries';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
-
-let chartOptions = {
-  responsive: true,
-  scales: {
-    x: { title: { display: true, text: 'Era' } },
-    y: { title: { display: true, text: 'Points' } },
-  },
-  plugins: {
-    title: { display: true, text: 'Total Points per Era', font: { size: 20 } },
-    legend: {
-      position: 'bottom' as const,
-      labels: {
-        usePointStyle: true,
-        pointStyle: 'line',
-      },
-    },
-    zoom: defaultChartZoomOptions,
-  },
-};
 
 const ErasPointsTotalsChart = () => {
   // Define reference for tracking mounted state
@@ -38,15 +19,32 @@ const ErasPointsTotalsChart = () => {
     };
   }, []);
 
-  const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
-  const erasPoints = useErasPoints({ enabled: false });
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+
+  const erasPoints = useErasPoints({ enabled: true });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
   };
+
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = 'Points';
+    options.plugins.title.text = 'Total Points per Era';
+
+    return options;
+  }, []);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
 
   useEffect(() => {
     if (!erasPoints.data) {
@@ -103,6 +101,7 @@ const ErasPointsTotalsChart = () => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

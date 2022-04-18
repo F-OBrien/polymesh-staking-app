@@ -13,6 +13,7 @@ export const useErasExposure = (
     'ERAS_EXPOSURE',
     async () => {
       const erasExposure = await api?.derive.staking.erasExposure();
+      // console.log('test', erasExposure);
       return erasExposure;
     },
     queryOptions
@@ -47,20 +48,20 @@ export const useErasRewards = (
   );
 };
 
-export const useErasPrefs = (
-  queryOptions?:
-    | Omit<UseQueryOptions<DeriveEraPrefs[] | undefined, unknown, DeriveEraPrefs[] | undefined, 'ERAS_PREFS'>, 'queryKey' | 'queryFn'>
-    | undefined
-) => {
-  const { api } = useSdk();
-  return useQuery(
-    'ERAS_PREFS',
-    async () => {
-      return await api?.derive.staking.erasPrefs();
-    },
-    queryOptions
-  );
-};
+// export const useErasPrefs = (
+//   queryOptions?:
+//     | Omit<UseQueryOptions<DeriveEraPrefs[] | undefined, unknown, DeriveEraPrefs[] | undefined, 'ERAS_PREFS'>, 'queryKey' | 'queryFn'>
+//     | undefined
+// ) => {
+//   const { api } = useSdk();
+//   return useQuery(
+//     'ERAS_PREFS',
+//     async () => {
+//       return await api?.derive.staking.erasPrefs();
+//     },
+//     queryOptions
+//   );
+// };
 
 export const useErasTotalStake = (
   queryOptions?:

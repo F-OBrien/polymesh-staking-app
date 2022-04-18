@@ -1,21 +1,15 @@
 import { useSdk } from '../../hooks/useSdk';
-import { useEffect, useState } from 'react';
-import {
-  ErasAverageAprChart,
-  ErasOperatorsPercentOfPointsChart,
-  ErasOperatorsRewardsChart,
-  ErasOperatorsCommissionChart,
-  ErasOperatorsPointsChart,
-  ErasOperatorsTotalStakedChart,
-  ErasPointsTotalsChart,
-  ErasRewardsTotalsChart,
-  ErasTotalsStakedChart,
-  ErasOperatorsAprIncCommissionChart,
-  ErasOperatorsAprChart,
-} from '../../components/chartsNoSSR';
+import { ErasAverageAprChart, ErasPointsTotalsChart, ErasRewardsTotalsChart, ErasTotalsStakedChart } from '../../components/chartsNoSSR';
+import { useEffect, useRef, useState } from 'react';
 import { EraIndex } from '@polkadot/types/interfaces';
 
-const operatorsToHighlight: string[] | undefined = [
+export interface EraInfo {
+  activeEra?: EraIndex;
+  currentEra?: EraIndex;
+  historyDepth?: number;
+}
+
+/* const operatorsToHighlight: string[] | undefined = [
   // '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H', //B89 (2D9Cs..)',
   // '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh', //Bloxxon (2DJrn..)',
   // '2FQ1RRJiUm4BXeZyMFLdtnVLTPxJ8qKfut3G29GhkwrKJsgy', //CM Equity 1 (2FQ1R..)',
@@ -46,41 +40,41 @@ const operatorsToHighlight: string[] | undefined = [
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz', //Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV', //Tokenise 2 (2Hkhr..)',
 ];
+ */
+function App() {
+  const { api, encodedSelectedAddress } = useSdk();
+  const [activeEra, setActiveEra] = useState<EraIndex>();
+  const [currentEra, setCurrentEra] = useState<EraIndex>();
+  const [historyDepth, setHistoryDepth] = useState<number>();
+  const [eraInfo, setEraInfo] = useState<EraInfo>({});
 
-const Page3 = () => {
-  const { api } = useSdk();
-  const [activeEraIndex, setActiveEraIndex] = useState<EraIndex>();
-  const [currentEraIndex, setCurrentEraIndex] = useState<EraIndex>();
+  // Define reference for tracking mounted state.
+  const mountedRef = useRef(false);
+  // Effect for tracking mounted state.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
+  // Effect to subscribe to active and current Eras.
   useEffect(() => {
     if (!api) return;
     let isSubscribed = true;
     const Subscriptions = async () => {
       // Retrieve the active era and era start time via subscription
-      const unsubActiveEra = await api?.query.staking.activeEra((eraInfo) => {
+      const unsubActiveEra = await api?.query.staking.activeEra((activeEraInfo) => {
         if (!isSubscribed || !api.isConnected) unsubActiveEra!();
-        if (eraInfo.isSome) {
-          setActiveEraIndex(eraInfo.unwrap().index);
+        if (activeEraInfo.isSome) {
+          setActiveEra(activeEraInfo.unwrap().index);
         }
       });
       // Retrieve the current era via subscription
       const unsubCurrentEra = await api?.query.staking.currentEra((current) => {
         if (!isSubscribed || !api.isConnected) unsubCurrentEra!();
-        if (current.isSome) {
-          setCurrentEraIndex(current.unwrap());
-        }
+        setCurrentEra(current.unwrapOrDefault());
       });
-      //   // Retrieve the block number via subscription
-      //   const unsubBlock = await api?.query.system.number((block) => {
-      //     if (!isSubscribed || !api.isConnected) unsubBlock!();
-      //     console.log('Block Number', block.toNumber());
-      //   });
-      //   // Retrieve the current timestamp via subscription
-      //   const unsubTimestamp = await api?.query.timestamp.now((moment) => {
-      //     if (!isSubscribed || !api.isConnected) unsubTimestamp!();
-      //     console.log(`The last block has a timestamp of ${new Date(moment.toNumber())}`);
-      //   });
-      //   return;
     };
     Subscriptions();
     return () => {
@@ -88,21 +82,26 @@ const Page3 = () => {
     };
   }, [api]);
 
+  useEffect(() => {
+    const getHistoryDepth = async () => {
+      setHistoryDepth((await api.query.staking.historyDepth()).toNumber());
+    };
+
+    getHistoryDepth();
+  }, [api.query.staking]);
+
+  useEffect(() => {
+    setEraInfo({ activeEra, currentEra, historyDepth });
+  }, [activeEra, currentEra, historyDepth]);
+
   return (
     <div className='App'>
-      <ErasOperatorsAprIncCommissionChart highlight={operatorsToHighlight} />
-      <ErasOperatorsAprChart highlight={operatorsToHighlight} />
-      <ErasOperatorsTotalStakedChart highlight={operatorsToHighlight} activeEraIndex={activeEraIndex} currentEraIndex={currentEraIndex} />
-      <ErasOperatorsPointsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsPercentOfPointsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsRewardsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsCommissionChart highlight={operatorsToHighlight} />
+      <ErasAverageAprChart />
       <ErasTotalsStakedChart />
       <ErasPointsTotalsChart />
       <ErasRewardsTotalsChart />
-      <ErasAverageAprChart />
     </div>
   );
-};
+}
 
-export default Page3;
+export default App;

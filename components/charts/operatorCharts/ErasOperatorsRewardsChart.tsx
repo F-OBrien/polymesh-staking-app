@@ -1,13 +1,13 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import * as d3 from 'd3';
-import { defaultChartZoomOptions, operatorsNames } from '../../constants/constants';
-import Spinner from '../Spinner';
+import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
+import Spinner, { MiniSpinner } from '../../Spinner';
 import BN from 'bn.js';
-import { useErasPoints, useErasRewards } from '../../hooks/StakingQueries';
-import { useSdk } from '../../hooks/useSdk';
+import { useErasPoints, useErasRewards } from '../../../hooks/StakingQueries';
+import { useSdk } from '../../../hooks/useSdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -27,7 +27,6 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
   }, []);
 
   const [chartData, setChartData] = useState<any>();
-  const [showMiniSpinner, setShowMiniSpinner] = useState<boolean>(false);
   const erasRewards = useErasRewards({ enabled: false });
   const erasPoints = useErasPoints({ enabled: false });
   const {
@@ -41,28 +40,22 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
     chartRef.current?.resetZoom();
   };
 
-  const chartOptions = {
-    responsive: true,
-    scales: {
-      x: { title: { display: true, text: 'Era' } },
-      y: { title: { display: true, text: `Reward [${tokenSymbol}]` } },
-    },
-    plugins: {
-      title: {
-        display: true,
-        text: `${tokenSymbol} Rewards per Era by Operator`,
-        font: { size: 20 },
-      },
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          usePointStyle: true,
-          pointStyle: 'line',
-        },
-      },
-      zoom: defaultChartZoomOptions,
-    },
-  };
+  const chartOptions = useMemo(() => {
+    // Make a copy of the default options.
+    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    const options = structuredClone(defaultChartOptions);
+    // Override defaults with chart specific options.
+    options.scales.x.title.text = 'Era';
+    options.scales.y.title.text = `Reward [${tokenSymbol}]`;
+    options.plugins.title.text = `${tokenSymbol} Rewards per Era by Operator`;
+
+    return options;
+  }, [tokenSymbol]);
+
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return false;
+  }, []);
 
   useEffect(() => {
     if (!erasRewards.data || !erasPoints.data || !divisor) {
@@ -118,7 +111,8 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(rewardDatasets).forEach(([operator, reward], index) => {
-        let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(rewardDatasets).length - 1)));
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(rewardDatasets).length - 1)));
+        color.opacity = 0.9;
         if (highlight?.includes(operator)) {
           chartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
@@ -130,7 +124,7 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.1;
+          color.opacity = 0.2;
           chartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: reward,
@@ -161,6 +155,7 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>
