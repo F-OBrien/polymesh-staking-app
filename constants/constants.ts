@@ -29,6 +29,7 @@ export const operatorsNames: Record<string, string> = {
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2EzwX3nVVysJwvZ8NeZojCJ9xsprE4mr3989mWiWKsdSki3b': 'Oasis Pro Markets 1 (2EzwX..)',
   '2DVrQgBLdRyvLvC13dXMBc7yEMAMDzGNSG2ZKYunmiyvJPUN': 'Oasis Pro Markets 2 (2DVrQ..)',
+  '2EgBuMoRWbqNimZF3bv3aMmDAAna5F6jTm7hWNmFQwXhZcEB': 'Oasis Pro Markets 3 (2EgBu..)',
   '2F5eK4mfXfMRYmfYAsvqnakTDVn7CciBKtmY3b5yA5vJbjkK': 'Polymesh Association 1 (2F5eK..)',
   '2G2aYVLGrtVJabA1wjkg2NvmWpLyWHASKh8s9SGpUQoUTZtx': 'Polymesh Association 2 (2G2aY..)',
   '2GrcoMQBMUgi2tN7YGALGniA14tdc2sZutUVa6uETDtGcqVY': 'Polymesh Association 3 (2Grco..)',
