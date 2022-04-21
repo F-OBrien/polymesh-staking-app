@@ -85,3 +85,10 @@ export const ErasOperatorsAprIncCommissionChart = dynamic(
   },
   { ssr: false }
 );
+
+export const OperatorsTokensNominated = dynamic(
+  () => {
+    return import('./charts/operatorCharts/OperatorsTokensNominated');
+  },
+  { ssr: false }
+);
