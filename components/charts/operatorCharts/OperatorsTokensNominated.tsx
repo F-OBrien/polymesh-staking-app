@@ -68,7 +68,7 @@ const OperatorsTokensNominated = () => {
     };
 
     return options;
-  }, []);
+  }, [tokenSymbol]);
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
@@ -170,75 +170,10 @@ const OperatorsTokensNominated = () => {
         setChartData(nominatedChartData);
       }
 
-      // console.log(nominated);
-
-      // allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
-      //   if (eraPoints.toNumber()) {
-      //     averagePoints[index] = eraPoints.toNumber() / Object.keys(validators).length;
-      //     // Build array of x-axis lables with eras.
-      //     labels[index] = era.toString();
-
-      //     // build array of points for each validator
-      //     Object.entries(validators).forEach(([id, points]) => {
-      //       if (!pointsDatasets[id]) {
-      //         pointsDatasets[id] = new Array(84).fill(0);
-      //       }
-      //       pointsDatasets[id][index] = points.toNumber();
-      //     });
-      //   }
-      // });
-
-      // pointsChartData = {
-      //   labels,
-      //   datasets: [
-      //     {
-      //       label: 'Average',
-      //       data: averagePoints,
-      //       borderColor: 'rgb(200,0,0)',
-      //       backgroundColor: 'rgba(200,0,0,0.5)',
-      //       borderWidth: 2,
-      //       borderDash: [3, 5],
-      //       pointRadius: 2,
-      //       yAxisID: 'y',
-      //     },
-      //   ],
-      // };
-
-      // Object.entries(pointsDatasets).forEach(([operator, points], index) => {
-      //   let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(pointsDatasets).length - 1)));
-      //   if (highlight?.includes(operator)) {
-      //     color.opacity = 0.9;
-      //     pointsChartData.datasets.unshift({
-      //       label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-      //       data: points,
-      //       borderColor: color,
-      //       backgroundColor: color,
-      //       borderWidth: 2,
-      //       pointRadius: 2,
-      //       yAxisID: 'y',
-      //     });
-      //   } else {
-      //     color.opacity = 0.2;
-      //     pointsChartData.datasets.push({
-      //       label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-      //       data: points,
-      //       borderColor: color,
-      //       backgroundColor: color,
-      //       borderWidth: 2,
-      //       pointRadius: 2,
-      //       yAxisID: 'y',
-      //     });
-      //   }
-      // });
-
-      // // Before setting the chart data ensure the component is still mounted
-      // if (mountedRef.current) {
-      //   setChartData(pointsChartData);
-      // }
       return;
     }
     getNominatedTotkens();
-  }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators]);
+  }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators, divisor]);
 
   return (
     <div className='LineChart'>
