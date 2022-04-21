@@ -60,7 +60,7 @@ const OperatorsTokensNominated = () => {
           zoom: {
             wheel: { enabled: true },
             mode: 'y' as const,
-            overScaleMode: 'y' as const,
+            // overScaleMode: 'y' as const,
           },
           limits: { y: { min: 0 } },
         },
@@ -132,7 +132,8 @@ const OperatorsTokensNominated = () => {
               pos = start = mid + 1;
             }
             // Once the end of the search is reached the posiiton should be the final "start"
-            // i.e. if
+            // This ensures the new data is not inserted at a position of mid -1 which would
+            // place it out of order.
             if (start > end) {
               pos = start;
             }
@@ -156,7 +157,7 @@ const OperatorsTokensNominated = () => {
         labels: lables,
         datasets: [
           {
-            label: 'Dataset1',
+            label: 'Nominated',
             data: data,
             backgroundColor: bgcolor,
             borderColor: bdcolor,

@@ -92,3 +92,10 @@ export const OperatorsTokensNominated = dynamic(
   },
   { ssr: false }
 );
+
+export const OperatorsTokensAssigned = dynamic(
+  () => {
+    return import('./charts/operatorCharts/OperatorsTokensAssigned');
+  },
+  { ssr: false }
+);

@@ -191,7 +191,7 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
 
       Object.entries(aprDatasets).forEach(([operator, apr], index) => {
         let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(aprDatasets).length - 1)));
-        color.opacity = 0.5;
+        color.opacity = 0.9;
         if (highlight?.includes(operator)) {
           aprChartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
