@@ -90,7 +90,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
 
     let isSubscribed = true;
 
-    async function getNominatedTotkens() {
+    async function getPoints() {
       let pointsOld: Record<string, number> = {};
 
       // Retrieve era points via subscription
@@ -123,15 +123,15 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
 
             while (start <= end) {
               var mid = start + Math.floor((end - start) / 2);
-              // If the nominated amount is the same as mid position position we can add at the mid +1 posiiton.
+              // If the amount is the same as mid position position we can add at the mid +1 posiiton.
               if (points === data[mid]) {
                 pos = mid + 1;
                 break;
-                // If the nominated amount is greater than the mid position it should be before mid.
+                // If the amount is greater than the mid position it should be before mid.
               } else if (points > data[mid]) {
                 pos = end = mid - 1;
               } else {
-                //  If the nominated amount is less than than the mid position it should be added after it.
+                //  If the amount is less than than the mid position it should be added after it.
                 pos = start = mid + 1;
               }
               // Once the end of the search is reached the posiiton should be the final "start"
@@ -189,7 +189,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
 
       return;
     }
-    getNominatedTotkens();
+    getPoints();
     return () => {
       isSubscribed = false;
     };
