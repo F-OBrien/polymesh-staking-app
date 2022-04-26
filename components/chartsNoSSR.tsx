@@ -99,3 +99,10 @@ export const OperatorsTokensAssigned = dynamic(
   },
   { ssr: false }
 );
+
+export const OperatorsActiveEraPoints = dynamic(
+  () => {
+    return import('./charts/operatorCharts/OperatorsActiveEraPoints');
+  },
+  { ssr: false }
+);

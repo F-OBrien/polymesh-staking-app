@@ -10,6 +10,7 @@ import {
   ErasOperatorsTotalStakedChart,
   OperatorsTokensNominated,
   OperatorsTokensAssigned,
+  OperatorsActiveEraPoints,
 } from '../../components/chartsNoSSR';
 import { useEffect, useRef, useState } from 'react';
 import { EraIndex } from '@polkadot/types/interfaces';
@@ -134,6 +135,7 @@ function App() {
       <ErasOperatorsCommissionChart highlight={operatorsToHighlight} />
       <OperatorsTokensNominated />
       <OperatorsTokensAssigned eraInfo={eraInfo} />
+      <OperatorsActiveEraPoints eraInfo={eraInfo} />
     </div>
   );
 }
