@@ -11,6 +11,14 @@ import { useSdk } from '../../../hooks/useSdk';
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
 
 const OperatorsTokensNominated = () => {
+  const {
+    api,
+    chainData: { tokenDecimals, tokenSymbol },
+  } = useSdk();
+  const divisor = 10 ** tokenDecimals;
+
+  const [chartData, setChartData] = useState<ChartData<'bar'>>();
+
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -20,14 +28,6 @@ const OperatorsTokensNominated = () => {
       mountedRef.current = false;
     };
   }, []);
-
-  const {
-    api,
-    chainData: { tokenDecimals, tokenSymbol },
-  } = useSdk();
-  const divisor = 10 ** tokenDecimals;
-
-  const [chartData, setChartData] = useState<ChartData<'bar'>>();
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -82,6 +82,7 @@ const OperatorsTokensNominated = () => {
       let bgcolor: any[] = [];
       let bdcolor: any[] = [];
 
+      //TODO: consider converting calls to react query calls or subscriptions.
       const nominations = await api?.query.staking.nominators.entries();
       const stakingLedger = await api?.query.staking.ledger.entries();
       const validators = await api?.query.staking.validators.keys();
@@ -120,15 +121,15 @@ const OperatorsTokensNominated = () => {
 
           while (start <= end) {
             var mid = start + Math.floor((end - start) / 2);
-            // If the nominated amount is the same as mid position position we can add at the mid +1 posiiton.
+            // If the amount is the same as mid position position we can add at the mid +1 posiiton.
             if (amountNominated === data[mid]) {
               pos = mid + 1;
               break;
-              // If the nominated amount is greater than the mid position it should be before mid.
+              // If the amount is greater than the mid position it should be before mid.
             } else if (amountNominated > data[mid]) {
               pos = end = mid - 1;
             } else {
-              //  If the nominated amount is less than than the mid position it should be after it mid.
+              //  If the amount is less than than the mid position it should be after it.
               pos = start = mid + 1;
             }
             // Once the end of the search is reached the posiiton should be the final "start"
@@ -142,10 +143,7 @@ const OperatorsTokensNominated = () => {
         }
 
         lables.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
-        // data.splice(pos, 0, nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0);
 
-        // lables[index] = operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString();
-        // data[index] = nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0;
         const color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(validators).length - 1)));
         bdcolor[index] = color;
         const bgCol = { ...color };
