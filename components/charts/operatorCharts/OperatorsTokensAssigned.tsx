@@ -17,6 +17,14 @@ interface IProps {
 }
 
 const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
+  const {
+    api,
+    chainData: { tokenDecimals, tokenSymbol },
+  } = useSdk();
+  const divisor = 10 ** tokenDecimals;
+
+  const [chartData, setChartData] = useState<ChartData<'bar'>>();
+
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -26,14 +34,6 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
       mountedRef.current = false;
     };
   }, []);
-
-  const {
-    api,
-    chainData: { tokenDecimals, tokenSymbol },
-  } = useSdk();
-  const divisor = 10 ** tokenDecimals;
-
-  const [chartData, setChartData] = useState<ChartData<'bar'>>();
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -58,7 +58,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
         },
         title: {
           display: true,
-          text: `Total ${tokenSymbol} Assigned to Operators`,
+          text: `Total ${tokenSymbol} Assigned to Operators (Era ${currentEra?.toNumber()})`,
           font: { size: 20 },
         },
         zoom: {
@@ -74,7 +74,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
     };
 
     return options;
-  }, [tokenSymbol]);
+  }, [currentEra, tokenSymbol]);
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
@@ -82,7 +82,9 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
   }, []);
 
   useEffect(() => {
-    async function getNominatedTotkens() {
+    async function getAssignedTokens() {
+      if (!api?.query.staking.erasStakersClipped || !currentEra || !divisor) return;
+
       let lables: string[] = [];
       let data: number[] = [];
       let bgcolor: any[] = [];
@@ -117,15 +119,15 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
 
             while (start <= end) {
               var mid = start + Math.floor((end - start) / 2);
-              // If the nominated amount is the same as mid position position we can add at the mid +1 posiiton.
+              // If the amount is the same as mid position position we can add at the mid +1 posiiton.
               if (totalAssigned === data[mid]) {
                 pos = mid + 1;
                 break;
-                // If the nominated amount is greater than the mid position it should be before mid.
+                // If the amount is greater than the mid position it should be before mid.
               } else if (totalAssigned > data[mid]) {
                 pos = end = mid - 1;
               } else {
-                //  If the nominated amount is less than than the mid position it should be after it mid.
+                //  If the amount is less than than the mid position it should be after it mid.
                 pos = start = mid + 1;
               }
               // Once the end of the search is reached the posiiton should be the final "start"
@@ -139,23 +141,18 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
           }
 
           lables.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
-          // data.splice(pos, 0, nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0);
 
-          // lables[index] = operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString();
-          // data[index] = nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0;
           const color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(eraStakers).length - 1)));
           bdcolor[index] = color;
-          const bgCol = { ...color };
-          bgCol.opacity = 0.4;
           bgcolor[index] = `rgba(${color.r},${color.g},${color.b},0.5)`;
         }
       );
 
-      const nominatedChartData = {
+      const assignedTokensChartData = {
         labels: lables,
         datasets: [
           {
-            label: 'Nominated',
+            label: 'Assigned',
             data: data,
             backgroundColor: bgcolor,
             borderColor: bdcolor,
@@ -166,20 +163,13 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
 
       // Before setting the chart data ensure the component is still mounted
       if (mountedRef.current) {
-        setChartData(nominatedChartData);
+        setChartData(assignedTokensChartData);
       }
 
       return;
     }
-    getNominatedTotkens();
-  }, [
-    api?.query.staking.erasStakersClipped,
-    api?.query.staking.ledger,
-    api?.query.staking.nominators,
-    api?.query.staking.validators,
-    currentEra,
-    divisor,
-  ]);
+    getAssignedTokens();
+  }, [api?.query.staking.erasStakersClipped, currentEra, divisor]);
 
   return (
     <div className='LineChart'>
