@@ -8,6 +8,7 @@ import { operatorsNames } from '../../../constants/constants';
 import Spinner from '../../Spinner';
 import { useSdk } from '../../../hooks/useSdk';
 import { EraInfo } from '../../../pages/operator-charts';
+import { useEraStakers } from '../../../hooks/stakingPalletHooks/useEraStakers';
 
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -16,8 +17,9 @@ interface IProps {
 }
 
 const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
-  const { api } = useSdk();
+  const { api, encodedSelectedAddress } = useSdk();
   const [chartData, setChartData] = useState<ChartData<'bar'>>();
+  const activeEraStakingData = useEraStakers(activeEra, { staleTime: Infinity });
 
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
@@ -86,7 +88,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
   }, [activeEra]);
 
   useEffect(() => {
-    if (!api?.query.staking || !activeEra) return;
+    if (!api?.query.staking || !activeEra || !activeEraStakingData.data) return;
 
     let isSubscribed = true;
 
@@ -142,11 +144,12 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
             data.splice(pos, 0, points);
           }
 
-          labels.splice(pos, 0, operatorsNames[operator] ? operatorsNames[operator] : operator);
+          labels.splice(pos, 0, operator);
         });
 
         // Assign colors.
         labels.forEach((operator, index) => {
+          const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
           // Green for increase points.
           if (!!pointsOld[operator] && data[index] > pointsOld[operator]) {
             bgcolor[index] = 'green';
@@ -154,16 +157,30 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
           }
           // Blue for decreased points.
           else if (!!pointsOld[operator] && data[index] < pointsOld[operator]) {
-            bgcolor[index] = 'blue';
+            bgcolor[index] = 'red';
             bdcolor[index] = 'black';
           }
           // Otherwise a color from d3 color scale
           else {
-            const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
             bdcolor[index] = color;
-            bgcolor[index] = `rgba(${color.r},${color.g},${color.b},0.5)`;
+            const opacity = 0.5;
+            bgcolor[index] = `rgba(${color.r},${color.g},${color.b},${opacity})`;
+
+            if (encodedSelectedAddress && activeEraStakingData.data?.nominators[encodedSelectedAddress]) {
+              activeEraStakingData.data?.nominators[encodedSelectedAddress].forEach(({ operator: backedOperator }) => {
+                if (operator === backedOperator) {
+                  bdcolor[index] = 'black';
+                  bgcolor[index] = color;
+                }
+              });
+            }
           }
+
           pointsOld[operator] = data[index];
+          // Assign Operator name if available
+          labels[index] = operatorsNames[operator]
+            ? operatorsNames[operator]
+            : operator.slice(0, 5) + '...' + operator.slice(operator.length - 5, operator.length);
         });
 
         const activeEraPointsChartData = {
@@ -191,7 +208,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
     return () => {
       isSubscribed = false;
     };
-  }, [activeEra, api.isConnected, api?.query.staking]);
+  }, [activeEra, activeEraStakingData.data, api.isConnected, api?.query.staking, encodedSelectedAddress]);
 
   return (
     <div className='LineChart'>
