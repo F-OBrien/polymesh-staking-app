@@ -85,7 +85,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
     async function getAssignedTokens() {
       if (!api?.query.staking.erasStakersClipped || !currentEra || !divisor) return;
 
-      let lables: string[] = [];
+      let labels: string[] = [];
       let data: number[] = [];
       let bgcolor: any[] = [];
       let bdcolor: any[] = [];
@@ -140,7 +140,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
             data.splice(pos, 0, totalAssigned);
           }
 
-          lables.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
+          labels.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
 
           const color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(eraStakers).length - 1)));
           bdcolor[index] = color;
@@ -149,7 +149,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
       );
 
       const assignedTokensChartData = {
-        labels: lables,
+        labels: labels,
         datasets: [
           {
             label: 'Assigned',
