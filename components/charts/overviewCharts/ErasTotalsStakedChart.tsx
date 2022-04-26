@@ -53,6 +53,7 @@ const ErasTotalsStakedChart = () => {
     options.scales.x.title.text = 'Era';
     options.scales.y.title.text = `Amount [${tokenSymbol}]`;
     options.plugins.title.text = `Total ${tokenSymbol} Staked per Era`;
+    options.plugins.legend.display = false;
 
     return options;
   }, [tokenSymbol]);

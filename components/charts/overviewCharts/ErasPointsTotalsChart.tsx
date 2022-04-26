@@ -37,6 +37,7 @@ const ErasPointsTotalsChart = () => {
     options.scales.x.title.text = 'Era';
     options.scales.y.title.text = 'Points';
     options.plugins.title.text = 'Total Points per Era';
+    options.plugins.legend.display = false;
 
     return options;
   }, []);
