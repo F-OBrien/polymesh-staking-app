@@ -90,7 +90,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
           // API derive has eras sorted for both erasPoints and eraRewards so ok
           // to use index to populate arrays.
 
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           let sumOfTotals = new BN(0);
 

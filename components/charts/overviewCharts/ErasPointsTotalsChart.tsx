@@ -63,7 +63,7 @@ const ErasPointsTotalsChart = () => {
 
       allErasPoints?.forEach(({ era, eraPoints }, index) => {
         if (eraPoints.toNumber()) {
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           totalPoints[index] = eraPoints.toNumber();
         }

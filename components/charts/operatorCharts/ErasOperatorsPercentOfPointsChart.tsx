@@ -68,7 +68,7 @@ const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
       allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
         if (eraPoints.toNumber()) {
           averagePercent[index] = 100 / Object.keys(validators).length;
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
 
           // build array of percent for each validator

@@ -68,7 +68,7 @@ const ErasRewardsTotalsChart = () => {
 
       allErasRewards?.forEach(({ era, eraReward }, index) => {
         if (eraReward.toNumber()) {
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           rewards[index] = eraReward.toNumber() / divisor!;
         }

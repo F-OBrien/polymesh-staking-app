@@ -72,7 +72,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
       allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
         if (eraPoints.toNumber()) {
           averagePoints[index] = eraPoints.toNumber() / Object.keys(validators).length;
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
 
           // build array of cumulative deviation from average points for each validator

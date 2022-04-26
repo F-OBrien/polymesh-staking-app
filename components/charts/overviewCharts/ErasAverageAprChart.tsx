@@ -102,7 +102,7 @@ const ErasAverageAprChart = () => {
       allErasRewards?.forEach(({ era, eraReward }, index) => {
         // Ensure there is a corresponding Total value for the era.
         if (totals.get(era.toString())) {
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           // Build array of y-axis values
           apr[index] = (100 * erasPerYear * eraReward.toNumber()) / totals.get(era.toString()).toNumber();

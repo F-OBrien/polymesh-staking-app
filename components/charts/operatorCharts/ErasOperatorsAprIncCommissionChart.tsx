@@ -121,7 +121,7 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
         // Check points are available for the era as api.derive functions return an
         // empty data set when current era != active era i.e. last session of an era
         if (eraPoints.toNumber()) {
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           // API derive has eras sorted for both erasPoints and eraRewards so we
           // to use index to populate arrays.
           labels[index] = era.toString();

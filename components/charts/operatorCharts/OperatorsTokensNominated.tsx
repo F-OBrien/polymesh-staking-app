@@ -77,7 +77,7 @@ const OperatorsTokensNominated = () => {
 
   useEffect(() => {
     async function getNominatedTotkens() {
-      let lables: string[] = [];
+      let labels: string[] = [];
       let data: number[] = [];
       let bgcolor: any[] = [];
       let bdcolor: any[] = [];
@@ -142,7 +142,7 @@ const OperatorsTokensNominated = () => {
           data.splice(pos, 0, amountNominated);
         }
 
-        lables.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
+        labels.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
 
         const color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(validators).length - 1)));
         bdcolor[index] = color;
@@ -152,7 +152,7 @@ const OperatorsTokensNominated = () => {
       });
 
       const nominatedChartData = {
-        labels: lables,
+        labels: labels,
         datasets: [
           {
             label: 'Nominated',

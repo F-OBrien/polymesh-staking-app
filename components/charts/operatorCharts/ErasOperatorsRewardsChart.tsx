@@ -79,7 +79,7 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
         // empty data set when current era != active era i.e. last session of an era
         if (eraPoints.toNumber()) {
           averageReward[index] = allErasRewards![index].eraReward?.div(new BN(Object.keys(validators).length)).toNumber() / divisor!;
-          // Build array of x-axis lables with eras.
+          // Build array of x-axis labels with eras.
           labels[index] = era.toString();
 
           // build array of rewards for each validator

@@ -97,7 +97,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
       const unsubActiveEraPoints = await api?.query.staking.erasRewardPoints(activeEra!.toNumber(), (eraPoints) => {
         if (!isSubscribed || !api.isConnected) unsubActiveEraPoints!();
 
-        let lables: string[] = [];
+        let labels: string[] = [];
         let data: number[] = [];
         let bgcolor: any[] = [];
         let bdcolor: any[] = [];
@@ -106,8 +106,6 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
         eraPoints.individual.forEach((rewardPoints, operatorId) => {
           const points = rewardPoints.toNumber();
           const operator = operatorId.toString();
-          // data.push(points);
-          // lables.push(operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
 
           // Sort from highest to Lowest
           // If there is nothing in the array add to first position.
@@ -144,11 +142,11 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
             data.splice(pos, 0, points);
           }
 
-          lables.splice(pos, 0, operatorsNames[operator] ? operatorsNames[operator] : operator);
+          labels.splice(pos, 0, operatorsNames[operator] ? operatorsNames[operator] : operator);
         });
 
         // Assign colors.
-        lables.forEach((operator, index) => {
+        labels.forEach((operator, index) => {
           // Green for increase points.
           if (!!pointsOld[operator] && data[index] > pointsOld[operator]) {
             bgcolor[index] = 'green';
@@ -161,7 +159,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
           }
           // Otherwise a color from d3 color scale
           else {
-            const color = d3.rgb(d3.interpolateSinebow(index / (lables.length - 1)));
+            const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
             bdcolor[index] = color;
             bgcolor[index] = `rgba(${color.r},${color.g},${color.b},0.5)`;
           }
@@ -169,7 +167,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
         });
 
         const activeEraPointsChartData = {
-          labels: lables,
+          labels: labels,
           datasets: [
             {
               label: 'Assigned',

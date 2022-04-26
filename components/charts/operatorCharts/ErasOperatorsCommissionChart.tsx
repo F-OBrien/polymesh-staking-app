@@ -69,7 +69,7 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
 
       allErasPrefs?.forEach(({ era, operators }, index) => {
         let sum = 0;
-        // Build array of x-axis lables with eras.
+        // Build array of x-axis labels with eras.
         labels[index] = era.toString();
 
         // build array of commission for each validator
