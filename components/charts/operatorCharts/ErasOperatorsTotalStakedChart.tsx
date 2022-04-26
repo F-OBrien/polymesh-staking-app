@@ -5,7 +5,6 @@ import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import * as d3 from 'd3';
-import { EraIndex } from '@polkadot/types/interfaces';
 import BN from 'bn.js';
 import { useSdk } from '../../../hooks/useSdk';
 import { useErasExposure } from '../../../hooks/StakingQueries';
@@ -15,8 +14,6 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 interface IProps {
   highlight?: string[];
-  activeEra?: EraIndex;
-  currentEra?: EraIndex;
   eraInfo: EraInfo;
 }
 
