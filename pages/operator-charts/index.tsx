@@ -14,11 +14,12 @@ import {
 } from '../../components/chartsNoSSR';
 import { useEffect, useRef, useState } from 'react';
 import { EraIndex } from '@polkadot/types/interfaces';
+import Spinner from '../../components/Spinner';
 
 export interface EraInfo {
-  activeEra?: EraIndex;
-  currentEra?: EraIndex;
-  historyDepth?: number;
+  activeEra: EraIndex;
+  currentEra: EraIndex;
+  historyDepth: number;
 }
 
 /* const operatorsToHighlight: string[] | undefined = [
@@ -59,7 +60,7 @@ function App() {
   const [activeEra, setActiveEra] = useState<EraIndex>();
   const [currentEra, setCurrentEra] = useState<EraIndex>();
   const [historyDepth, setHistoryDepth] = useState<number>();
-  const [eraInfo, setEraInfo] = useState<EraInfo>({});
+  const [eraInfo, setEraInfo] = useState<EraInfo>();
 
   // Get list of selected accounts nominated operators.
   useEffect(() => {
@@ -120,22 +121,31 @@ function App() {
   }, [api.query.staking]);
 
   useEffect(() => {
+    if (!activeEra || !currentEra || !historyDepth) return;
     setEraInfo({ activeEra, currentEra, historyDepth });
   }, [activeEra, currentEra, historyDepth]);
 
   return (
     <div className='App'>
-      <ErasOperatorsAprIncCommissionChart highlight={operatorsToHighlight} eraInfo={eraInfo} />
-      <ErasOperatorsAprChart highlight={operatorsToHighlight} />
-      <ErasOperatorsTotalStakedChart highlight={operatorsToHighlight} eraInfo={eraInfo} />
-      <ErasOperatorsPointsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsPointDeviationsFromAverageChart highlight={operatorsToHighlight} />
-      <ErasOperatorsPercentOfPointsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsRewardsChart highlight={operatorsToHighlight} />
-      <ErasOperatorsCommissionChart highlight={operatorsToHighlight} />
-      <OperatorsTokensNominated />
-      <OperatorsTokensAssigned eraInfo={eraInfo} />
-      <OperatorsActiveEraPoints eraInfo={eraInfo} />
+      {eraInfo ? (
+        <>
+          <ErasOperatorsAprIncCommissionChart highlight={operatorsToHighlight} eraInfo={eraInfo} />
+          <ErasOperatorsAprChart highlight={operatorsToHighlight} />
+          <ErasOperatorsTotalStakedChart highlight={operatorsToHighlight} eraInfo={eraInfo} />
+          <ErasOperatorsPointsChart highlight={operatorsToHighlight} />
+          <ErasOperatorsPointDeviationsFromAverageChart highlight={operatorsToHighlight} />
+          <ErasOperatorsPercentOfPointsChart highlight={operatorsToHighlight} />
+          <ErasOperatorsRewardsChart highlight={operatorsToHighlight} />
+          <ErasOperatorsCommissionChart highlight={operatorsToHighlight} />
+          <OperatorsTokensNominated />
+          <OperatorsTokensAssigned eraInfo={eraInfo} />
+          <OperatorsActiveEraPoints eraInfo={eraInfo} />
+        </>
+      ) : (
+        <>
+          <Spinner />
+        </>
+      )}
     </div>
   );
 }
