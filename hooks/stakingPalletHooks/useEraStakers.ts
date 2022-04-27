@@ -5,7 +5,6 @@ import { useSdk } from '../useSdk';
 
 export const useEraStakers = (
   era: EraIndex,
-  // historicalEras: EraIndex[],
   queryOptions?: UseQueryOptions<
     { era: EraIndex; operators: Record<string, Exposure>; nominators: Record<string, { operator: string; value: Compact<Balance> }[]> },
     unknown,

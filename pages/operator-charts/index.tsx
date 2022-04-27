@@ -137,7 +137,7 @@ function App() {
           <ErasOperatorsPercentOfPointsChart highlight={operatorsToHighlight} />
           <ErasOperatorsRewardsChart highlight={operatorsToHighlight} />
           <ErasOperatorsCommissionChart highlight={operatorsToHighlight} />
-          <OperatorsTokensNominated />
+          <OperatorsTokensNominated highlight={operatorsToHighlight} />
           <OperatorsTokensAssigned eraInfo={eraInfo} />
           <OperatorsActiveEraPoints eraInfo={eraInfo} />
         </>

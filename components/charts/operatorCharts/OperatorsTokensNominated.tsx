@@ -10,7 +10,11 @@ import { useSdk } from '../../../hooks/useSdk';
 
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
 
-const OperatorsTokensNominated = () => {
+interface IProps {
+  highlight?: string[] | undefined;
+}
+
+const OperatorsTokensNominated = ({ highlight }: IProps) => {
   const {
     api,
     chainData: { tokenDecimals, tokenSymbol },
@@ -105,7 +109,7 @@ const OperatorsTokensNominated = () => {
 
       let pos: number;
 
-      validators.forEach(({ args: operator }, index) => {
+      validators.forEach(({ args: operator }) => {
         const amountNominated = nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0;
         // Sort from highest to Lowest
         // If there is nothing in the array add to first position.
@@ -142,13 +146,27 @@ const OperatorsTokensNominated = () => {
           data.splice(pos, 0, amountNominated);
         }
 
-        labels.splice(pos, 0, operatorsNames[operator.toString()] ? operatorsNames[operator.toString()] : operator.toString());
+        labels.splice(pos, 0, operator.toString());
+      });
 
-        const color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(validators).length - 1)));
+      // Assign colors.
+      labels.forEach((operator, index) => {
+        const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
+        // Otherwise a color from d3 color scale
+
         bdcolor[index] = color;
-        const bgCol = { ...color };
-        bgCol.opacity = 0.4;
-        bgcolor[index] = `rgba(${color.r},${color.g},${color.b},0.5)`;
+        const opacity = 0.5;
+        bgcolor[index] = `rgba(${color.r},${color.g},${color.b},${opacity})`;
+
+        if (highlight?.includes(operator)) {
+          bdcolor[index] = 'black';
+          bgcolor[index] = color;
+        }
+
+        // Assign Operator name if available
+        labels[index] = operatorsNames[operator]
+          ? operatorsNames[operator]
+          : operator.slice(0, 5) + '...' + operator.slice(operator.length - 5, operator.length);
       });
 
       const nominatedChartData = {
@@ -172,7 +190,7 @@ const OperatorsTokensNominated = () => {
       return;
     }
     getNominatedTotkens();
-  }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators, divisor]);
+  }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators, divisor, highlight]);
 
   return (
     <div className='LineChart'>
