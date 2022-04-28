@@ -110,6 +110,11 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
       let pos: number;
 
       validators.forEach(({ args: operator }) => {
+        // Add operator own staked tokens to the total.
+        nominated[operator.toString()] = nominated[operator.toString()]
+          ? nominated[operator.toString()].add(amountStaked[operator.toString()])
+          : amountStaked[operator.toString()];
+
         const amountNominated = nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0;
         // Sort from highest to Lowest
         // If there is nothing in the array add to first position.
