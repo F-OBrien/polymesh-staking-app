@@ -62,22 +62,6 @@ function App() {
   const [historyDepth, setHistoryDepth] = useState<number>();
   const [eraInfo, setEraInfo] = useState<EraInfo>();
 
-  // Get list of selected accounts nominated operators.
-  useEffect(() => {
-    if (!api.query.staking || !encodedSelectedAddress) {
-      setOperatorsToHighlight([]);
-      return;
-    }
-    const getNominations = async () => {
-      const nominations = await api.query.staking.nominators(encodedSelectedAddress);
-      const targets = nominations.unwrapOrDefault().targets.map((target) => {
-        return target.toString();
-      });
-      setOperatorsToHighlight(targets);
-    };
-    getNominations();
-  }, [api.query.staking, encodedSelectedAddress]);
-
   // Define reference for tracking mounted state.
   const mountedRef = useRef(false);
   // Effect for tracking mounted state.
@@ -87,6 +71,29 @@ function App() {
       mountedRef.current = false;
     };
   }, []);
+
+  // Subscribe to list of selected accounts nominated operators.
+  useEffect(() => {
+    if (!api.query.staking || !encodedSelectedAddress) {
+      setOperatorsToHighlight([]);
+      return;
+    }
+    let isSubscribed = true;
+
+    const getNominations = async () => {
+      const unSubNominations = await api.query.staking.nominators(encodedSelectedAddress, (nominations) => {
+        if (!isSubscribed || !api.isConnected) unSubNominations!();
+        const targets = nominations.unwrapOrDefault().targets.map((target) => {
+          return target.toString();
+        });
+        setOperatorsToHighlight(targets);
+      });
+    };
+    getNominations();
+    return () => {
+      isSubscribed = false;
+    };
+  }, [api.isConnected, api.query.staking, encodedSelectedAddress]);
 
   // Effect to subscribe to active and current Eras.
   useEffect(() => {
@@ -102,7 +109,7 @@ function App() {
       });
       // Retrieve the current era via subscription
       const unsubCurrentEra = await api?.query.staking.currentEra((current) => {
-        if (!isSubscribed || !api.isConnected) unsubCurrentEra!();
+        if (!mountedRef.current || !api.isConnected) unsubCurrentEra!();
         setCurrentEra(current.unwrapOrDefault());
       });
     };

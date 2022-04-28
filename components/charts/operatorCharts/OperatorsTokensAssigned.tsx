@@ -78,8 +78,8 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return currentEraStakingData.isFetching;
+  }, [currentEraStakingData.isFetching]);
 
   useEffect(() => {
     async function getAssignedTokens() {

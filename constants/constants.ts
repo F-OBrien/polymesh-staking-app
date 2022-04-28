@@ -7,7 +7,8 @@ export const networkURLs: Record<string, string> = {
 };
 
 export const operatorsNames: Record<string, string> = {
-  '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 (2D9Cs..)',
+  '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
+  '2CU1WcxacoDxdLFRqySMPQ9cNwzUZLnkVZhHYfw3uTQ4spdY': 'B89 2 (2CU1W..)',
   '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Bloxxon (2DJrn..)',
   '2FQ1RRJiUm4BXeZyMFLdtnVLTPxJ8qKfut3G29GhkwrKJsgy': 'CM Equity 1 (2FQ1R..)',
   '2Gr55WYCpsPChyhnfiSyCDYZrUUseaYeKXMLRzEJERnLbc4e': 'CM Equity 2 (2Gr55..)',
@@ -15,7 +16,8 @@ export const operatorsNames: Record<string, string> = {
   '2GXMe4KZkmxM3ZMF142H4FhGb7EfBAiZ27XydYrUhuuEcnBM': 'Crypto Lawyers 1 (2GXMe..)',
   '2GtVwYQqPcUgM4BDSNvdSiKYYMihvRU2s8xVq626jrENBsqh': 'Crypto Lawyers 2 (2GtVw..)',
   '2EoZ98L4C4BrHgD82JmecQHyhEywtZYjerimnNH9RQR87FwR': 'Crypto Lawyers 3 (2EoZ9..)',
-  '2DVuKBimttW6kTtXa7V1wvcHfubLJzHF9tJdh9iHFRbYCtmK': 'DigiVault (2DVuK..)',
+  '2DVuKBimttW6kTtXa7V1wvcHfubLJzHF9tJdh9iHFRbYCtmK': 'DigiVault 1 (2DVuK..)',
+  '2DQNASGzzCMkEUFW3yCQhWoHiK8ENRaEHoYMmURs4hoD1CZg': 'DigiVault 2 (2DQNA..)',
   '2DK6iDQ3fcP9BDtLzPE9DcmTpkMq8JpwE3sLZvPWQnP7SaFf': 'Entoro 1 (2DK6i..)',
   '2G7mLeEVbzRqwvahgYQvR6fNyoT91XMy1oGCHiSCkRM1UcE9': 'Entoro 2 (2G7mL..)',
   '2FarNp4Q3p2vSdCJzF1oHvQmDd7gHrZivzJHj7cecXobixW8': 'Entoro 3 (2FarN..)',
@@ -30,9 +32,9 @@ export const operatorsNames: Record<string, string> = {
   '2EzwX3nVVysJwvZ8NeZojCJ9xsprE4mr3989mWiWKsdSki3b': 'Oasis Pro Markets 1 (2EzwX..)',
   '2DVrQgBLdRyvLvC13dXMBc7yEMAMDzGNSG2ZKYunmiyvJPUN': 'Oasis Pro Markets 2 (2DVrQ..)',
   '2EgBuMoRWbqNimZF3bv3aMmDAAna5F6jTm7hWNmFQwXhZcEB': 'Oasis Pro Markets 3 (2EgBu..)',
-  '2F5eK4mfXfMRYmfYAsvqnakTDVn7CciBKtmY3b5yA5vJbjkK': 'Polymesh Association 1 (2F5eK..)',
-  '2G2aYVLGrtVJabA1wjkg2NvmWpLyWHASKh8s9SGpUQoUTZtx': 'Polymesh Association 2 (2G2aY..)',
-  '2GrcoMQBMUgi2tN7YGALGniA14tdc2sZutUVa6uETDtGcqVY': 'Polymesh Association 3 (2Grco..)',
+  '2F5eK4mfXfMRYmfYAsvqnakTDVn7CciBKtmY3b5yA5vJbjkK': 'Polymesh Assoc. 1 (2F5eK..)',
+  '2G2aYVLGrtVJabA1wjkg2NvmWpLyWHASKh8s9SGpUQoUTZtx': 'Polymesh Assoc. 2 (2G2aY..)',
+  '2GrcoMQBMUgi2tN7YGALGniA14tdc2sZutUVa6uETDtGcqVY': 'Polymesh Assoc. 3 (2Grco..)',
   '2EgLVBj8ysTXntmEA2gB2z9EZPbcFksjKBKpgrd6C2gZoyP5': 'Polymesh Genesis 1 (2EgLV..)',
   '2DbdqnRHR4yWMdsqKcGcySxS42JMRQgHfsaumL8ihrGo1Pe9': 'Polymesh Genesis 2 (2Dbdq..)',
   '2Dajy5DRxQM1ShW1fYwJFGjMacB3WkMvpet1soWoqMHiixco': 'Polymesh Genesis 3 (2Dajy..)',

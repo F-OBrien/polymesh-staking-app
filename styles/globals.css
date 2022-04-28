@@ -14,7 +14,7 @@ a {
   margin: 0 auto;
 }
 nav {
-  margin: 10px auto 80px;
+  margin: 10px auto 10px;
   padding: 10px 0;
   display: flex;
   justify-content: flex-end;
@@ -31,7 +31,7 @@ footer {
   display: block;
   text-align: center;
   padding: 30px 0;
-  margin-top: 60px;
+  margin-top: 0px;
   color: #777;
   border-top: 1px solid #eaeaea;
 }
@@ -39,6 +39,11 @@ footer {
 .App {
   text-align: center;
   background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 20px;
 }
 
 .App-header {
@@ -88,11 +93,12 @@ footer {
   /* width: 300px; */
   margin: auto;
   /* border: 3px solid #4287f5; */
-  box-shadow: rgb(21 41 53 / 10%) 0px 20px 40px;
+  box-shadow: rgb(21 41 53 / 15%) 0px 20px 40px;
   background-color: #ffffff;
-  min-height: 90%;
-  width: 90%;
-  margin-bottom: 40px;
+  min-height: 98%;
+  width: 98%;
+  margin-bottom: 1%;
+  margin-top: 1%;
   display: flex;
   flex-direction: column;
   align-items: center;

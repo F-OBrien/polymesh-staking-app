@@ -155,7 +155,7 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
             bgcolor[index] = 'green';
             bdcolor[index] = 'black';
           }
-          // Blue for decreased points.
+          // Red for decreased points.
           else if (!!pointsOld[operator] && data[index] < pointsOld[operator]) {
             bgcolor[index] = 'red';
             bdcolor[index] = 'black';
