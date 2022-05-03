@@ -82,7 +82,10 @@ function App() {
 
     const getNominations = async () => {
       const unSubNominations = await api.query.staking.nominators(encodedSelectedAddress, (nominations) => {
-        if (!isSubscribed || !api.isConnected) unSubNominations!();
+        if (!isSubscribed || !api.isConnected) {
+          unSubNominations!();
+          return;
+        }
         const targets = nominations.unwrapOrDefault().targets.map((target) => {
           return target.toString();
         });
@@ -102,14 +105,20 @@ function App() {
     const Subscriptions = async () => {
       // Retrieve the active era and era start time via subscription
       const unsubActiveEra = await api?.query.staking.activeEra((activeEraInfo) => {
-        if (!isSubscribed || !api.isConnected) unsubActiveEra!();
+        if (!isSubscribed || !api.isConnected) {
+          unsubActiveEra!();
+          return;
+        }
         if (activeEraInfo.isSome) {
           setActiveEra(activeEraInfo.unwrap().index);
         }
       });
       // Retrieve the current era via subscription
       const unsubCurrentEra = await api?.query.staking.currentEra((current) => {
-        if (!mountedRef.current || !api.isConnected) unsubCurrentEra!();
+        if (!isSubscribed || !api.isConnected) {
+          unsubCurrentEra!();
+          return;
+        }
         setCurrentEra(current.unwrapOrDefault());
       });
     };

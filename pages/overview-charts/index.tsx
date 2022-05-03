@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { EraIndex } from '@polkadot/types/interfaces';
 
 export interface EraInfo {
-  activeEra?: EraIndex;
-  currentEra?: EraIndex;
-  historyDepth?: number;
+  activeEra: EraIndex;
+  currentEra: EraIndex;
+  historyDepth: number;
 }
 
 /* const operatorsToHighlight: string[] | undefined = [
@@ -42,11 +42,11 @@ export interface EraInfo {
 ];
  */
 function App() {
-  const { api, encodedSelectedAddress } = useSdk();
+  const { api } = useSdk();
   const [activeEra, setActiveEra] = useState<EraIndex>();
   const [currentEra, setCurrentEra] = useState<EraIndex>();
   const [historyDepth, setHistoryDepth] = useState<number>();
-  const [eraInfo, setEraInfo] = useState<EraInfo>({});
+  const [eraInfo, setEraInfo] = useState<EraInfo>();
 
   // Define reference for tracking mounted state.
   const mountedRef = useRef(false);
@@ -65,14 +65,20 @@ function App() {
     const Subscriptions = async () => {
       // Retrieve the active era and era start time via subscription
       const unsubActiveEra = await api?.query.staking.activeEra((activeEraInfo) => {
-        if (!isSubscribed || !api.isConnected) unsubActiveEra!();
+        if (!isSubscribed || !api.isConnected) {
+          unsubActiveEra!();
+          return;
+        }
         if (activeEraInfo.isSome) {
           setActiveEra(activeEraInfo.unwrap().index);
         }
       });
       // Retrieve the current era via subscription
       const unsubCurrentEra = await api?.query.staking.currentEra((current) => {
-        if (!isSubscribed || !api.isConnected) unsubCurrentEra!();
+        if (!isSubscribed || !api.isConnected) {
+          unsubCurrentEra!();
+          return;
+        }
         setCurrentEra(current.unwrapOrDefault());
       });
     };
@@ -91,6 +97,7 @@ function App() {
   }, [api.query.staking]);
 
   useEffect(() => {
+    if (!activeEra || !currentEra || !historyDepth) return;
     setEraInfo({ activeEra, currentEra, historyDepth });
   }, [activeEra, currentEra, historyDepth]);
 

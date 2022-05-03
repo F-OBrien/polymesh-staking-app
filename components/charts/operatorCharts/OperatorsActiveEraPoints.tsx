@@ -97,7 +97,10 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
 
       // Retrieve era points via subscription
       const unsubActiveEraPoints = await api?.query.staking.erasRewardPoints(activeEra!.toNumber(), (eraPoints) => {
-        if (!isSubscribed || !api.isConnected) unsubActiveEraPoints!();
+        if (!isSubscribed || !api.isConnected) {
+          unsubActiveEraPoints!();
+          return;
+        }
 
         let labels: string[] = [];
         let data: number[] = [];
