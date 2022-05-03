@@ -9,7 +9,8 @@ export const networkURLs: Record<string, string> = {
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
   '2CU1WcxacoDxdLFRqySMPQ9cNwzUZLnkVZhHYfw3uTQ4spdY': 'B89 2 (2CU1W..)',
-  '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Bloxxon (2DJrn..)',
+  '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Bloxxon 1 (2DJrn..)',
+  '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Bloxxon 2 (2Fb8F..)',
   '2FQ1RRJiUm4BXeZyMFLdtnVLTPxJ8qKfut3G29GhkwrKJsgy': 'CM Equity 1 (2FQ1R..)',
   '2Gr55WYCpsPChyhnfiSyCDYZrUUseaYeKXMLRzEJERnLbc4e': 'CM Equity 2 (2Gr55..)',
   '2GrEHDSx2ud2nHkhA3pqpF316knPRAjCprkezwUuzQ5xf627': 'CM Equity 3 (2GrEH..)',
@@ -27,6 +28,7 @@ export const operatorsNames: Record<string, string> = {
   '2FCyV1aQ9C1nXMQK65KLacQkosGzf2DpqTLVB1LSMkwHTW28': 'Genesis Block 1 (2FCyV..)',
   '2EXypWKU82c1ZFQ92ynNzKWjQmX1ZfnFEcaFoVzPEUhmM72g': 'Genesis Block 2 (2EXyp..)',
   '2FawFuGUJzXtebwxTxwUjTsiwwV63WbK9ckojpPK3WkmwnA2': 'Genesis Block 3 (2FawF..)',
+  '2FjuFr7YNQ6qQPYSLCZrMDEQr284ktW88H8T6p6nmJe2URny': 'Greentrail 1 (2FjuF..)',
   '2EGKNqWLx2VhjgFZ6BwXZ9Tf6jQXzWjW4cNvE2Bd24z85xfq': 'Marketlend 1 (2EGKN..)',
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2EzwX3nVVysJwvZ8NeZojCJ9xsprE4mr3989mWiWKsdSki3b': 'Oasis Pro Markets 1 (2EzwX..)',
@@ -63,6 +65,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0xb56098cc0d320c86785f2162e0028d0e31c7453efbcae44f938a26b2ee478e06': { name: 'Crypto Lawyers', website: 'https://www.crypto-lawyers.ch/' },
   '0xbc06bd9d9450d9f5083eec8490da7131b8b07f19fababecc578dd79d58d85956': { name: 'Bloxxon', website: 'https://www.bloxxon.co/' },
   '0xf820c02c85c98bb9609049ad9f555517d35dd73d04b080aaa481720119a23bb8': { name: 'Scrypt', website: 'https://www.scrypt.swiss/' },
+  '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
   '0x4d42a6a3d3d4977987f2ae50ec49c9f3ce9093cf1f5c0162c49eada21573c9f4': { name: 'Netki', website: 'https://netki.com/' },
