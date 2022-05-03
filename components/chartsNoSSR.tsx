@@ -106,3 +106,10 @@ export const OperatorsActiveEraPoints = dynamic(
   },
   { ssr: false }
 );
+
+export const RewardCurve = dynamic(
+  () => {
+    return import('./charts/overviewCharts/RewardCurve');
+  },
+  { ssr: false }
+);

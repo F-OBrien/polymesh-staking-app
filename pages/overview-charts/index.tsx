@@ -1,7 +1,8 @@
 import { useSdk } from '../../hooks/useSdk';
-import { ErasAverageAprChart, ErasPointsTotalsChart, ErasRewardsTotalsChart, ErasTotalsStakedChart } from '../../components/chartsNoSSR';
+import { ErasAverageAprChart, ErasPointsTotalsChart, ErasRewardsTotalsChart, ErasTotalsStakedChart, RewardCurve } from '../../components/chartsNoSSR';
 import { useEffect, useRef, useState } from 'react';
 import { EraIndex } from '@polkadot/types/interfaces';
+import Spinner from '../../components/Spinner';
 
 export interface EraInfo {
   activeEra: EraIndex;
@@ -103,10 +104,19 @@ function App() {
 
   return (
     <div className='App'>
-      <ErasAverageAprChart />
-      <ErasTotalsStakedChart />
-      <ErasPointsTotalsChart />
-      <ErasRewardsTotalsChart />
+      {eraInfo ? (
+        <>
+          <RewardCurve eraInfo={eraInfo} />
+          <ErasAverageAprChart />
+          <ErasTotalsStakedChart />
+          <ErasPointsTotalsChart />
+          <ErasRewardsTotalsChart />
+        </>
+      ) : (
+        <>
+          <Spinner />
+        </>
+      )}
     </div>
   );
 }
