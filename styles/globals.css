@@ -44,6 +44,7 @@ footer {
   align-items: center;
   position: relative;
   padding: 20px;
+  border-radius: 20px;
 }
 
 .App-header {
@@ -95,6 +96,7 @@ footer {
   /* border: 3px solid #4287f5; */
   box-shadow: rgb(21 41 53 / 15%) 0px 20px 40px;
   background-color: #ffffff;
+  padding: 10px;
   min-height: 98%;
   width: 98%;
   margin-bottom: 1%;
@@ -107,6 +109,7 @@ footer {
   font-size: calc(10px + 1vmin);
   color: black;
   position: relative;
+  border-radius: 15px;
 }
 
 .resetZoomButton {
