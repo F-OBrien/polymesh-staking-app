@@ -170,7 +170,7 @@ const ErasAverageAprChart = () => {
     }
 
     getAverageAprData();
-  }, [api, eraRewards.data, erasPrefs.data]);
+  }, [api, eraRewards.data, erasPerYear, erasPrefs.data]);
 
   return (
     <div className='LineChart'>
