@@ -67,8 +67,6 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
       return;
     }
 
-    // setChartData(undefined);
-
     async function getAprByOperatorData() {
       let labels: string[] = [];
       let aprDatasets: { [key: string]: number[] } = {};

@@ -57,8 +57,6 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
       return;
     }
 
-    // setChartData(undefined);
-
     async function getDeviationsFromAverage() {
       let labels: string[] = [];
       let averageDeviationDatasets: { [key: string]: number[] } = {};
@@ -117,7 +115,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.1;
+          color.opacity = 0.9;
           pointsChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: points,

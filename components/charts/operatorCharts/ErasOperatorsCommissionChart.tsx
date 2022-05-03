@@ -56,8 +56,6 @@ const ErasOperatorsCommissionChart = ({ highlight }: IProps) => {
       return;
     }
 
-    setChartData(undefined);
-
     async function getCommissionChart() {
       let labels: string[] = [];
       let commissionDatasets: { [key: string]: number[] } = {};

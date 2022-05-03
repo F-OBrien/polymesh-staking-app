@@ -57,8 +57,6 @@ const ErasRewardsTotalsChart = () => {
       return;
     }
 
-    setChartData(undefined);
-
     async function getRewardData() {
       let labels: string[] = [];
       let rewardChartData: { datasets: any; labels: string[] };

@@ -58,8 +58,6 @@ const ErasOperatorsPointsChart = ({ highlight }: IProps) => {
       return;
     }
 
-    // setChartData(undefined);
-
     async function getPointsChart() {
       let labels: string[] = [];
       let pointsDatasets: { [key: string]: number[] } = {};

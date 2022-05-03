@@ -52,8 +52,6 @@ const ErasPointsTotalsChart = () => {
       return;
     }
 
-    setChartData(undefined);
-
     async function getPointsChart() {
       let labels: string[] = [];
       let totalPointsChartData: { datasets: any; labels: string[] };

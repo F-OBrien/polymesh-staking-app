@@ -55,8 +55,6 @@ const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
       return;
     }
 
-    // setChartData(undefined);
-
     async function getPercentChart() {
       let labels: string[] = [];
       let pointsPercentDatasets: { [key: string]: number[] } = {};

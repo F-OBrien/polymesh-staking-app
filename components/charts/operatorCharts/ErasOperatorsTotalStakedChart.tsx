@@ -64,7 +64,6 @@ const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, curren
     if (!erasExposure.data || !divisor || !activeEra || !currentEra) {
       return;
     }
-    // setChartData(undefined);
 
     async function getTotalsStakedByOperatorData() {
       let labels: string[] = [];

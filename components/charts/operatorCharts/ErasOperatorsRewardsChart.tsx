@@ -62,8 +62,6 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
       return;
     }
 
-    setChartData(undefined);
-
     async function getRewardsChartData() {
       let labels: string[] = [];
       let rewardDatasets: { [key: string]: number[] } = {};

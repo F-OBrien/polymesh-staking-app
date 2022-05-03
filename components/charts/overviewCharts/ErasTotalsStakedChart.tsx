@@ -68,8 +68,6 @@ const ErasTotalsStakedChart = () => {
       return;
     }
 
-    // setChartData(undefined);
-
     async function getTotalsStakedData() {
       let totalsStakedChartData: { datasets: ChartDataset<'line'>[]; labels: string[] };
       let totals: number[] = [];
