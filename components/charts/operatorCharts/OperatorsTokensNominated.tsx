@@ -21,7 +21,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
 
-  const [chartData, setChartData] = useState<ChartData<'bar'>>();
+  const [chartData, setChartData] = useState<ChartData<'bar' | 'line'>>();
 
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
@@ -47,6 +47,11 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           beginAtZero: true,
           title: { display: true, text: `Amount [${tokenSymbol}]` },
           // type: 'logarithmic' as const,
+        },
+        y1: {
+          beginAtZero: true,
+          title: { display: true, text: `Commission [%]` },
+          position: 'right' as const,
         },
       },
       plugins: {
@@ -83,12 +88,14 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
     async function getNominatedTotkens() {
       let labels: string[] = [];
       let data: number[] = [];
+      let commission: number[] = [];
       let bgcolor: any[] = [];
       let bdcolor: any[] = [];
 
       //TODO: consider converting calls to react query calls or subscriptions.
       const nominations = await api?.query.staking.nominators.entries();
       const stakingLedger = await api?.query.staking.ledger.entries();
+      const validators = await api?.query.staking.validators.entries();
       const validators = await api?.query.staking.validators.keys();
 
       const amountStaked: Record<string, BN> = {};
@@ -100,22 +107,25 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
       });
 
       nominations.forEach(([{ args: nominator }, nominations]) => {
-        nominations.unwrap().targets.forEach((operator) => {
-          nominated[operator.toString()] = nominated[operator.toString()]
-            ? nominated[operator.toString()].add(amountStaked[nominator.toString()])
-            : amountStaked[nominator.toString()];
-        });
+        if (nominations.isSome) {
+          nominations.unwrap().targets.forEach((operator) => {
+            nominated[operator.toString()] = nominated[operator.toString()]
+              ? nominated[operator.toString()].add(amountStaked[nominator.toString()])
+              : amountStaked[nominator.toString()];
+          });
+        }
       });
 
       let pos: number;
 
-      validators.forEach(({ args: operator }) => {
+      validators.forEach(([{ args: operator }, preferences]) => {
         // Add operator own staked tokens to the total.
         nominated[operator.toString()] = nominated[operator.toString()]
           ? nominated[operator.toString()].add(amountStaked[operator.toString()])
           : amountStaked[operator.toString()];
 
         const amountNominated = nominated[operator.toString()] ? nominated[operator.toString()].toNumber() / divisor : 0;
+
         // Sort from highest to Lowest
         // If there is nothing in the array add to first position.
         if (data.length === 0) {
@@ -150,8 +160,10 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           }
           data.splice(pos, 0, amountNominated);
         }
-
+        // Build array of operators
         labels.splice(pos, 0, operator.toString());
+        // Build array of operator commissions, as percent values.
+        commission.splice(pos, 0, preferences.commission.unwrap().toNumber() / 10_000_000);
       });
 
       // Assign colors.
@@ -159,13 +171,13 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
         const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
         // Otherwise a color from d3 color scale
 
-        bdcolor[index] = color;
+        bdcolor[index] = '#EC4673';
         const opacity = 0.5;
-        bgcolor[index] = `rgba(${color.r},${color.g},${color.b},${opacity})`;
+        bgcolor[index] = `#EC467395`;
 
         if (highlight?.includes(operator)) {
-          bdcolor[index] = 'black';
-          bgcolor[index] = color;
+          bdcolor[index] = '#43195B';
+          bgcolor[index] = '#43195B95';
         }
 
         // Assign Operator name if available
@@ -177,6 +189,16 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
       const nominatedChartData = {
         labels: labels,
         datasets: [
+          {
+            type: 'line' as const,
+            label: 'Commission',
+            data: commission,
+            backgroundColor: '#43195B50',
+            borderColor: '#43195B',
+            borderWidth: 2,
+            yAxisID: 'y1',
+          },
+
           {
             label: 'Nominated',
             data: data,
@@ -191,17 +213,28 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
       if (mountedRef.current) {
         setChartData(nominatedChartData);
       }
-
-      return;
     }
     getNominatedTotkens();
   }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators, divisor, highlight]);
+    api?.derive.staking,
+    api?.query.staking.ledger,
+    api?.query.staking.nominators,
+    api?.query.staking.validators,
+    api?.query.system,
+    divisor,
+    highlight,
+  ]);
 
   return (
     <div className='LineChart'>
       {chartData ? (
         <>
-          <Bar ref={chartRef} options={chartOptions} data={chartData} />
+          <Bar
+            ref={chartRef}
+            options={chartOptions}
+            /* @ts-ignore data type complains about mixed chart data*/
+            data={chartData}
+          />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>

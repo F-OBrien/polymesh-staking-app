@@ -115,7 +115,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.9;
+          color.opacity = 0.2;
           pointsChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: points,

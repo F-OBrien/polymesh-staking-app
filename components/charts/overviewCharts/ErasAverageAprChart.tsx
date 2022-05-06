@@ -126,8 +126,8 @@ const ErasAverageAprChart = () => {
           {
             label: 'Average APR',
             data: apr,
-            borderColor: 'rgb(0,0,255)',
-            backgroundColor: 'rgba(0,0,255,0.5)',
+            borderColor: 'rgb(0,128,255)',
+            backgroundColor: 'rgba(0,128,255,0.5)',
             borderWidth: 2,
             pointRadius: 2,
             yAxisID: 'y',
@@ -144,8 +144,8 @@ const ErasAverageAprChart = () => {
           {
             label: 'Average APR inc. Commission',
             data: aprIncCommission,
-            borderColor: 'rgb(0,255,0)',
-            backgroundColor: 'rgba(0,255,0,0.5)',
+            borderColor: 'rgb(0,204,0)',
+            backgroundColor: 'rgba(0,204,0,0.5)',
             borderWidth: 2,
             pointRadius: 2,
             yAxisID: 'y',
@@ -153,8 +153,8 @@ const ErasAverageAprChart = () => {
           {
             label: 'Average APY inc. Commission',
             data: apyIncCommission,
-            borderColor: 'rgb(0,255,255)',
-            backgroundColor: 'rgba(0,255,255,0.5)',
+            borderColor: 'rgb(255,128,0)',
+            backgroundColor: 'rgba(255,128,0,0.5)',
             borderWidth: 2,
             pointRadius: 2,
             yAxisID: 'y',
