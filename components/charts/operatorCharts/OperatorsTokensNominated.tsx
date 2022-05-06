@@ -2,7 +2,6 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Bar } from 'react-chartjs-2';
-import * as d3 from 'd3';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN } from '@polkadot/util';
@@ -14,6 +13,11 @@ interface IProps {
   highlight?: string[] | undefined;
 }
 
+interface NominationData {
+  labels?: string[];
+  amount?: number[];
+  commission?: number[];
+}
 const OperatorsTokensNominated = ({ highlight }: IProps) => {
   const {
     api,
@@ -22,6 +26,8 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
   const divisor = 10 ** tokenDecimals;
 
   const [chartData, setChartData] = useState<ChartData<'bar' | 'line'>>();
+  const [fetchFlag, setFetchFlag] = useState(true);
+  const [nominationData, setNominationData] = useState<NominationData>({});
 
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
@@ -79,24 +85,46 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
     return options;
   }, [tokenSymbol]);
 
-  // Set `dataIsFetching` to true while any of the queries are fetching.
-  const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
-
+  // Effect to subscribe to events so we know when to the refresh chart.
   useEffect(() => {
-    async function getNominatedTotkens() {
-      let labels: string[] = [];
-      let data: number[] = [];
-      let commission: number[] = [];
-      let bgcolor: any[] = [];
-      let bdcolor: any[] = [];
+    if (!api?.query.system) return;
+    let isSubscribed = true;
 
-      //TODO: consider converting calls to react query calls or subscriptions.
+    const subscribeEvents = async () => {
+      const unsubEvents = await api?.query.system.events((event) => {
+        if (!isSubscribed) {
+          unsubEvents!();
+          return;
+        }
+
+        if (event.some((e) => e.event.method === 'Bonded' || e.event.method === 'Nominated' || e.event.method === 'UnBonded')) {
+          if (mountedRef.current) {
+            setFetchFlag(true);
+          }
+        }
+      });
+    };
+    subscribeEvents();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [api?.query.system]);
+
+  // Effect to query chain for the required data and sort from highest to lowest nominated.
+  useEffect(() => {
+    //
+    if (!fetchFlag || !api?.query.staking) return;
+    let labels: string[] = [];
+    let amount: number[] = [];
+    let commission: number[] = [];
+
+    async function getNominatedTotkens() {
+      //TODO: consider converting calls to react query calls.
       const nominations = await api?.query.staking.nominators.entries();
       const stakingLedger = await api?.query.staking.ledger.entries();
       const validators = await api?.query.staking.validators.entries();
-      const validators = await api?.query.staking.validators.keys();
+      //TODO: get data to determine if an operator is waiting so it can be highlighted on the chart.
 
       const amountStaked: Record<string, BN> = {};
       const nominated: Record<string, BN> = {};
@@ -128,102 +156,105 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
 
         // Sort from highest to Lowest
         // If there is nothing in the array add to first position.
-        if (data.length === 0) {
-          data.push(amountNominated);
+        if (amount.length === 0) {
+          amount.push(amountNominated);
           pos = 0;
         }
         // Perform a binary search to find correct position in the sort order.
         else {
           let start = 0;
-          let end = data.length - 1;
+          let end = amount.length - 1;
           pos = 0;
 
           while (start <= end) {
             var mid = start + Math.floor((end - start) / 2);
             // If the amount is the same as mid position position we can add at the mid +1 posiiton.
-            if (amountNominated === data[mid]) {
+            if (amountNominated === amount[mid]) {
               pos = mid + 1;
               break;
               // If the amount is greater than the mid position it should be before mid.
-            } else if (amountNominated > data[mid]) {
+            } else if (amountNominated > amount[mid]) {
               pos = end = mid - 1;
             } else {
               //  If the amount is less than than the mid position it should be after it.
               pos = start = mid + 1;
             }
-            // Once the end of the search is reached the posiiton should be the final "start"
+            // Once the end of the search is reached the position should be the final "start"
             // This ensures the new data is not inserted at a position of mid -1 which would
             // place it out of order.
             if (start > end) {
               pos = start;
             }
           }
-          data.splice(pos, 0, amountNominated);
+          amount.splice(pos, 0, amountNominated);
         }
         // Build array of operators
         labels.splice(pos, 0, operator.toString());
         // Build array of operator commissions, as percent values.
         commission.splice(pos, 0, preferences.commission.unwrap().toNumber() / 10_000_000);
       });
-
-      // Assign colors.
-      labels.forEach((operator, index) => {
-        const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
-        // Otherwise a color from d3 color scale
-
-        bdcolor[index] = '#EC4673';
-        const opacity = 0.5;
-        bgcolor[index] = `#EC467395`;
-
-        if (highlight?.includes(operator)) {
-          bdcolor[index] = '#43195B';
-          bgcolor[index] = '#43195B95';
-        }
-
-        // Assign Operator name if available
-        labels[index] = operatorsNames[operator]
-          ? operatorsNames[operator]
-          : operator.slice(0, 5) + '...' + operator.slice(operator.length - 5, operator.length);
-      });
-
-      const nominatedChartData = {
-        labels: labels,
-        datasets: [
-          {
-            type: 'line' as const,
-            label: 'Commission',
-            data: commission,
-            backgroundColor: '#43195B50',
-            borderColor: '#43195B',
-            borderWidth: 2,
-            yAxisID: 'y1',
-          },
-
-          {
-            label: 'Nominated',
-            data: data,
-            backgroundColor: bgcolor,
-            borderColor: bdcolor,
-            borderWidth: 2,
-          },
-        ],
-      };
-
-      // Before setting the chart data ensure the component is still mounted
       if (mountedRef.current) {
-        setChartData(nominatedChartData);
+        setNominationData({ labels, amount, commission });
+        setFetchFlag(false);
       }
     }
     getNominatedTotkens();
-  }, [api?.query.staking.ledger, api?.query.staking.nominators, api?.query.staking.validators, divisor, highlight]);
-    api?.derive.staking,
-    api?.query.staking.ledger,
-    api?.query.staking.nominators,
-    api?.query.staking.validators,
-    api?.query.system,
-    divisor,
-    highlight,
-  ]);
+  }, [api?.query.staking, divisor, fetchFlag]);
+
+  // Effect to set the ChartData and apply formatting.
+  useEffect(() => {
+    if (!nominationData.labels || !nominationData.amount || !nominationData.commission) return;
+
+    let bgcolor: any[] = [];
+    let bdcolor: any[] = [];
+    let namedOperators: string[] = [];
+
+    // Assign colors.
+    nominationData.labels.forEach((operator: string, index: number) => {
+      // if nominated by the active walet assign a different color.
+      if (highlight?.includes(operator)) {
+        bdcolor[index] = '#43195B';
+        bgcolor[index] = '#43195B95';
+      }
+      // Else set default Border and Background Color.
+      else {
+        bdcolor[index] = '#EC4673';
+        bgcolor[index] = `#EC467395`;
+      }
+      // Assign Operator name if available
+      namedOperators[index] = operatorsNames[operator]
+        ? operatorsNames[operator]
+        : operator.slice(0, 5) + '...' + operator.slice(operator.length - 5, operator.length);
+    });
+
+    const nominatedChartData = {
+      labels: namedOperators,
+      datasets: [
+        {
+          type: 'line' as const,
+          label: 'Commission',
+          data: nominationData.commission,
+          backgroundColor: '#43195B50',
+          borderColor: '#43195B',
+          borderWidth: 2,
+          yAxisID: 'y1',
+        },
+
+        {
+          label: 'Nominated',
+          data: nominationData.amount,
+          backgroundColor: bgcolor,
+          borderColor: bdcolor,
+          borderWidth: 2,
+        },
+      ],
+    };
+
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(nominatedChartData);
+    }
+  }, [nominationData, highlight]);
 
   return (
     <div className='LineChart'>
@@ -238,7 +269,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
-          {dataIsFetching ? <MiniSpinner /> : <></>}
+          {fetchFlag ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>
