@@ -5,8 +5,7 @@ import { Line } from 'react-chartjs-2';
 import * as d3 from 'd3';
 import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
-// import { useErasPrefs } from '../../../hooks/StakingQueries';
-import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
+import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs_to_be_removed';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 

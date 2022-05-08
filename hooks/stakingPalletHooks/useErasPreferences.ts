@@ -1,15 +1,14 @@
-import { Balance, EraIndex, Exposure } from '@polkadot/types/interfaces';
-import type { Compact } from '@polkadot/types';
+import { EraIndex, ValidatorPrefs } from '@polkadot/types/interfaces';
 import { useQueries, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
 import { useHistoricalEras } from './useHistoricalEras';
-import { getEraStakersData } from './useEraStakers';
+import { getEraPreferences } from './useEraPrefrences';
 
-export const useErasStakers = (
+export const useErasPreferences = (
   queryOptions?: UseQueryOptions<
-    { era: EraIndex; operators: Record<string, Exposure>; nominators: Record<string, { operator: string; value: Compact<Balance> }[]> },
+    { era: EraIndex; operators: Record<string, ValidatorPrefs> },
     unknown,
-    { era: EraIndex; operators: Record<string, Exposure>; nominators: Record<string, { operator: string; value: Compact<Balance> }[]> },
+    { era: EraIndex; operators: Record<string, ValidatorPrefs> },
     (string | EraIndex)[]
   >
 ) => {
@@ -29,9 +28,9 @@ export const useErasStakers = (
     historicalEras?.historicWithCurrent.map((era) => {
       return {
         // Query Key
-        queryKey: ['ERA_STAKERS', era],
+        queryKey: ['ERA_PREFERENCES', era],
         // Query Function
-        queryFn: () => getEraStakersData(api, era),
+        queryFn: () => getEraPreferences(api, era),
         // Query options
         ...queryOptions,
       };

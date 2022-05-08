@@ -30,7 +30,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
     chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
   } = useSdk();
   const [chartData, setChartData] = useState<{ datasets: any; labels: string[] }>();
-  const erasExposure = useErasExposure({ enabled: false });
+  const erasExposure = useErasExposure({ enabled: true });
   const erasPoints = useErasPoints({ enabled: false });
   const erasRewards = useErasRewards({ enabled: false });
 

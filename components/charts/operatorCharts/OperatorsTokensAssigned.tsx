@@ -137,7 +137,7 @@ const OperatorsTokensAssigned = ({ eraInfo: { currentEra } }: IProps) => {
       });
 
       labels.forEach((operator, index) => {
-        const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
+        const color = d3.rgb(d3.interpolateTurbo((index + 2) / (labels.length + 3)));
 
         bdcolor[index] = color;
         const opacity = 0.5;

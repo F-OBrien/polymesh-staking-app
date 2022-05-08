@@ -27,8 +27,8 @@ const ErasOperatorsRewardsChart = ({ highlight }: IProps) => {
   }, []);
 
   const [chartData, setChartData] = useState<any>();
-  const erasRewards = useErasRewards({ enabled: false });
-  const erasPoints = useErasPoints({ enabled: false });
+  const erasRewards = useErasRewards({ enabled: true });
+  const erasPoints = useErasPoints({ enabled: true });
   const {
     chainData: { tokenSymbol, tokenDecimals },
   } = useSdk();

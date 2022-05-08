@@ -1,19 +1,19 @@
-import { Balance, EraIndex, Exposure } from '@polkadot/types/interfaces';
-import type { Compact } from '@polkadot/types';
+import { EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 import { useQueries, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
+import { getEraReward } from './useEraReward';
 import { useHistoricalEras } from './useHistoricalEras';
-import { getEraStakersData } from './useEraStakers';
 
-export const useErasStakers = (
-  queryOptions?: UseQueryOptions<
-    { era: EraIndex; operators: Record<string, Exposure>; nominators: Record<string, { operator: string; value: Compact<Balance> }[]> },
-    unknown,
-    { era: EraIndex; operators: Record<string, Exposure>; nominators: Record<string, { operator: string; value: Compact<Balance> }[]> },
-    (string | EraIndex)[]
-  >
+export const useErasReward = (
+  queryOptions?:
+    | Omit<
+        UseQueryOptions<{ era: EraIndex; reward: BalanceOf }, unknown, { era: EraIndex; reward: BalanceOf }, (string | EraIndex)[]>,
+        'queryKey' | 'queryFn'
+      >
+    | undefined
 ) => {
   const { api } = useSdk();
+
   const { data: historicalEras, isFetching } = useHistoricalEras();
 
   // If no `queryOptions` were passed, create one for enabling after historicalEras have been fetched.
@@ -26,12 +26,12 @@ export const useErasStakers = (
   }
   // Else enable remains false.
   return useQueries(
-    historicalEras?.historicWithCurrent.map((era) => {
+    historicalEras?.historicWithoutActive.map((era) => {
       return {
         // Query Key
-        queryKey: ['ERA_STAKERS', era],
+        queryKey: ['ERA_REWARD', era],
         // Query Function
-        queryFn: () => getEraStakersData(api, era),
+        queryFn: () => getEraReward(api, era),
         // Query options
         ...queryOptions,
       };

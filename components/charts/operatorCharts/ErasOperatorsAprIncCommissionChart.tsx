@@ -6,13 +6,13 @@ import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions, operatorsNames, BN_MILLISECONDS_PER_YEAR } from '../../../constants/constants';
 import * as d3 from 'd3';
 import { BN, BN_BILLION, BN_ZERO, BN_HUNDRED } from '@polkadot/util';
-import { useErasExposure, useErasPoints, useErasRewards } from '../../../hooks/StakingQueries';
 import { useErasStakers } from '../../../hooks/stakingPalletHooks/useErasStakers';
-import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
 import { EraIndex } from '@polkadot/types/interfaces';
-import { useHistoricalEras } from '../../../hooks/stakingPalletHooks/useHistoricalEras';
 import { useSdk } from '../../../hooks/useSdk';
 import { EraInfo } from '../../../pages/operator-charts';
+import { useErasPreferences } from '../../../hooks/stakingPalletHooks/useErasPreferences';
+import { useErasRewardPoints } from '../../../hooks/stakingPalletHooks/useErasRewardPoints';
+import { useErasReward } from '../../../hooks/stakingPalletHooks/useErasReward';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -38,12 +38,11 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
   const [chartData, setChartData] = useState<{ datasets: any; labels: string[] }>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [previousEra, setPreviousEra] = useState<EraIndex>();
-  // const historicalEras = useHistoricalEras();
-  const erasStakingData = useErasStakers({ staleTime: 50000, enabled: fetchQueries });
-  const erasExposure = useErasExposure({ enabled: fetchQueries /*, staleTime: 12345 */ });
-  const erasPoints = useErasPoints({ enabled: fetchQueries });
-  const erasRewards = useErasRewards({ enabled: fetchQueries });
-  const erasPrefs = useErasPrefs({ enabled: fetchQueries });
+  const erasStakingData = useErasStakers({ staleTime: Infinity, enabled: true });
+  const erasRewardPoints = useErasRewardPoints({ staleTime: Infinity, enabled: true });
+  const erasReward = useErasReward({ staleTime: Infinity, enabled: true });
+  // const erasRewards = useErasRewards({ enabled: fetchQueries });
+  const erasPreferenceData = useErasPreferences({ staleTime: Infinity, enabled: true });
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
   const resetChartZoom = () => {
@@ -64,13 +63,27 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return erasExposure.isFetching || erasPoints.isFetching || erasRewards.isFetching || erasPrefs.isFetching;
-  }, [erasExposure.isFetching, erasPoints.isFetching, erasPrefs.isFetching, erasRewards.isFetching]);
+    return (
+      erasStakingData.some((esd) => esd.isFetching) ||
+      erasPreferenceData.some((epd) => epd.isFetching) ||
+      erasRewardPoints.some((erp) => erp.isFetching) ||
+      erasReward.some((er) => er.isFetching)
+    );
+  }, [erasPreferenceData, erasReward, erasRewardPoints, erasStakingData]);
 
   // Set `dataMissing` to true while any of the required data is missing.
   const dataMissing = useMemo(() => {
-    return !erasExposure.data || !erasPoints.data || !erasRewards.data || !erasPrefs.data;
-  }, [erasExposure.data, erasPoints.data, erasPrefs.data, erasRewards.data]);
+    return (
+      erasStakingData.length == 0 ||
+      erasStakingData.some((esd) => !esd.data) ||
+      erasPreferenceData.length == 0 ||
+      erasPreferenceData.some((epd) => !epd.data) ||
+      erasRewardPoints.length == 0 ||
+      erasRewardPoints.some((erp) => !erp.data) ||
+      erasReward.length == 0 ||
+      erasReward.some((er) => !er.data)
+    );
+  }, [erasPreferenceData, erasReward, erasRewardPoints, erasStakingData]);
 
   const erasPerYear = useMemo(
     () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)),
@@ -106,18 +119,21 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
       let averageApr: number[] = [];
 
       // Read all era exposure (totals staked)
-      const allErasExposure = erasExposure.data!;
-      // Read all era points
-      const allErasPoints = erasPoints.data!;
-      // Read all era rewards
-      const allErasRewards = erasRewards.data!;
-      // Read all commission preferences
-      const allErasPrefs = erasPrefs.data!;
+      // const allErasExposure = erasExposure.data!;
+      const allErasExposure = erasStakingData.map((esd) => esd.data!);
 
-      // console.log(erasStakingData);
+      // Read all era points
+      // const allErasPoints = erasPoints.data!;
+      const allErasPoints = erasRewardPoints.map((esd) => esd.data!);
+
+      // Read all era rewards
+      const allErasRewards = erasReward.map((esd) => esd.data!);
+      // Read all commission preferences
+      const allErasPrefs = erasPreferenceData.map((epd) => epd.data!);
 
       // use points and rewards with totals to calculate APRs
-      allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
+      allErasPoints.forEach(({ era, total, operators }, index) => {
+        const eraPoints = total;
         // Check points are available for the era as api.derive functions return an
         // empty data set when current era != active era i.e. last session of an era
         if (eraPoints.toNumber()) {
@@ -127,49 +143,50 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
           labels[index] = era.toString();
           let sumOfTotals = new BN(0);
           let afterCommissionSum = BN_ZERO;
+
+          const eraReward = allErasRewards.find((value) => {
+            return value!.era.toNumber() === era.toNumber();
+          });
+
+          const totalReward = !!eraReward ? eraReward.reward.toBn() : BN_ZERO;
+
           // build array of APRs for each validator
-          Object.entries(validators).forEach(([id, points]) => {
+          Object.entries(operators).forEach(([id, points]) => {
             if (!aprDatasets[id]) {
               aprDatasets[id] = new Array(allErasPoints.length).fill(0);
             }
-            // TODO see about tidying this up better for when a validator has no assigned tokens
-            // const totalAssigned = allErasExposure![index].validators[id].total;
+
             const eraExposure = allErasExposure.find((exposure) => {
-              return exposure.era.toNumber() === era.toNumber();
+              return exposure!.era.toNumber() === era.toNumber();
             });
+
             if (!!eraExposure) {
-              const totalAssigned = eraExposure.validators[id].total;
+              const totalAssigned = eraExposure.operators[id].total.unwrap();
+
               // commission is scaled by 1 billion
               let afterCommission;
-              if (allErasPrefs[index].operators[id]) {
-                afterCommission = BN_BILLION.sub(allErasPrefs[index].operators[id].commission.toBn());
+              const eraPrefs = allErasPrefs.find((preferences) => {
+                return preferences!.era.toNumber() === era.toNumber();
+              });
+              if (!!eraPrefs && eraPrefs.operators[id]) {
+                afterCommission = BN_BILLION.sub(eraPrefs.operators[id].commission.toBn());
               } else {
                 afterCommission = BN_ZERO;
               }
 
-              // const afterCommission = BN_BILLION.sub(allErasPrefs[index].validators[id].commission.toBn());
               afterCommissionSum = afterCommissionSum.add(afterCommission);
               aprDatasets[id][index] =
-                erasPerYear
-                  .mul(BN_HUNDRED)
-                  .mul(allErasRewards[index].eraReward)
-                  .mul(points)
-                  .mul(afterCommission)
-                  .div(eraPoints.mul(BN_BILLION))
-                  .toNumber() / totalAssigned.toNumber();
+                erasPerYear.mul(BN_HUNDRED).mul(totalReward).mul(points).mul(afterCommission).div(eraPoints.mul(BN_BILLION)).toNumber() /
+                totalAssigned.toNumber();
               sumOfTotals = sumOfTotals.add(totalAssigned.toBn());
             }
           });
-          const numberOfOperators = new BN(Object.keys(validators).length);
+          const numberOfOperators = new BN(Object.keys(operators).length);
           const averageCommission = afterCommissionSum.div(numberOfOperators);
           let averageTotal = sumOfTotals.div(numberOfOperators);
           averageApr[index] =
-            erasPerYear
-              .mul(BN_HUNDRED)
-              .mul(allErasRewards[index].eraReward)
-              .mul(averageCommission)
-              .div(numberOfOperators.mul(BN_BILLION))
-              .toNumber() / averageTotal.toNumber();
+            erasPerYear.mul(BN_HUNDRED).mul(totalReward).mul(averageCommission).div(numberOfOperators.mul(BN_BILLION)).toNumber() /
+            averageTotal.toNumber();
         }
       });
 
@@ -190,14 +207,14 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
       };
 
       Object.entries(aprDatasets).forEach(([operator, apr], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(aprDatasets).length - 1)));
-        color.opacity = 0.9;
+        let color = d3.rgb(d3.interpolateTurbo((index + 2) / (Object.keys(aprDatasets).length + 1))).formatHex();
         if (highlight?.includes(operator)) {
+          const opacity = Math.round(0.9 * 255).toString(16);
           aprChartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: apr,
-            borderColor: color,
-            backgroundColor: color,
+            borderColor: color + opacity,
+            backgroundColor: color + opacity,
             borderWidth: 2,
             pointRadius: 2,
             stepped: false,
@@ -206,12 +223,12 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
             // hoverBackgroundColor: 'black',
           });
         } else {
-          color.opacity = 0.2;
+          const opacity = Math.round(0.2 * 255).toString(16);
           aprChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: apr,
-            borderColor: color,
-            backgroundColor: color,
+            borderColor: color + opacity,
+            backgroundColor: color + opacity,
             borderWidth: 2,
             pointRadius: 2,
             stepped: false,
@@ -231,7 +248,7 @@ const ErasOperatorsAprIncCommissionChart = ({ highlight, eraInfo: { activeEra } 
     }
 
     getAprByOperatorData();
-  }, [chartData, dataIsFetching, dataMissing, erasExposure.data, erasPerYear, erasPoints.data, erasPrefs.data, erasRewards.data, highlight]);
+  }, [chartData, dataIsFetching, dataMissing, erasPerYear, erasPreferenceData, erasReward, erasRewardPoints, erasStakingData, highlight]);
 
   return (
     <div className='LineChart'>

@@ -6,7 +6,7 @@ import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
 import { useErasRewards, useErasTotalStake } from '../../../hooks/StakingQueries';
-import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
+import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs_to_be_removed';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -41,8 +41,13 @@ const ErasAverageAprChart = () => {
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = 'Percent [%]';
-    options.plugins.title.text = 'Average APR / APY per Era';
+    options.scales.y.title.display = false;
+    (options.scales.y.ticks = {
+      callback: function (value: string | number) {
+        return value + '%';
+      },
+    }),
+      (options.plugins.title.text = 'Average APR / APY per Era');
 
     return options;
   }, []);

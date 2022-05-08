@@ -48,21 +48,6 @@ export const useErasRewards = (
   );
 };
 
-// export const useErasPrefs = (
-//   queryOptions?:
-//     | Omit<UseQueryOptions<DeriveEraPrefs[] | undefined, unknown, DeriveEraPrefs[] | undefined, 'ERAS_PREFS'>, 'queryKey' | 'queryFn'>
-//     | undefined
-// ) => {
-//   const { api } = useSdk();
-//   return useQuery(
-//     'ERAS_PREFS',
-//     async () => {
-//       return await api?.derive.staking.erasPrefs();
-//     },
-//     queryOptions
-//   );
-// };
-
 export const useErasTotalStake = (
   queryOptions?:
     | Omit<UseQueryOptions<{ era: number; total: BN }[], unknown, { era: number; total: BN }[], 'ERAS_TOTAL_STAKE'>, 'queryKey' | 'queryFn'>

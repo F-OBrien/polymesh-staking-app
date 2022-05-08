@@ -100,25 +100,26 @@ const ErasOperatorsPointsChart = ({ highlight }: IProps) => {
       };
 
       Object.entries(pointsDatasets).forEach(([operator, points], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(pointsDatasets).length - 1)));
+        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(pointsDatasets).length - 1))).formatHex();
+
         if (highlight?.includes(operator)) {
-          color.opacity = 0.9;
+          // color.opacity = 0.9;
           pointsChartData.datasets.unshift({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: points,
-            borderColor: color,
-            backgroundColor: color,
+            borderColor: color + 'E6',
+            backgroundColor: color + 'E6',
             borderWidth: 2,
             pointRadius: 2,
             yAxisID: 'y',
           });
         } else {
-          color.opacity = 0.2;
+          // color.opacity = 0.2;
           pointsChartData.datasets.push({
             label: operatorsNames[operator] ? operatorsNames[operator] : operator,
             data: points,
-            borderColor: color,
-            backgroundColor: color,
+            borderColor: color + '33',
+            backgroundColor: color + '33',
             borderWidth: 2,
             pointRadius: 2,
             yAxisID: 'y',
