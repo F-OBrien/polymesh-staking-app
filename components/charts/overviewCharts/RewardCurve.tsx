@@ -117,8 +117,22 @@ const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
       showLine: true,
       interaction: { intersect: false, mode: 'nearest', axis: 'x' },
       scales: {
-        x: { title: { display: true, text: `Percent of Total ${tokenSymbol} Staked [%]` } },
-        y: { title: { display: true, text: `Percent [%]` }, max: 50 },
+        x: {
+          title: { display: true, text: `Percent of Total ${tokenSymbol} Staked` },
+          ticks: {
+            callback: function (value) {
+              return value + '%';
+            },
+          },
+        },
+        y: {
+          max: 50,
+          ticks: {
+            callback: function (value) {
+              return value + '%';
+            },
+          },
+        },
       },
       hover: {
         mode: 'point' as const,
@@ -256,19 +270,19 @@ const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
       rewardCurveChartData = {
         datasets: [
           {
-            label: 'Inflation',
-            data: inflationCurve,
-            borderColor: 'blue',
-            backgroundColor: 'blue',
+            label: 'APR',
+            data: rewardCurve,
+            borderColor: 'red',
+            backgroundColor: 'red',
             borderWidth: 2,
             pointRadius: 0,
             yAxisID: 'y',
           },
           {
-            label: 'APR',
-            data: rewardCurve,
-            borderColor: 'red',
-            backgroundColor: 'red',
+            label: 'Inflation',
+            data: inflationCurve,
+            borderColor: 'blue',
+            backgroundColor: 'blue',
             borderWidth: 2,
             pointRadius: 0,
             yAxisID: 'y',
