@@ -5,7 +5,7 @@ import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
-import { useErasRewards, useErasPreferences, useErasRewardPoints } from '../../../hooks/StakingQueries';
+import { useErasRewards, useErasPreferences, useErasRewardPoints, useErasTotalStaked } from '../../../hooks/StakingQueries';
 import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
@@ -30,6 +30,7 @@ const ErasAverageAprChart = () => {
   const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
   const erasRewards = useErasRewards({ enabled: fetchQueries });
   const erasPrefs = useErasPreferences({ enabled: fetchQueries });
+  const erasTotalStaked = useErasTotalStaked({ enabled: fetchQueries });
   const {
     eraInfo: { activeEra, currentEra },
   } = useStakingContext();
@@ -53,8 +54,8 @@ const ErasAverageAprChart = () => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return erasRewards.isFetching || erasPrefs.isFetching || erasPoints.isFetching;
-  }, [erasRewards.isFetching, erasPrefs.isFetching, erasPoints.isFetching]);
+    return erasRewards.isFetching || erasPrefs.isFetching || erasPoints.isFetching || erasTotalStaked.isFetching;
+  }, [erasRewards.isFetching, erasPrefs.isFetching, erasPoints.isFetching, erasTotalStaked.isFetching]);
 
   const erasPerYear = useMemo(
     () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)).toNumber(),
@@ -65,39 +66,50 @@ const ErasAverageAprChart = () => {
   useEffect(() => {
     if (dataIsFetching || !mountedRef.current) return;
 
-    if (!erasRewards.data || !erasPrefs.data || !erasPoints.data) {
+    if (!erasRewards.data || !erasPrefs.data || !erasPoints.data || !erasTotalStaked.data) {
       setFetchQueries(true);
       return;
     }
     // Check we have up to date data.
-    const rewardDataNotCurrent = activeEra.toNumber() - 1 > erasRewards.data![erasRewards.data!.length - 1].era.toNumber();
-    const prefsDataNotCurrent = currentEra.toNumber() > erasPrefs.data![erasPrefs.data!.length - 1].era.toNumber();
-    const pointsDataNotCurrent = activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber();
+    const rewardDataNotCurrent = activeEra.toNumber() - 1 > erasRewards.data[erasRewards.data!.length - 1].era.toNumber();
+    const prefsDataNotCurrent = currentEra.toNumber() > erasPrefs.data[erasPrefs.data!.length - 1].era.toNumber();
+    const pointsDataNotCurrent = activeEra.toNumber() - 1 > erasPoints.data[erasPoints.data!.length - 1].era.toNumber();
+    const totalsStakedNotCurrent = currentEra.toNumber() > erasTotalStaked.data[erasTotalStaked.data!.length - 1].era.toNumber();
 
     // If any of the data is not latest re-enable fetching queries.
-    if (rewardDataNotCurrent || prefsDataNotCurrent || pointsDataNotCurrent) {
+    if (rewardDataNotCurrent || prefsDataNotCurrent || pointsDataNotCurrent || totalsStakedNotCurrent) {
       setFetchQueries(true);
     } else {
       setFetchQueries(false);
     }
-  }, [activeEra, currentEra, dataIsFetching, erasPoints.data, erasPrefs.data, erasRewards.data]);
+  }, [activeEra, currentEra, dataIsFetching, erasPoints.data, erasPrefs.data, erasRewards.data, erasTotalStaked.data]);
 
   useEffect(() => {
-    if (!erasRewards.data || !erasPrefs.data) {
+    if (!erasRewards.data || !erasPrefs.data || !erasTotalStaked.data || !erasPoints.data) {
       return;
     }
-    // Read all era points
     const allErasPrefs = erasPrefs.data;
+    const allErasPoints = erasPoints.data;
+    const allErasRewards = erasRewards.data;
+    const allErasTotalStake = erasTotalStaked.data;
 
-    let averageCommission: number[] = [];
-
-    allErasPrefs?.forEach(({ operators }, index) => {
-      let sum = 0;
-      // build array of points for each validator
-      Object.entries(operators).forEach(([, { commission }]) => {
-        sum = sum + commission.toNumber();
+    let averageCommission: Record<number, number> = {};
+    // Calculate a weighted average commission for each era base on points.
+    allErasPoints.forEach(({ era, total, operators }) => {
+      // Find the corresponding era operator preferences.
+      const eraPreferences = allErasPrefs.find((data) => {
+        return data.era.toNumber() === era.toNumber();
       });
-      averageCommission[index] = sum / (1000000000 * Object.keys(operators).length);
+      // Initialize average to zero
+      averageCommission[era.toNumber()] = 0;
+
+      if (eraPreferences) {
+        Object.entries(operators).forEach(([operator, points]) => {
+          const weight = points.toNumber() / total.toNumber();
+          const commission = eraPreferences?.operators[operator].commission.unwrap().toNumber() / 1_000_000_000;
+          averageCommission[era.toNumber()] = averageCommission[era.toNumber()] + weight * commission;
+        });
+      }
     });
 
     async function getAverageAprData() {
@@ -108,34 +120,21 @@ const ErasAverageAprChart = () => {
       let apy: number[] = [];
       let apyIncCommission: number[] = [];
 
-      let totals = new Map();
-      // Read all era rewards
-      const allErasRewards = erasRewards.data;
-      const allErasTotalStake = await api.query.staking.erasTotalStake.entries();
-
-      allErasTotalStake?.forEach(
-        ([
-          {
-            args: [eraIndex],
-          },
-          totalStaked,
-        ]) => {
-          totals.set(eraIndex.toString(), totalStaked);
-        }
-      );
-
-      allErasRewards?.forEach(({ era, reward }, index) => {
+      allErasRewards.forEach(({ era, reward }, index) => {
         // Ensure there is a corresponding Total value for the era.
-        if (totals.get(era.toString())) {
+        const eraTotal = allErasTotalStake.find((data) => {
+          return data.era.toNumber() === era.toNumber();
+        });
+
+        if (eraTotal) {
           // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           // Build array of y-axis values
-          apr[index] = (100 * erasPerYear * reward.toNumber()) / totals.get(era.toString()).toNumber();
-          // FIXME: commission is not correctly calculated.
-          aprIncCommission[index] = apr[index] * (1 - averageCommission[index]);
-          apy[index] = 100 * ((1 + reward.toNumber() / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
+          apr[index] = (100 * erasPerYear * reward.toNumber()) / eraTotal.total.toNumber();
+          aprIncCommission[index] = apr[index] * (1 - averageCommission[era.toNumber()]);
+          apy[index] = 100 * ((1 + reward.toNumber() / eraTotal.total.toNumber()) ** erasPerYear - 1);
           apyIncCommission[index] =
-            100 * ((1 + ((1 - averageCommission[index]) * reward.toNumber()) / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
+            100 * ((1 + ((1 - averageCommission[era.toNumber()]) * reward.toNumber()) / eraTotal.total.toNumber()) ** erasPerYear - 1);
         }
       });
 
@@ -190,7 +189,7 @@ const ErasAverageAprChart = () => {
     }
 
     getAverageAprData();
-  }, [api, erasRewards.data, erasPerYear, erasPrefs.data]);
+  }, [api, erasRewards.data, erasPerYear, erasPrefs.data, erasTotalStaked.data, erasPoints.data]);
 
   return (
     <div className='LineChart'>
