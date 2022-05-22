@@ -6,6 +6,7 @@ import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
 import { useErasRewards } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -21,12 +22,15 @@ const ErasRewardsTotalsChart = () => {
   }, []);
 
   const [chartData, setChartData] = useState<ChartData<'line'>>();
-
-  const erasRewards = useErasRewards({ enabled: true });
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
   const {
     chainData: { tokenDecimals, tokenSymbol },
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
+  const {
+    eraInfo: { activeEra },
+  } = useStakingContext();
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -49,52 +53,66 @@ const ErasRewardsTotalsChart = () => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasRewards.isFetching;
+  }, [erasRewards.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (erasRewards.isFetching || !mountedRef.current) return;
+
+    if (!erasRewards.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    // If any of the data is not latest re-enable fetching queries.
+    if (activeEra.toNumber() - 1 > erasRewards.data![erasRewards.data!.length - 1].era.toNumber()) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, erasRewards.data, erasRewards.isFetching]);
 
   useEffect(() => {
-    if (!erasRewards.data || !divisor) {
+    if (!erasRewards.data) {
       return;
     }
 
-    async function getRewardData() {
-      let labels: string[] = [];
-      let rewardChartData: { datasets: any; labels: string[] };
-      let rewards: number[] = [];
-      // Read all era rewards
-      const allErasRewards = erasRewards.data;
+    let labels: string[] = [];
+    let rewardChartData: { datasets: any; labels: string[] };
+    let rewards: number[] = [];
+    // Read all era rewards
+    const allErasRewards = erasRewards.data;
 
-      allErasRewards?.forEach(({ era, reward }, index) => {
-        if (reward.toNumber()) {
-          // Build array of x-axis labels with eras.
-          labels[index] = era.toString();
-          rewards[index] = reward.toNumber() / divisor!;
-        }
-      });
-
-      // Create chart datasets
-      rewardChartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Era Total Rewards',
-            data: rewards,
-            borderColor: 'rgb(200,0,0)',
-            backgroundColor: 'rgba(200,0,0,0.5)',
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
-
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(rewardChartData);
+    allErasRewards?.forEach(({ era, reward }, index) => {
+      if (reward.toNumber()) {
+        // Build array of x-axis labels with eras.
+        labels[index] = era.toString();
+        rewards[index] = reward.toNumber() / divisor!;
       }
-      return;
+    });
+
+    // Create chart datasets
+    rewardChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Era Total Rewards',
+          data: rewards,
+          borderColor: 'rgb(200,0,0)',
+          backgroundColor: 'rgba(200,0,0,0.5)',
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+        },
+      ],
+    };
+
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(rewardChartData);
     }
-    getRewardData();
+    return;
   }, [divisor, erasRewards.data]);
 
   return (

@@ -41,9 +41,9 @@ const OperatorsTokensNominated = () => {
   const [nominationData, setNominationData] = useState<NominationData>({});
   const [refetch, setRefetch] = useState<Boolean>(false);
   // Queries to get and cache the required data.
-  const nominations = useQuery(['NOMINATIONS'], async () => await api.query.staking.nominators.entries(), { cacheTime: 21600000 });
-  const stakingLedger = useQuery(['STAKING_LEDGER'], async () => await api.query.staking.ledger.entries(), { cacheTime: 21600000 });
-  const validators = useQuery(['VALIDATORS'], async () => await api.query.staking.validators.entries(), { cacheTime: 21600000 });
+  const nominations = useQuery(['NOMINATIONS'], async () => await api.query.staking.nominators.entries(), {});
+  const stakingLedger = useQuery(['STAKING_LEDGER'], async () => await api.query.staking.ledger.entries(), {});
+  const validators = useQuery(['VALIDATORS'], async () => await api.query.staking.validators.entries(), {});
 
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
@@ -117,7 +117,7 @@ const OperatorsTokensNominated = () => {
     let unsubEvents: VoidFn;
     const subscribeEvents = async () => {
       unsubEvents = await api.query.system.events((event) => {
-        console.log(event.toHuman());
+        // console.log(event.toHuman());
 
         if (
           event.some(

@@ -41,7 +41,7 @@ const ErasOperatorsTotalStakedChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line', string[]>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [totalsHistoryData, setTotalsHistoryData] = useState<TotalsHistoryData>({});
-  const erasStakingData = useErasStakers({ enabled: fetchQueries, cacheTime: 21600000 });
+  const erasStakingData = useErasStakers({ enabled: fetchQueries });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();

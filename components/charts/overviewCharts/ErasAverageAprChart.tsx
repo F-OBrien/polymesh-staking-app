@@ -5,7 +5,8 @@ import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
-import { useErasRewards, useErasPreferences } from '../../../hooks/StakingQueries';
+import { useErasRewards, useErasPreferences, useErasRewardPoints } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -25,8 +26,13 @@ const ErasAverageAprChart = () => {
     chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
   } = useSdk();
   const [chartData, setChartData] = useState<ChartData<'line'>>();
-  const eraRewards = useErasRewards({ enabled: true });
-  const erasPrefs = useErasPreferences({ enabled: true });
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
+  const erasPrefs = useErasPreferences({ enabled: fetchQueries });
+  const {
+    eraInfo: { activeEra, currentEra },
+  } = useStakingContext();
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -47,16 +53,37 @@ const ErasAverageAprChart = () => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasRewards.isFetching || erasPrefs.isFetching || erasPoints.isFetching;
+  }, [erasRewards.isFetching, erasPrefs.isFetching, erasPoints.isFetching]);
 
   const erasPerYear = useMemo(
     () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)).toNumber(),
     [epochDuration, expectedBlockTime, sessionsPerEra]
   );
 
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
   useEffect(() => {
-    if (!api || !eraRewards.data || !erasPrefs.data) {
+    if (dataIsFetching || !mountedRef.current) return;
+
+    if (!erasRewards.data || !erasPrefs.data || !erasPoints.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    const rewardDataNotCurrent = activeEra.toNumber() - 1 > erasRewards.data![erasRewards.data!.length - 1].era.toNumber();
+    const prefsDataNotCurrent = currentEra.toNumber() > erasPrefs.data![erasPrefs.data!.length - 1].era.toNumber();
+    const pointsDataNotCurrent = activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber();
+
+    // If any of the data is not latest re-enable fetching queries.
+    if (rewardDataNotCurrent || prefsDataNotCurrent || pointsDataNotCurrent) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, currentEra, dataIsFetching, erasPoints.data, erasPrefs.data, erasRewards.data]);
+
+  useEffect(() => {
+    if (!erasRewards.data || !erasPrefs.data) {
       return;
     }
     // Read all era points
@@ -83,7 +110,7 @@ const ErasAverageAprChart = () => {
 
       let totals = new Map();
       // Read all era rewards
-      const allErasRewards = eraRewards.data;
+      const allErasRewards = erasRewards.data;
       const allErasTotalStake = await api.query.staking.erasTotalStake.entries();
 
       allErasTotalStake?.forEach(
@@ -104,17 +131,12 @@ const ErasAverageAprChart = () => {
           labels[index] = era.toString();
           // Build array of y-axis values
           apr[index] = (100 * erasPerYear * reward.toNumber()) / totals.get(era.toString()).toNumber();
+          // FIXME: commission is not correctly calculated.
           aprIncCommission[index] = apr[index] * (1 - averageCommission[index]);
           apy[index] = 100 * ((1 + reward.toNumber() / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
           apyIncCommission[index] =
             100 * ((1 + ((1 - averageCommission[index]) * reward.toNumber()) / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
         }
-        // console.log(era.toNumber(), reward.toNumber(), total);
-        // apr[index] =
-        //     new BN(erasPerYear * 100 * 1000000)
-        //         .mul(new BN(reward))
-        //         .div(new BN(totals.get(era.toString()).toNumber()))
-        //         .toNumber() / 1000000;
       });
 
       // Create chart datasets
@@ -168,7 +190,7 @@ const ErasAverageAprChart = () => {
     }
 
     getAverageAprData();
-  }, [api, eraRewards.data, erasPerYear, erasPrefs.data]);
+  }, [api, erasRewards.data, erasPerYear, erasPrefs.data]);
 
   return (
     <div className='LineChart'>

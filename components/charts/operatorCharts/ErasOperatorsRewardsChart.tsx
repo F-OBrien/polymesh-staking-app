@@ -36,8 +36,8 @@ const ErasOperatorsRewardsChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line'>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [rewardHistoryData, setRewardHistoryData] = useState<RewardsHistoryData>({});
-  const erasPoints = useErasRewardPoints({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
-  const erasRewards = useErasRewards({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
   const {
     chainData: { tokenSymbol, tokenDecimals },
   } = useSdk();
@@ -91,7 +91,7 @@ const ErasOperatorsRewardsChart = () => {
   }, [activeEra, dataIsFetching, dataMissing, erasPoints, erasRewards]);
 
   useEffect(() => {
-    if (!erasRewards.data || !erasPoints.data || !divisor) {
+    if (!erasRewards.data || !erasPoints.data) {
       return;
     }
 

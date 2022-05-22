@@ -40,9 +40,9 @@ const ErasOperatorsAprChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line'>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [aprHistoryData, setAprHistoryData] = useState<AprHistoryData>({});
-  const erasPoints = useErasRewardPoints({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
-  const erasRewards = useErasRewards({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
-  const erasStakingData = useErasStakers({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
+  const erasStakingData = useErasStakers({ enabled: fetchQueries });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();

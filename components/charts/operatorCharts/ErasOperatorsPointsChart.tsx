@@ -36,7 +36,7 @@ const ErasOperatorsPointsChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line', string[]>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [pointsHistoryData, setPointsHistoryData] = useState<PointsHistoryData>({});
-  const erasPoints = useErasRewardPoints({ enabled: fetchQueries, cacheTime: 21600000 });
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();

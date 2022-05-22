@@ -18,6 +18,7 @@ import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions } from '../../../constants/constants';
 import { useErasTotalStaked } from '../../../hooks/StakingQueries';
 import { useSdk } from '../../../hooks/useSdk';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -33,11 +34,15 @@ const ErasTotalsStakedChart = () => {
   }, []);
 
   const [chartData, setChartData] = useState<ChartData<'line'>>();
-  const totalsQuery = useErasTotalStaked();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const totalsQuery = useErasTotalStaked({ enabled: fetchQueries });
   const {
     chainData: { tokenSymbol, tokenDecimals },
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
+  const {
+    eraInfo: { currentEra },
+  } = useStakingContext();
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -60,11 +65,28 @@ const ErasTotalsStakedChart = () => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return totalsQuery.isFetching;
+  }, [totalsQuery.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (totalsQuery.isFetching || !mountedRef.current) return;
+
+    if (!totalsQuery.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    // If any of the data is not latest re-enable fetching queries.
+    if (currentEra.toNumber() > totalsQuery.data![totalsQuery.data!.length - 1].era.toNumber()) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [currentEra, totalsQuery.data, totalsQuery.isFetching]);
 
   useEffect(() => {
-    if (!totalsQuery.data || !divisor) {
+    if (!totalsQuery.data) {
       return;
     }
 
@@ -76,19 +98,6 @@ const ErasTotalsStakedChart = () => {
 
       // Read all era totals staked
       const allErasTotalStake = totalsQuery.data;
-      // const currentEra = await api.query.staking.currentEra();
-      // const historyDepth = (await api.query.staking.historyDepth())!.toNumber();
-
-      // Calculate the index offset for data arrays
-      // if (currentEra?.isSome && historyDepth) {
-      //   const era = currentEra.unwrap().toNumber();
-
-      //   if (era > historyDepth) {
-      //     indexOffset = era - historyDepth;
-      //   } else {
-      //     indexOffset = 0;
-      //   }
-      // }
 
       allErasTotalStake?.forEach(({ era, total }, index) => {
         totals[index] = total.toNumber() / divisor!;

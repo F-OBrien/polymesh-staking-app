@@ -40,10 +40,10 @@ const ErasOperatorsAprIncCommissionChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line', string[]>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [aprHistoryData, setAprHistoryData] = useState<AprHistoryData>({});
-  const erasPoints = useErasRewardPoints({ /* staleTime: Infinity, */ enabled: fetchQueries, cacheTime: 21600000 });
-  const erasRewards = useErasRewards({ /* staleTime: Infinity, */ enabled: fetchQueries, cacheTime: 21600000 });
-  const erasPrefs = useErasPreferences({ enabled: fetchQueries /* staleTime: 600000 */, cacheTime: 21600000 });
-  const erasStakingData = useErasStakers({ /* staleTime: Infinity, */ enabled: fetchQueries, cacheTime: 21600000 });
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries });
+  const erasRewards = useErasRewards({ enabled: fetchQueries });
+  const erasPrefs = useErasPreferences({ enabled: fetchQueries });
+  const erasStakingData = useErasStakers({ enabled: fetchQueries });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();

@@ -34,7 +34,7 @@ const ErasOperatorsCommissionChart = () => {
   const [chartData, setChartData] = useState<ChartData<'line'>>();
   const [fetchQueries, setFetchQueries] = useState<boolean>(false);
   const [commissionHistoryData, setCommissionHistoryData] = useState<CommissionHistoryData>({});
-  const erasPrefs = useErasPreferences({ enabled: fetchQueries, cacheTime: 21600000 });
+  const erasPrefs = useErasPreferences({ enabled: fetchQueries });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();

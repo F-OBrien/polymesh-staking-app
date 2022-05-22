@@ -3,7 +3,7 @@ import type { AppProps } from 'next/app';
 import Layout from '../components/Layout';
 import SdkAppWrapper from '../context/SdkContext';
 import { QueryClient, QueryClientProvider } from 'react-query';
-import { ReactQueryDevtools } from 'react-query/devtools';
+// import { ReactQueryDevtools } from 'react-query/devtools';
 import StakingContextAppWrapper from '../context/StakingContext';
 
 // define a new react-query client for caching across pages
@@ -11,7 +11,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      // staleTime: 2000,
+      cacheTime: 21600000,
     },
   },
 });
@@ -24,7 +24,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <Layout>
             <>
               <Component {...pageProps} />
-              <ReactQueryDevtools initialIsOpen />
+              {/* <ReactQueryDevtools initialIsOpen /> */}
             </>
           </Layout>
         </StakingContextAppWrapper>

@@ -44,10 +44,10 @@ const RewardCurve = () => {
 
   // Subscribe to Total POLYX Issuance.
   useEffect(() => {
-    let unsubPolyxSupply: VoidFn;
     if (!api.query.balances) {
       return;
     }
+    let unsubPolyxSupply: VoidFn;
 
     const getTotalIssuance = async () => {
       unsubPolyxSupply = await api.query.balances.totalIssuance((total) => {
@@ -107,7 +107,7 @@ const RewardCurve = () => {
 
   // Set the chart options including annotation.
   const chartOptions = useMemo(() => {
-    if (!apr || !inflation || !percentTotalStaked || !activeEraTotalStaked.data || !totalIssuance || !divisor || !tokenSymbol) return;
+    if (!apr || !inflation || !percentTotalStaked || !activeEraTotalStaked.data || !totalIssuance) return;
 
     const options: ChartOptions<'scatter'> = {
       responsive: true,
@@ -260,40 +260,37 @@ const RewardCurve = () => {
       return;
     }
 
-    async function getRewardCurve() {
-      let rewardCurveChartData: { datasets: any };
+    let rewardCurveChartData: { datasets: any };
 
-      // Create chart datasets
-      rewardCurveChartData = {
-        datasets: [
-          {
-            label: 'APR',
-            data: rewardCurve,
-            borderColor: 'red',
-            backgroundColor: 'red',
-            borderWidth: 2,
-            pointRadius: 0,
-            yAxisID: 'y',
-          },
-          {
-            label: 'Inflation',
-            data: inflationCurve,
-            borderColor: 'blue',
-            backgroundColor: 'blue',
-            borderWidth: 2,
-            pointRadius: 0,
-            yAxisID: 'y',
-          },
-        ],
-      };
+    // Create chart datasets
+    rewardCurveChartData = {
+      datasets: [
+        {
+          label: 'APR',
+          data: rewardCurve,
+          borderColor: 'red',
+          backgroundColor: 'red',
+          borderWidth: 2,
+          pointRadius: 0,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Inflation',
+          data: inflationCurve,
+          borderColor: 'blue',
+          backgroundColor: 'blue',
+          borderWidth: 2,
+          pointRadius: 0,
+          yAxisID: 'y',
+        },
+      ],
+    };
 
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(rewardCurveChartData);
-      }
-      return;
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(rewardCurveChartData);
     }
-    getRewardCurve();
+    return;
   }, [activeEraTotalStaked.data, apr, inflation, totalIssuance]);
 
   return (
