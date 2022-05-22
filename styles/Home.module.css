@@ -8,11 +8,15 @@
 }
 .btn {
   display: block;
-  width: 150px;
-  padding: 8px 0;
-  margin: 20px auto;
+  width: fit-content;
+  padding: 8px 8px;
+  margin: 5px;
   background: #4979ff;
   border-radius: 4px;
   color: white;
   text-align: center;
+}
+.btn:hover {
+  background: #1d288a;
+  transition: 0.2s;
 }

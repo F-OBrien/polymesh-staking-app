@@ -5,8 +5,7 @@ import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
-import { useErasRewards, useErasTotalStake } from '../../../hooks/StakingQueries';
-import { useErasPrefs } from '../../../hooks/stakingPalletHooks/useErasPrefs';
+import { useErasRewards, useErasPreferences } from '../../../hooks/StakingQueries';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -27,8 +26,7 @@ const ErasAverageAprChart = () => {
   } = useSdk();
   const [chartData, setChartData] = useState<ChartData<'line'>>();
   const eraRewards = useErasRewards({ enabled: true });
-  const erasPrefs = useErasPrefs({ enabled: true });
-  const erasTotals = useErasTotalStake();
+  const erasPrefs = useErasPreferences({ enabled: true });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -37,7 +35,7 @@ const ErasAverageAprChart = () => {
   };
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -86,7 +84,7 @@ const ErasAverageAprChart = () => {
       let totals = new Map();
       // Read all era rewards
       const allErasRewards = eraRewards.data;
-      const allErasTotalStake = await api?.query.staking.erasTotalStake.entries();
+      const allErasTotalStake = await api.query.staking.erasTotalStake.entries();
 
       allErasTotalStake?.forEach(
         ([
@@ -99,22 +97,22 @@ const ErasAverageAprChart = () => {
         }
       );
 
-      allErasRewards?.forEach(({ era, eraReward }, index) => {
+      allErasRewards?.forEach(({ era, reward }, index) => {
         // Ensure there is a corresponding Total value for the era.
         if (totals.get(era.toString())) {
           // Build array of x-axis labels with eras.
           labels[index] = era.toString();
           // Build array of y-axis values
-          apr[index] = (100 * erasPerYear * eraReward.toNumber()) / totals.get(era.toString()).toNumber();
+          apr[index] = (100 * erasPerYear * reward.toNumber()) / totals.get(era.toString()).toNumber();
           aprIncCommission[index] = apr[index] * (1 - averageCommission[index]);
-          apy[index] = 100 * ((1 + eraReward.toNumber() / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
+          apy[index] = 100 * ((1 + reward.toNumber() / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
           apyIncCommission[index] =
-            100 * ((1 + ((1 - averageCommission[index]) * eraReward.toNumber()) / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
+            100 * ((1 + ((1 - averageCommission[index]) * reward.toNumber()) / totals.get(era.toString()).toNumber()) ** erasPerYear - 1);
         }
-        // console.log(era.toNumber(), eraReward.toNumber(), total);
+        // console.log(era.toNumber(), reward.toNumber(), total);
         // apr[index] =
         //     new BN(erasPerYear * 100 * 1000000)
-        //         .mul(new BN(eraReward))
+        //         .mul(new BN(reward))
         //         .div(new BN(totals.get(era.toString()).toNumber()))
         //         .toNumber() / 1000000;
       });

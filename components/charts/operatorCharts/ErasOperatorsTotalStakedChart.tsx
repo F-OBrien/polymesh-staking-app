@@ -5,19 +5,20 @@ import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import * as d3 from 'd3';
-import BN from 'bn.js';
 import { useSdk } from '../../../hooks/useSdk';
-import { useErasExposure } from '../../../hooks/StakingQueries';
-import { EraInfo } from '../../../pages/operator-charts';
+import { useErasStakers } from '../../../hooks/StakingQueries';
+import { BigNumber } from '@polymathnetwork/polymesh-sdk';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
-interface IProps {
-  highlight?: string[];
-  eraInfo: EraInfo;
+interface TotalsHistoryData {
+  labels?: string[];
+  totalsDatasets?: { [key: string]: string[] };
+  averageTotal?: string[];
 }
 
-const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, currentEra } }: IProps) => {
+const ErasOperatorsTotalStakedChart = () => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -28,14 +29,19 @@ const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, curren
     };
   }, []);
 
-  const { api } = useSdk();
-  const [chartData, setChartData] = useState<ChartData<'line'>>();
-
-  const erasExposure = useErasExposure({ enabled: false });
   const {
     chainData: { tokenDecimals, tokenSymbol },
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
+  const {
+    eraInfo: { currentEra },
+    operatorsToHighlight: highlight,
+  } = useStakingContext();
+
+  const [chartData, setChartData] = useState<ChartData<'line', string[]>>();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const [totalsHistoryData, setTotalsHistoryData] = useState<TotalsHistoryData>({});
+  const erasStakingData = useErasStakers({ enabled: fetchQueries, cacheTime: 21600000 });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -45,7 +51,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, curren
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -57,112 +63,114 @@ const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, curren
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasStakingData.isFetching;
+  }, [erasStakingData.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (erasStakingData.isFetching || !mountedRef.current) return;
+
+    if (!erasStakingData.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    // If any of the data is not latest re-enable fetching queries.
+    if (currentEra.toNumber() > erasStakingData.data![erasStakingData.data!.length - 1].era.toNumber()) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [currentEra, erasStakingData.data, erasStakingData.isFetching]);
 
   useEffect(() => {
-    if (!erasExposure.data || !divisor || !activeEra || !currentEra) {
+    if (!erasStakingData.data) {
       return;
     }
 
-    async function getTotalsStakedByOperatorData() {
-      let labels: string[] = [];
-      let totalsDatasets: { [key: string]: number[] } = {};
-      let totalsChartData: { datasets: any; labels: string[] };
-      let averageTotal: number[] = [];
-      // let activeEra: EraIndex;
+    let labels: string[] = [];
+    let totalsDatasets: { [key: string]: string[] } = {};
+    let averageTotal: string[] = [];
 
-      // Read all era exposure (totals staked)
-      let allErasExposure = erasExposure.data;
-      // const currentEra = await api?.query.staking.currentEra();
-      // const activeEraInfo = await api?.query.staking.activeEra();
-      // Type is Option<ActiveEraInfo>, so we have to check if the value actually exists
-      // if (activeEraInfo?.isSome) {
-      //   activeEra = activeEraInfo.unwrap().index;
+    // Read all era exposure (totals staked)
+    const historicalErasStakingData = erasStakingData.data;
 
-      if (activeEra! > allErasExposure![allErasExposure!.length - 1].era) {
-        const activeEraExposure = await api?.derive.staking.eraExposure(activeEra!);
-        allErasExposure?.push(activeEraExposure!);
-      }
-      // }
-      // Type is Option<EraIndex>, so we have to check if the value actually exists
-      // if (currentEra?.isSome) {
-      //   const era = currentEra.unwrap();
-      // if next era is already planned get its info.
+    historicalErasStakingData?.forEach(({ era, operators }, index) => {
+      labels[index] = era.toString();
+      let sumOfTotals = new BigNumber(0);
+      Object.entries(operators).forEach(([id, { total }]) => {
+        totalsDatasets[id] = totalsDatasets[id] || new Array(historicalErasStakingData?.length).fill(0);
+        totalsDatasets[id][index] = new BigNumber(total.toString()).div(divisor).toString();
+        sumOfTotals = sumOfTotals.plus(total.toString());
+      });
 
-      if (currentEra! > allErasExposure![allErasExposure!.length - 1].era) {
-        const plannedEra = await api?.derive.staking.eraExposure(currentEra!);
-        allErasExposure?.push(plannedEra!);
-        allErasExposure?.shift();
-      }
-      // }
+      averageTotal[index] = sumOfTotals.div(Object.entries(operators).length * divisor!).toString();
+    });
+    if (mountedRef.current) {
+      setTotalsHistoryData({ labels, totalsDatasets, averageTotal });
+    }
+  }, [currentEra, divisor, erasStakingData.data, highlight]);
 
-      allErasExposure?.forEach(({ era, validators }, index) => {
-        labels[index] = era.toString();
-        let sumOfTotals = new BN(0);
-        Object.entries(validators).forEach(([id, { total }]) => {
-          if (!totalsDatasets[id]) {
-            totalsDatasets[id] = new Array(allErasExposure?.length).fill(0);
-          }
-          totalsDatasets[id][index] = total.toNumber() / divisor!;
-          sumOfTotals = sumOfTotals.add(total.toBn());
+  useEffect(() => {
+    if (!totalsHistoryData.labels || !totalsHistoryData.totalsDatasets || !totalsHistoryData.averageTotal) return;
+
+    const { labels, totalsDatasets, averageTotal } = totalsHistoryData;
+
+    let totalsChartData: ChartData<'line', string[]>;
+
+    // Create chart datasets
+    totalsChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Average',
+          data: averageTotal,
+          borderColor: 'rgb(255,0,0)',
+          backgroundColor: 'rgba(255,0,0,0.5)',
+          borderWidth: 2,
+          borderDash: [3, 5],
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+          hoverBackgroundColor: 'rgb(255,0,0)',
+        },
+      ],
+    };
+
+    Object.entries(totalsDatasets).forEach(([operator, total], index) => {
+      let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(totalsDatasets).length - 1)));
+      color.opacity = 0.9;
+      if (highlight?.includes(operator)) {
+        totalsChartData.datasets.unshift({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: total,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
         });
-
-        averageTotal[index] = sumOfTotals.toNumber() / (Object.entries(validators).length * divisor!);
-      });
-
-      // Create chart datasets
-      totalsChartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Average',
-            data: averageTotal,
-            borderColor: 'rgb(255,0,0)',
-            backgroundColor: 'rgba(255,0,0,0.5)',
-            borderWidth: 2,
-            borderDash: [3, 5],
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
-
-      Object.entries(totalsDatasets).forEach(([operator, total], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(totalsDatasets).length - 1)));
-        color.opacity = 0.9;
-        if (highlight?.includes(operator)) {
-          totalsChartData.datasets.unshift({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: total,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        } else {
-          color.opacity = 0.2;
-          totalsChartData.datasets.push({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: total,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        }
-      });
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(totalsChartData);
+      } else {
+        color.opacity = 0.2;
+        totalsChartData.datasets.push({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: total,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
       }
-      return;
+    });
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(totalsChartData);
     }
-
-    getTotalsStakedByOperatorData();
-  }, [activeEra, api, currentEra, divisor, erasExposure.data, highlight]);
+    return;
+  }, [highlight, totalsHistoryData]);
 
   return (
     <div className='LineChart'>
@@ -177,7 +185,7 @@ const ErasOperatorsTotalStakedChart = ({ highlight, eraInfo: { activeEra, curren
       ) : (
         <>
           <Spinner />
-          Reading Historical Totals
+          Loading Staking History
         </>
       )}
     </div>

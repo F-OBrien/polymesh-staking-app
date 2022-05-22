@@ -1,4 +1,4 @@
-import Fotter from './Fotter';
+import Footer from './Footer';
 import Navbar from './Navbar';
 
 type LayoutProps = {
@@ -10,7 +10,7 @@ const Layout = ({ children }: LayoutProps) => {
     <div className='content'>
       <Navbar />
       {children}
-      <Fotter />
+      <Footer />
     </div>
   );
 };

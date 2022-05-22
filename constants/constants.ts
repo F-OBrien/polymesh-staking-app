@@ -25,7 +25,7 @@ export const operatorsNames: Record<string, string> = {
   '2FarNp4Q3p2vSdCJzF1oHvQmDd7gHrZivzJHj7cecXobixW8': 'Entoro 3 (2FarN..)',
   '2JBzQoJs2hV6nRT6K6cwtUYxbjh4QA6afaMkzdMEg5xPAibz': 'Etana 1 (2JBzQ..)',
   '2HqyET3THdGcFYPnLFVdPWhdrNgkn7feQhuXTbod34uNoimT': 'Etana 2 (2HqyE..)',
-  '2ETKjS2cu1LyU88sqVquAeXH5dPgmdMvKrcK5P4Mi1LZZskz': 'GATENet (2ETKj..)',
+  '2ETKjS2cu1LyU88sqVquAeXH5dPgmdMvKrcK5P4Mi1LZZskz': 'GATENet 1 (2ETKj..)',
   '2FCyV1aQ9C1nXMQK65KLacQkosGzf2DpqTLVB1LSMkwHTW28': 'Genesis Block 1 (2FCyV..)',
   '2EXypWKU82c1ZFQ92ynNzKWjQmX1ZfnFEcaFoVzPEUhmM72g': 'Genesis Block 2 (2EXyp..)',
   '2FawFuGUJzXtebwxTxwUjTsiwwV63WbK9ckojpPK3WkmwnA2': 'Genesis Block 3 (2FawF..)',
@@ -44,7 +44,7 @@ export const operatorsNames: Record<string, string> = {
   '2EohUybEWs5Md1ZRByDVWC4SVtAVMx6KR5McYEu7GcVkYnZm': 'Saxon Advisors 1 (2EohU..)',
   '2CVjdqJB62TXkuAG4ebPqdrEyAuzee5FVvZVbxuiUDXian3F': 'Saxon Advisors 2 (2CVjd..)',
   '2Eu9tSri8pDCYd2dFSPNLcgs8QfTaCcaafxAMd1nozznRiF8': 'Saxon Advisors 3 (2Eu9t..)',
-  '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt (2HaPR..)',
+  '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt 1 (2HaPR..)',
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV': 'Tokenise 2 (2Hkhr..)',
 };
@@ -91,11 +91,17 @@ export const defaultChartOptions = {
     x: { title: { display: true, text: 'X-axis Title' } },
     y: { title: { display: true, text: 'Y-axis Title' } },
   },
+  elements: {
+    line: {
+      borderJoinStyle: 'round' as const,
+    },
+  },
   // interaction: {
   //   mode: 'x',
   // },
   hover: {
     mode: 'dataset' as const,
+    intersect: true,
   },
   plugins: {
     title: {

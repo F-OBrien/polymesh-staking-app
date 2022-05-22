@@ -5,15 +5,18 @@ import { Line } from 'react-chartjs-2';
 import * as d3 from 'd3';
 import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
-import { useErasPoints } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
+
+import { useErasRewardPoints } from '../../../hooks/StakingQueries';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
-interface IProps {
-  highlight?: string[] | undefined;
+interface PointsHistoryData {
+  labels?: string[];
+  averageDeviationDatasets?: { [key: string]: number[] };
 }
 
-const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => {
+const ErasOperatorsPointDeviationsFromAverageChart = () => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -24,9 +27,15 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
     };
   }, []);
 
-  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const {
+    eraInfo: { activeEra },
+    operatorsToHighlight: highlight,
+  } = useStakingContext();
 
-  const erasPoints = useErasPoints({ enabled: false });
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const [pointsHistoryData, setPointsHistoryData] = useState<PointsHistoryData>({});
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries, cacheTime: 21600000 });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -36,7 +45,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -49,93 +58,120 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ highlight }: IProps) => 
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasPoints.isFetching;
+  }, [erasPoints.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (erasPoints.isFetching || !mountedRef.current) return;
+
+    if (!erasPoints.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    // If any of the data is not latest re-enable fetching queries.
+    if (activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber()) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, erasPoints.data, erasPoints.isFetching]);
 
   useEffect(() => {
     if (!erasPoints.data) {
       return;
     }
 
-    async function getDeviationsFromAverage() {
-      let labels: string[] = [];
-      let averageDeviationDatasets: { [key: string]: number[] } = {};
-      let averageDeviationSum: { [key: string]: number } = {};
-      let pointsChartData: { datasets: any; labels: string[] };
-      let averagePoints: number[] = [];
+    let labels: string[] = [];
+    let averageDeviationDatasets: { [key: string]: number[] } = {};
+    let averageDeviationSum: { [key: string]: number } = {};
+    let averagePoints: number[] = [];
 
-      // Read all era points
-      const allErasPoints = erasPoints.data;
+    // Read all era points
+    const allErasPoints = erasPoints.data;
 
-      allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
-        if (eraPoints.toNumber()) {
-          averagePoints[index] = eraPoints.toNumber() / Object.keys(validators).length;
-          // Build array of x-axis labels with eras.
-          labels[index] = era.toString();
+    allErasPoints?.forEach(({ era, total, operators }, index) => {
+      if (total.toNumber()) {
+        averagePoints[index] = total.toNumber() / Object.keys(operators).length;
+        // Build array of x-axis labels with eras.
+        labels[index] = era.toString();
 
-          // build array of cumulative deviation from average points for each validator
-          Object.entries(validators).forEach(([id, points]) => {
-            const percenOfAverage = 100 * (points.toNumber() / averagePoints[index] - 1);
-            averageDeviationSum[id] = averageDeviationSum[id] || 0;
-            averageDeviationSum[id] = averageDeviationSum[id] + percenOfAverage;
+        // build array of cumulative deviation from average points for each validator
+        Object.entries(operators).forEach(([id, points]) => {
+          const percentOfAverage = 100 * (points.toNumber() / averagePoints[index] - 1);
+          averageDeviationSum[id] = averageDeviationSum[id] || 0;
+          averageDeviationSum[id] = averageDeviationSum[id] + percentOfAverage;
 
-            averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(allErasPoints.length) /* .fill(0) */;
-            averageDeviationDatasets[id][index] = averageDeviationSum[id];
-          });
-        }
-      });
-
-      pointsChartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Average',
-            data: new Array(allErasPoints?.length).fill(0),
-            borderColor: 'rgb(200,0,0)',
-            backgroundColor: 'rgba(200,0,0,0.5)',
-            borderWidth: 2,
-            borderDash: [3, 5],
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
-
-      Object.entries(averageDeviationDatasets).forEach(([operator, points], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(averageDeviationDatasets).length - 1)));
-        if (highlight?.includes(operator)) {
-          color.opacity = 0.9;
-          pointsChartData.datasets.unshift({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: points,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        } else {
-          color.opacity = 0.2;
-          pointsChartData.datasets.push({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: points,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        }
-      });
-
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(pointsChartData);
+          averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(allErasPoints.length);
+          averageDeviationDatasets[id][index] = averageDeviationSum[id];
+        });
       }
-      return;
+    });
+    if (mountedRef.current) {
+      setPointsHistoryData({ labels, averageDeviationDatasets });
     }
-    getDeviationsFromAverage();
-  }, [erasPoints.data, highlight]);
+  }, [erasPoints.data]);
+
+  useEffect(() => {
+    if (!pointsHistoryData.labels || !pointsHistoryData.averageDeviationDatasets) return;
+
+    const { labels, averageDeviationDatasets } = pointsHistoryData;
+    let pointsChartData: { datasets: any; labels: string[] };
+
+    pointsChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Average',
+          data: new Array(labels.length).fill(0),
+          borderColor: 'rgb(200,0,0)',
+          backgroundColor: 'rgba(200,0,0,0.5)',
+          borderWidth: 2,
+          borderDash: [3, 5],
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+          hoverBackgroundColor: 'rgb(255,0,0)',
+        },
+      ],
+    };
+
+    Object.entries(averageDeviationDatasets).forEach(([operator, points], index) => {
+      let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(averageDeviationDatasets).length - 1)));
+      if (highlight?.includes(operator)) {
+        color.opacity = 0.9;
+        pointsChartData.datasets.unshift({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: points,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      } else {
+        color.opacity = 0.2;
+        pointsChartData.datasets.push({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: points,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      }
+    });
+
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(pointsChartData);
+    }
+    return;
+  }, [highlight, pointsHistoryData]);
 
   return (
     <div className='LineChart'>

@@ -1,33 +1,49 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  LogarithmicScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData,
+} from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Bar } from 'react-chartjs-2';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN } from '@polkadot/util';
 import { useSdk } from '../../../hooks/useSdk';
+import { useStakingContext } from '../../../hooks/useStakingContext';
+import { useQuery } from 'react-query';
+import { VoidFn } from '@polkadot/api/types';
 
-ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
-
-interface IProps {
-  highlight?: string[] | undefined;
-}
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
 
 interface NominationData {
   labels?: string[];
   amount?: number[];
   commission?: number[];
 }
-const OperatorsTokensNominated = ({ highlight }: IProps) => {
+const OperatorsTokensNominated = () => {
   const {
     api,
     chainData: { tokenDecimals, tokenSymbol },
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
+  const { operatorsToHighlight: highlight } = useStakingContext();
 
   const [chartData, setChartData] = useState<ChartData<'bar' | 'line'>>();
-  const [fetchFlag, setFetchFlag] = useState(true);
   const [nominationData, setNominationData] = useState<NominationData>({});
+  const [refetch, setRefetch] = useState<Boolean>(false);
+  // Queries to get and cache the required data.
+  const nominations = useQuery(['NOMINATIONS'], async () => await api.query.staking.nominators.entries(), { cacheTime: 21600000 });
+  const stakingLedger = useQuery(['STAKING_LEDGER'], async () => await api.query.staking.ledger.entries(), { cacheTime: 21600000 });
+  const validators = useQuery(['VALIDATORS'], async () => await api.query.staking.validators.entries(), { cacheTime: 21600000 });
 
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
@@ -60,6 +76,12 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           position: 'right' as const,
         },
       },
+      elements: {
+        line: {
+          borderJoinStyle: 'round' as const,
+        },
+      },
+
       plugins: {
         legend: {
           display: false,
@@ -85,56 +107,68 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
     return options;
   }, [tokenSymbol]);
 
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return nominations.isFetching || validators.isFetching || stakingLedger.isFetching;
+  }, [nominations.isFetching, stakingLedger.isFetching, validators.isFetching]);
+
   // Effect to subscribe to events so we know when to the refresh chart.
   useEffect(() => {
-    if (!api?.query.system) return;
-    let isSubscribed = true;
-
+    let unsubEvents: VoidFn;
     const subscribeEvents = async () => {
-      const unsubEvents = await api?.query.system.events((event) => {
-        if (!isSubscribed) {
-          unsubEvents!();
-          return;
-        }
+      unsubEvents = await api.query.system.events((event) => {
+        console.log(event.toHuman());
 
-        if (event.some((e) => e.event.method === 'Bonded' || e.event.method === 'Nominated' || e.event.method === 'UnBonded')) {
-          if (mountedRef.current) {
-            setFetchFlag(true);
-          }
+        if (
+          event.some(
+            (e) =>
+              e.event.method === 'Bonded' ||
+              e.event.method === 'Nominated' ||
+              e.event.method === 'UnBonded' ||
+              (e.event.method === 'Reward' && e.event.section === 'staking')
+          )
+        ) {
+          setRefetch(true);
         }
       });
     };
     subscribeEvents();
 
     return () => {
-      isSubscribed = false;
+      // Unsubscribe on unmount.
+      unsubEvents && unsubEvents();
     };
-  }, [api?.query.system]);
+  }, [api.query.system]);
+
+  useEffect(() => {
+    if (refetch) {
+      nominations.refetch();
+      stakingLedger.refetch();
+      validators.refetch();
+      setRefetch(false);
+    }
+  }, [nominations, refetch, stakingLedger, validators]);
 
   // Effect to query chain for the required data and sort from highest to lowest nominated.
   useEffect(() => {
     //
-    if (!fetchFlag || !api?.query.staking) return;
+    if (!nominations.data || !stakingLedger.data || !validators.data) return;
     let labels: string[] = [];
     let amount: number[] = [];
     let commission: number[] = [];
 
-    async function getNominatedTotkens() {
-      //TODO: consider converting calls to react query calls.
-      const nominations = await api?.query.staking.nominators.entries();
-      const stakingLedger = await api?.query.staking.ledger.entries();
-      const validators = await api?.query.staking.validators.entries();
+    async function getNominatedTokens() {
       //TODO: get data to determine if an operator is waiting so it can be highlighted on the chart.
 
       const amountStaked: Record<string, BN> = {};
       const nominated: Record<string, BN> = {};
 
-      stakingLedger.forEach(([, ledger]) => {
+      stakingLedger.data!.forEach(([, ledger]) => {
         const unwrappedLedger = ledger.unwrapOrDefault();
         amountStaked[unwrappedLedger.stash.toString()] = unwrappedLedger.total.unwrap();
       });
 
-      nominations.forEach(([{ args: nominator }, nominations]) => {
+      nominations.data!.forEach(([{ args: nominator }, nominations]) => {
         if (nominations.isSome) {
           nominations.unwrap().targets.forEach((operator) => {
             nominated[operator.toString()] = nominated[operator.toString()]
@@ -146,7 +180,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
 
       let pos: number;
 
-      validators.forEach(([{ args: operator }, preferences]) => {
+      validators.data!.forEach(([{ args: operator }, preferences]) => {
         // Add operator own staked tokens to the total.
         nominated[operator.toString()] = nominated[operator.toString()]
           ? nominated[operator.toString()].add(amountStaked[operator.toString()])
@@ -168,7 +202,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
 
           while (start <= end) {
             var mid = start + Math.floor((end - start) / 2);
-            // If the amount is the same as mid position position we can add at the mid +1 posiiton.
+            // If the amount is the same as mid position position we can add at the mid +1 position.
             if (amountNominated === amount[mid]) {
               pos = mid + 1;
               break;
@@ -195,11 +229,10 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
       });
       if (mountedRef.current) {
         setNominationData({ labels, amount, commission });
-        setFetchFlag(false);
       }
     }
-    getNominatedTotkens();
-  }, [api?.query.staking, divisor, fetchFlag]);
+    getNominatedTokens();
+  }, [api.query.staking, divisor, nominations.data, stakingLedger.data, validators.data]);
 
   // Effect to set the ChartData and apply formatting.
   useEffect(() => {
@@ -211,9 +244,9 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
 
     // Assign colors.
     nominationData.labels.forEach((operator: string, index: number) => {
-      // if nominated by the active walet assign a different color.
+      // if nominated by the active wallet assign a different color.
       if (highlight?.includes(operator)) {
-        bdcolor[index] = '#43195B';
+        bdcolor[index] = '#black';
         bgcolor[index] = '#43195B95';
       }
       // Else set default Border and Background Color.
@@ -234,7 +267,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           type: 'line' as const,
           label: 'Commission',
           data: nominationData.commission,
-          backgroundColor: '#43195B50',
+          backgroundColor: '#43195B95',
           borderColor: '#43195B',
           borderWidth: 2,
           yAxisID: 'y1',
@@ -269,7 +302,7 @@ const OperatorsTokensNominated = ({ highlight }: IProps) => {
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
-          {fetchFlag ? <MiniSpinner /> : <></>}
+          {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (
         <>

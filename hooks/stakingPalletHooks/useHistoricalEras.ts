@@ -1,5 +1,4 @@
 import type { Option, u32 } from '@polkadot/types';
-//import { BN_ZERO, BN_ONE, BN } from '@polkadot/util';
 import { ActiveEraInfo, EraIndex } from '@polkadot/types/interfaces';
 import { useQuery, UseQueryOptions } from 'react-query';
 import { useSdk } from '../useSdk';

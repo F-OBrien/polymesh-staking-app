@@ -1,21 +1,24 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { operatorsNames, BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import * as d3 from 'd3';
-import { BN, BN_HUNDRED } from '@polkadot/util';
-import { useErasExposure, useErasPoints, useErasRewards } from '../../../hooks/StakingQueries';
 import { useSdk } from '../../../hooks/useSdk';
+import { useErasStakers, useErasRewardPoints, useErasRewards } from '../../../hooks/StakingQueries';
+import { BigNumber } from '@polymathnetwork/polymesh-sdk';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
-interface IProps {
-  highlight?: string[] | undefined;
+interface AprHistoryData {
+  labels?: string[];
+  aprDatasets?: { [key: string]: string[] };
+  averageApr?: string[];
 }
 
-const ErasOperatorsAprChart = ({ highlight }: IProps) => {
+const ErasOperatorsAprChart = () => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -29,10 +32,17 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
   const {
     chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
   } = useSdk();
-  const [chartData, setChartData] = useState<{ datasets: any; labels: string[] }>();
-  const erasExposure = useErasExposure({ enabled: false });
-  const erasPoints = useErasPoints({ enabled: false });
-  const erasRewards = useErasRewards({ enabled: false });
+  const {
+    eraInfo: { activeEra, currentEra },
+    operatorsToHighlight: highlight,
+  } = useStakingContext();
+
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const [aprHistoryData, setAprHistoryData] = useState<AprHistoryData>({});
+  const erasPoints = useErasRewardPoints({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
+  const erasRewards = useErasRewards({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
+  const erasStakingData = useErasStakers({ staleTime: Infinity, enabled: fetchQueries, cacheTime: 21600000 });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -42,7 +52,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -52,123 +62,161 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
     return options;
   }, []);
 
-  // Set `dataIsFetching` to true while any of the queries are fetching.
-  const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
-
   const erasPerYear = useMemo(
-    () => BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)),
+    () => new BigNumber(BN_MILLISECONDS_PER_YEAR.div(expectedBlockTime.mul(epochDuration).mul(sessionsPerEra)).toString()),
     [epochDuration, expectedBlockTime, sessionsPerEra]
   );
 
+  // Set `dataIsFetching` to true while any of the queries are fetching.
+  const dataIsFetching = useMemo(() => {
+    return erasStakingData.isFetching || erasPoints.isFetching || erasRewards.isFetching;
+  }, [erasStakingData.isFetching, erasPoints.isFetching, erasRewards.isFetching]);
+
+  // Set `dataMissing` to true while any of the required data is missing.
+  const dataMissing = useMemo(() => {
+    return !erasStakingData.data || !erasPoints.data || !erasRewards.data;
+  }, [erasPoints.data, erasRewards.data, erasStakingData.data]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
   useEffect(() => {
-    if (!erasExposure.data || !erasPoints.data || !erasRewards.data) {
+    if (dataIsFetching || !mountedRef.current) return;
+
+    if (dataMissing) {
+      setFetchQueries(true);
       return;
     }
+    // Check we have up to date data.
+    const pointsDataNotCurrent = activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber();
+    const rewardDataNotCurrent = activeEra.toNumber() - 1 > erasRewards.data![erasRewards.data!.length - 1].era.toNumber();
+    const stakingDataNotCurrent = currentEra.toNumber() > erasStakingData.data![erasStakingData.data!.length - 1].era.toNumber();
+    // If any of the data is not latest re-enable fetching queries.
+    if (pointsDataNotCurrent || rewardDataNotCurrent || stakingDataNotCurrent) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, currentEra, dataIsFetching, dataMissing, erasPoints, erasRewards, erasStakingData]);
 
-    async function getAprByOperatorData() {
-      let labels: string[] = [];
-      let aprDatasets: { [key: string]: number[] } = {};
-      let aprChartData: { datasets: any; labels: string[] };
-      let averageApr: number[] = [];
+  useEffect(() => {
+    // If we don't have required data return.
+    if (dataMissing) return;
 
-      // Read all era exposure (totals staked)
-      const allErasExposure = erasExposure.data;
-      // Read all era points
-      const allErasPoints = erasPoints.data;
-      // Read all era rewards
-      const allErasRewards = erasRewards.data;
+    let labels: string[] = [];
+    let aprDatasets: { [key: string]: string[] } = {};
+    let averageApr: string[] = [];
 
-      // use points and rewards with totals to calculate APRs
-      allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
-        // Check points are available for the era as api.derive functions return an
-        // empty data set when current era != active era i.e. last session of an era
-        if (eraPoints.toNumber()) {
-          // API derive has eras sorted for both erasPoints and eraRewards so ok
-          // to use index to populate arrays.
+    const historicalErasStakingData = erasStakingData.data!;
+    const historicalErasPoints = erasPoints.data!;
+    const historicalErasRewards = erasRewards.data!;
 
-          // Build array of x-axis labels with eras.
-          labels[index] = era.toString();
-          let sumOfTotals = new BN(0);
+    // Use points, rewards, totals and commission to calculate APRs
+    historicalErasPoints?.forEach(({ era, total: totalPoints, operators }, index) => {
+      // Build array of x-axis labels with eras.
+      // Eras are sorted so we can use index to populate arrays.
+      labels[index] = era.toString();
 
-          // build array of APRs for each validator
-          Object.entries(validators).forEach(([id, points]) => {
-            if (!aprDatasets[id]) {
-              aprDatasets[id] = new Array(allErasPoints.length).fill(0);
-            }
+      let sumOfTotals = new BigNumber(0);
 
-            // TODO see about tidying this up better for when a validator has no assigned tokens
-            let totalAssigned;
-            if (allErasExposure![index].validators[id]) {
-              totalAssigned = allErasExposure![index].validators[id].total.toNumber();
-            } else {
-              totalAssigned = 0;
-            }
-
-            aprDatasets[id][index] =
-              erasPerYear.mul(BN_HUNDRED).mul(allErasRewards![index].eraReward).mul(points).div(eraPoints).toNumber() / totalAssigned;
-            sumOfTotals = sumOfTotals.add(new BN(totalAssigned));
-          });
-          const numberOfOperators = new BN(Object.keys(validators).length);
-          let averageTotal = sumOfTotals.div(numberOfOperators);
-          averageApr[index] =
-            erasPerYear.mul(BN_HUNDRED).mul(allErasRewards![index].eraReward).div(numberOfOperators).toNumber() / averageTotal.toNumber();
-        }
+      // Search for the data for the corresponding era. While the data should be sorted by era this
+      // ensures correct calculations if queries were not fetched with the same era range.
+      const eraStakingData = historicalErasStakingData.find((data) => {
+        return data.era.toNumber() === era.toNumber();
+      });
+      const eraRewards = historicalErasRewards.find((data) => {
+        return data.era.toNumber() === era.toNumber();
       });
 
-      // Create chart datasets
-      aprChartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Average',
-            data: averageApr,
-            borderColor: 'rgb(255,0,0)',
-            backgroundColor: 'rgba(255,0,0,0.5)',
-            borderWidth: 2,
-            borderDash: [3, 5],
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
+      // Ensure data was found for the era.
+      if (eraStakingData && eraRewards) {
+        // Build array of APRs for each validator.
+        Object.entries(operators).forEach(([id, points]) => {
+          // If there is no previous data for the operator create a new array.
+          aprDatasets[id] = aprDatasets[id] || new Array(historicalErasPoints.length).fill('0');
+          // Total POLYX assigned to current operator.
+          const totalAssigned = new BigNumber(eraStakingData.operators[id].total.unwrap().toString());
+          // Total Reward for the current operator node.
+          const nodeReward = new BigNumber(eraRewards.reward.toString())
+            .times(points.toString())
+            .div(totalPoints.toString())
+            .decimalPlaces(0, BigNumber.ROUND_DOWN);
+          // Calculate APR (excluding commission)
+          const apr = new BigNumber(100).times(erasPerYear).times(nodeReward).div(totalAssigned);
 
-      Object.entries(aprDatasets).forEach(([operator, apr], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(aprDatasets).length - 1)));
-        color.opacity = 0.9;
-        if (highlight?.includes(operator)) {
-          aprChartData.datasets.unshift({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: apr,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        } else {
-          color.opacity = 0.2;
-          aprChartData.datasets.push({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: apr,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        }
-      });
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(aprChartData);
+          aprDatasets[id][index] = apr.toString();
+
+          sumOfTotals = sumOfTotals.plus(totalAssigned);
+        });
+        // Calculate the average APR after commissions.
+        averageApr[index] = erasPerYear.times(100).times(eraRewards.reward.toString()).div(sumOfTotals).toString();
       }
-      return;
-    }
+    });
 
-    getAprByOperatorData();
-  }, [erasExposure.data, erasPerYear, erasPoints.data, erasRewards.data, highlight]);
+    if (mountedRef.current) {
+      setAprHistoryData({ labels, aprDatasets, averageApr });
+    }
+  }, [dataMissing, erasPerYear, erasPoints.data, erasRewards.data, erasStakingData.data]);
+
+  useEffect(() => {
+    if (!aprHistoryData.labels || !aprHistoryData.aprDatasets || !aprHistoryData.averageApr) return;
+
+    const { labels, aprDatasets, averageApr } = aprHistoryData;
+
+    let aprChartData: { datasets: any; labels: string[] };
+
+    // Create chart datasets
+    aprChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Average',
+          data: averageApr,
+          borderColor: 'rgb(255,0,0)',
+          backgroundColor: 'rgba(255,0,0,0.5)',
+          borderWidth: 2,
+          borderDash: [3, 5],
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+          hoverBackgroundColor: 'rgb(255,0,0)',
+        },
+      ],
+    };
+
+    Object.entries(aprDatasets).forEach(([operator, apr], index) => {
+      let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(aprDatasets).length - 1)));
+
+      if (highlight?.includes(operator)) {
+        color.opacity = 0.9;
+        aprChartData.datasets.unshift({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: apr,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      } else {
+        color.opacity = 0.2;
+        aprChartData.datasets.push({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: apr,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      }
+    });
+    // Before setting the chart data ensure the component is still mounted.
+    if (mountedRef.current) {
+      setChartData(aprChartData);
+    }
+    return;
+  }, [aprHistoryData, highlight]);
 
   return (
     <div className='LineChart'>
@@ -183,7 +231,7 @@ const ErasOperatorsAprChart = ({ highlight }: IProps) => {
       ) : (
         <>
           <Spinner />
-          Reading Historical Totals
+          Loading Staking History
         </>
       )}
     </div>

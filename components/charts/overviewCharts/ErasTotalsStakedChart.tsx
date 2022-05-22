@@ -16,7 +16,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions } from '../../../constants/constants';
-import { useErasTotalStake } from '../../../hooks/StakingQueries';
+import { useErasTotalStaked } from '../../../hooks/StakingQueries';
 import { useSdk } from '../../../hooks/useSdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
@@ -33,7 +33,7 @@ const ErasTotalsStakedChart = () => {
   }, []);
 
   const [chartData, setChartData] = useState<ChartData<'line'>>();
-  const totalsQuery = useErasTotalStake();
+  const totalsQuery = useErasTotalStaked();
   const {
     chainData: { tokenSymbol, tokenDecimals },
   } = useSdk();
@@ -47,7 +47,7 @@ const ErasTotalsStakedChart = () => {
 
   const chartOptions: ChartOptions<'line'> = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -76,8 +76,8 @@ const ErasTotalsStakedChart = () => {
 
       // Read all era totals staked
       const allErasTotalStake = totalsQuery.data;
-      // const currentEra = await api?.query.staking.currentEra();
-      // const historyDepth = (await api?.query.staking.historyDepth())!.toNumber();
+      // const currentEra = await api.query.staking.currentEra();
+      // const historyDepth = (await api.query.staking.historyDepth())!.toNumber();
 
       // Calculate the index offset for data arrays
       // if (currentEra?.isSome && historyDepth) {

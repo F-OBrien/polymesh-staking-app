@@ -9,7 +9,7 @@ export const useEraTotalStaked = (era: EraIndex, queryOptions?: UseQueryOptions<
     ['ERA_TOTAL_STAKED', era],
 
     async () => {
-      return await api?.query.staking.erasTotalStake(era);
+      return await api.query.staking.erasTotalStake(era);
     },
     queryOptions
   );

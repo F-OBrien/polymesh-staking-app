@@ -21,6 +21,9 @@ const Home: NextPage = () => {
         <Link href='/operator-charts'>
           <a className={styles.btn}>Operator Charts</a>
         </Link>
+        <Link href='/operator-info'>
+          <a className={styles.btn}>Operator Info</a>
+        </Link>
       </div>
     </>
   );

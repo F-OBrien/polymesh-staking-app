@@ -2,7 +2,7 @@ import type { Polymesh } from '@polymathnetwork/polymesh-sdk';
 import type { ApiPromise } from '@polkadot/api';
 import type { InjectedExtension, InjectedAccount } from '@polkadot/extension-inject/types';
 import type { u32, u64 } from '@polkadot/types';
-import { BlockNumber, Moment } from '@polkadot/types/interfaces/runtime';
+import { Moment, EraIndex } from '@polkadot/types/interfaces';
 
 export interface SdkProps {
   sdk: Polymesh;
@@ -11,6 +11,11 @@ export interface SdkProps {
   chainData: ChainData;
   walletAccounts?: InjectedAccount[];
   encodedSelectedAddress?: string;
+}
+
+export interface StakingContextProps {
+  eraInfo: EraInfo;
+  operatorsToHighlight?: string[];
 }
 
 export interface NetworkMeta {
@@ -53,4 +58,13 @@ export interface ChainData {
   expectedBlockTime: Moment;
   sessionsPerEra: u64;
   electionLookahead: u32;
+}
+
+export interface EraInfo {
+  activeEra: EraIndex;
+  currentEra: EraIndex;
+  historyDepth: number;
+  historicWithCurrent: EraIndex[];
+  historicWithActive: EraIndex[];
+  historicWithoutActive: EraIndex[];
 }

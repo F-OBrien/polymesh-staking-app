@@ -4,8 +4,8 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions } from '../../../constants/constants';
-import { useErasRewards } from '../../../hooks/StakingQueries';
 import { useSdk } from '../../../hooks/useSdk';
+import { useErasRewards } from '../../../hooks/StakingQueries';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -36,7 +36,7 @@ const ErasRewardsTotalsChart = () => {
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -64,11 +64,11 @@ const ErasRewardsTotalsChart = () => {
       // Read all era rewards
       const allErasRewards = erasRewards.data;
 
-      allErasRewards?.forEach(({ era, eraReward }, index) => {
-        if (eraReward.toNumber()) {
+      allErasRewards?.forEach(({ era, reward }, index) => {
+        if (reward.toNumber()) {
           // Build array of x-axis labels with eras.
           labels[index] = era.toString();
-          rewards[index] = eraReward.toNumber() / divisor!;
+          rewards[index] = reward.toNumber() / divisor!;
         }
       });
 

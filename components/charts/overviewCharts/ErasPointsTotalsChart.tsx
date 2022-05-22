@@ -4,7 +4,8 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { defaultChartOptions } from '../../../constants/constants';
-import { useErasPoints } from '../../../hooks/StakingQueries';
+import { useErasRewardPoints } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
@@ -19,9 +20,13 @@ const ErasPointsTotalsChart = () => {
     };
   }, []);
 
-  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const {
+    eraInfo: { activeEra },
+  } = useStakingContext();
 
-  const erasPoints = useErasPoints({ enabled: true });
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries, cacheTime: 21600000 });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -31,7 +36,7 @@ const ErasPointsTotalsChart = () => {
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -44,52 +49,67 @@ const ErasPointsTotalsChart = () => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasPoints.isFetching;
+  }, [erasPoints.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (erasPoints.isFetching || !mountedRef.current) return;
+
+    if (!erasPoints.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    const pointsDataNotCurrent = activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber();
+    // If any of the data is not latest re-enable fetching queries.
+    if (pointsDataNotCurrent) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, erasPoints.isFetching, erasPoints.data]);
 
   useEffect(() => {
     if (!erasPoints.data) {
       return;
     }
 
-    async function getPointsChart() {
-      let labels: string[] = [];
-      let totalPointsChartData: { datasets: any; labels: string[] };
-      let totalPoints: number[] = [];
-      // Read all era points
-      const allErasPoints = erasPoints.data;
+    let labels: string[] = [];
+    let totalPointsChartData: { datasets: any; labels: string[] };
+    let totalPoints: number[] = [];
+    // Read all era points
+    const allErasPoints = erasPoints.data;
 
-      allErasPoints?.forEach(({ era, eraPoints }, index) => {
-        if (eraPoints.toNumber()) {
-          // Build array of x-axis labels with eras.
-          labels[index] = era.toString();
-          totalPoints[index] = eraPoints.toNumber();
-        }
-      });
-
-      // Create chart datasets
-      totalPointsChartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Total Points',
-            data: totalPoints,
-            borderColor: 'rgb(200,0,0)',
-            backgroundColor: 'rgba(200,0,0,0.5)',
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
-
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(totalPointsChartData);
+    allErasPoints?.forEach(({ era, total }, index) => {
+      if (total.toNumber()) {
+        // Build array of x-axis labels with eras.
+        labels[index] = era.toString();
+        totalPoints[index] = total.toNumber();
       }
-      return;
+    });
+
+    // Create chart datasets
+    totalPointsChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Total Points',
+          data: totalPoints,
+          borderColor: 'rgb(200,0,0)',
+          backgroundColor: 'rgba(200,0,0,0.5)',
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+        },
+      ],
+    };
+
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(totalPointsChartData);
     }
-    getPointsChart();
+    return;
   }, [erasPoints.data]);
 
   return (

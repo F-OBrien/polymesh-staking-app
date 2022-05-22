@@ -47,7 +47,7 @@ const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
 };
 
 /**
- * Takes a SS58 Format address and reencodes in the specified format.
+ * Takes a SS58 Format address and re-encodes in the specified format.
  * @param address any SS58 encoded address
  * @param ss58Format target SS58 format
  * @returns address encoded in ss58Format
@@ -80,7 +80,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
       const allInjected = await web3Enable('Staking Stats dApp');
 
       // Filter sources to find the Polymesh wallet.
-      // This implementaiton only supports polywallet.
+      // This implementation only supports polywallet.
       // TODO: Consider adding support for other substrate wallets through optional selection.
       // Would also requires selection of network as not provided by other wallet extensions.
       const polyWallet = allInjected.filter((extension) => extension.name === 'polywallet');
@@ -168,11 +168,12 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   //Set the currently selected account as the signing key (for polywallet index 0 = selected).
   const encodedSelectedAddress = useMemo(() => {
     if (!walletAccounts || !chainData?.ss58Format) return;
+    // return '2EZsPKnacSeroCJPd3aseH75kUwcQDtTzFefdSwL3TtxEf3F'; // Whale address
     return changeAddressFormat(walletAccounts[0].address, chainData.ss58Format);
   }, [chainData?.ss58Format, walletAccounts]);
 
   /* Test transaction*/
-  /* TO BE REMOVED once setting a keyring key and pair is not mandatory in the SDK for api transaxtions*/
+  /* TO BE REMOVED once setting a keyring key and pair is not mandatory in the SDK for api transactions*/
   // useEffect(() => {
   //   if (/* !sdk?.context || */ !encodedSelectedAddress || !sdk?._polkadotApi) return;
   //   ////////////////////////////////////////////////////////

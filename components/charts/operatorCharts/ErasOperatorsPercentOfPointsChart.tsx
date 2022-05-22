@@ -1,19 +1,23 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Line } from 'react-chartjs-2';
 import * as d3 from 'd3';
 import { defaultChartOptions, operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
-import { useErasPoints } from '../../../hooks/StakingQueries';
+import { useErasRewardPoints } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
+import { BigNumber } from '@polymathnetwork/polymesh-sdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
-interface IProps {
-  highlight?: string[] | undefined;
+interface PercentOfPointsHistoryData {
+  labels?: string[];
+  pointsPercentDatasets?: { [key: string]: number[] };
+  averagePercent?: number[];
 }
 
-const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
+const ErasOperatorsPercentOfPointsChart = () => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -24,8 +28,15 @@ const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
     };
   }, []);
 
-  const [chartData, setChartData] = useState<any>();
-  const erasPoints = useErasPoints({ enabled: false });
+  const {
+    eraInfo: { activeEra },
+    operatorsToHighlight: highlight,
+  } = useStakingContext();
+
+  const [chartData, setChartData] = useState<ChartData<'line'>>();
+  const [fetchQueries, setFetchQueries] = useState<boolean>(false);
+  const [percentPointsHistoryData, setPercentPointsHistoryData] = useState<PercentOfPointsHistoryData>({});
+  const erasPoints = useErasRewardPoints({ enabled: fetchQueries, cacheTime: 21600000 });
 
   // Chart Reference for resetting zoom
   const chartRef = useRef<any>();
@@ -35,7 +46,7 @@ const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
 
   const chartOptions = useMemo(() => {
     // Make a copy of the default options.
-    // @ts-ignore - typescript doens't yet recognise this function. TODO remove ignore once supported
+    // @ts-ignore - typescript doesn't yet recognize this function. TODO remove ignore once supported
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
     options.scales.x.title.text = 'Era';
@@ -47,90 +58,113 @@ const ErasOperatorsPercentOfPointsChart = ({ highlight }: IProps) => {
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
-    return false;
-  }, []);
+    return erasPoints.isFetching;
+  }, [erasPoints.isFetching]);
+
+  // If the era changes or if data is missing set `fetchQueries` to true to trigger fetching/refetching all data.
+  useEffect(() => {
+    if (erasPoints.isFetching || !mountedRef.current) return;
+
+    if (!erasPoints.data) {
+      setFetchQueries(true);
+      return;
+    }
+    // Check we have up to date data.
+    // If any of the data is not latest re-enable fetching queries.
+    if (activeEra.toNumber() - 1 > erasPoints.data![erasPoints.data!.length - 1].era.toNumber()) {
+      setFetchQueries(true);
+    } else {
+      setFetchQueries(false);
+    }
+  }, [activeEra, erasPoints.data, erasPoints.isFetching]);
 
   useEffect(() => {
     if (!erasPoints.data) {
       return;
     }
 
-    async function getPercentChart() {
-      let labels: string[] = [];
-      let pointsPercentDatasets: { [key: string]: number[] } = {};
-      let chartData: { datasets: any; labels: string[] };
-      let averagePercent: number[] = [];
-      // Read all era points
-      const allErasPoints = erasPoints.data;
+    let labels: string[] = [];
+    let pointsPercentDatasets: { [key: string]: number[] } = {};
+    let averagePercent: number[] = [];
+    // Read all era points
+    const allErasPoints = erasPoints.data;
 
-      allErasPoints?.forEach(({ era, eraPoints, validators }, index) => {
-        if (eraPoints.toNumber()) {
-          averagePercent[index] = 100 / Object.keys(validators).length;
-          // Build array of x-axis labels with eras.
-          labels[index] = era.toString();
+    allErasPoints?.forEach(({ era, total, operators }, index) => {
+      averagePercent[index] = 100 / Object.keys(operators).length;
+      // Build array of x-axis labels with eras.
+      labels[index] = era.toString();
 
-          // build array of percent for each validator
-          Object.entries(validators).forEach(([id, points]) => {
-            if (!pointsPercentDatasets[id]) {
-              pointsPercentDatasets[id] = new Array(84).fill(0);
-            }
-            pointsPercentDatasets[id][index] = (100 * points.toNumber()) / eraPoints.toNumber();
-          });
-        }
+      // build array of percent for each validator
+      Object.entries(operators).forEach(([id, points]) => {
+        pointsPercentDatasets[id] = pointsPercentDatasets[id] || new Array(84).fill(0);
+        pointsPercentDatasets[id][index] = new BigNumber(100).times(points.toString()).div(total.toNumber()).toNumber();
       });
-
-      chartData = {
-        labels,
-        datasets: [
-          {
-            label: 'Average',
-            data: averagePercent,
-            borderColor: 'rgb(200,0,0)',
-            backgroundColor: 'rgba(200,0,0,0.5)',
-            borderWidth: 2,
-            borderDash: [3, 5],
-            pointRadius: 2,
-            yAxisID: 'y',
-          },
-        ],
-      };
-
-      Object.entries(pointsPercentDatasets).forEach(([operator, percent], index) => {
-        let color = d3.rgb(d3.interpolateSinebow(index / (Object.keys(pointsPercentDatasets).length - 1)));
-        color.opacity = 0.9;
-        if (highlight?.includes(operator)) {
-          chartData.datasets.unshift({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: percent,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        } else {
-          color.opacity = 0.2;
-          chartData.datasets.push({
-            label: operatorsNames[operator] ? operatorsNames[operator] : operator,
-            data: percent,
-            borderColor: color,
-            backgroundColor: color,
-            borderWidth: 2,
-            pointRadius: 2,
-            yAxisID: 'y',
-          });
-        }
-      });
-
-      // Before setting the chart data ensure the component is still mounted
-      if (mountedRef.current) {
-        setChartData(chartData);
-      }
-      return;
+    });
+    if (mountedRef.current) {
+      setPercentPointsHistoryData({ labels, pointsPercentDatasets, averagePercent });
     }
+  }, [erasPoints.data]);
 
-    getPercentChart();
-  }, [erasPoints.data, highlight]);
+  useEffect(() => {
+    if (!percentPointsHistoryData.labels || !percentPointsHistoryData.pointsPercentDatasets || !percentPointsHistoryData.averagePercent) return;
+
+    const { labels, pointsPercentDatasets, averagePercent } = percentPointsHistoryData;
+
+    let percentPointsChartData: ChartData<'line'>;
+
+    percentPointsChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Average',
+          data: averagePercent,
+          borderColor: 'rgb(200,0,0)',
+          backgroundColor: 'rgba(200,0,0,0.5)',
+          borderWidth: 2,
+          borderDash: [3, 5],
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+          hoverBackgroundColor: 'rgb(255,0,0)',
+        },
+      ],
+    };
+
+    Object.entries(pointsPercentDatasets).forEach(([operator, percent], index) => {
+      let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(pointsPercentDatasets).length - 1)));
+      color.opacity = 0.9;
+      if (highlight?.includes(operator)) {
+        percentPointsChartData.datasets.unshift({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: percent,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      } else {
+        color.opacity = 0.2;
+        percentPointsChartData.datasets.push({
+          label: operatorsNames[operator] ? operatorsNames[operator] : operator,
+          data: percent,
+          borderColor: color.formatRgb(),
+          backgroundColor: color.formatRgb(),
+          borderWidth: 2,
+          pointRadius: 2,
+          yAxisID: 'y',
+          hoverBorderColor: 'black',
+        });
+      }
+    });
+
+    // Before setting the chart data ensure the component is still mounted
+    if (mountedRef.current) {
+      setChartData(percentPointsChartData);
+    }
+    return;
+  }, [highlight, percentPointsHistoryData]);
 
   return (
     <div className='LineChart'>

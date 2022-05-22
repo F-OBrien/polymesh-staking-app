@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ReactElement } from 'react';
+import styles from '../styles/Home.module.css';
 
 export const Navbar = (): ReactElement => {
   return (
@@ -8,13 +9,16 @@ export const Navbar = (): ReactElement => {
         <h1> Polymesh Staking Stats</h1>
       </div>
       <Link href='/'>
-        <a>Home</a>
+        <a className={styles.btn}>Home</a>
       </Link>
       <Link href='/overview-charts'>
-        <a>Overview Charts</a>
+        <a className={styles.btn}>Overview</a>
       </Link>
       <Link href='/operator-charts'>
-        <a>Operator Charts</a>
+        <a className={styles.btn}>Operator History</a>
+      </Link>
+      <Link href='/operator-info'>
+        <a className={styles.btn}>Operator Info</a>
       </Link>
     </nav>
   );

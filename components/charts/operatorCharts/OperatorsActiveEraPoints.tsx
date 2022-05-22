@@ -3,21 +3,21 @@ import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElem
 import zoomPlugin from 'chartjs-plugin-zoom';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Bar } from 'react-chartjs-2';
-import * as d3 from 'd3';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner from '../../Spinner';
 import { useSdk } from '../../../hooks/useSdk';
-import { EraInfo } from '../../../pages/operator-charts';
-import { useEraStakers } from '../../../hooks/stakingPalletHooks/useEraStakers';
+import { useEraStakers } from '../../../hooks/StakingQueries';
+import { useStakingContext } from '../../../hooks/useStakingContext';
+import { VoidFn } from '@polkadot/api/types';
 
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
 
-interface IProps {
-  eraInfo: EraInfo;
-}
-
-const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
+const OperatorsActiveEraPoints = () => {
   const { api, encodedSelectedAddress } = useSdk();
+  const {
+    eraInfo: { activeEra },
+  } = useStakingContext();
+
   const [chartData, setChartData] = useState<ChartData<'bar'>>();
   const activeEraStakingData = useEraStakers(activeEra, { staleTime: Infinity });
 
@@ -88,71 +88,39 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
   }, [activeEra]);
 
   useEffect(() => {
-    if (!api?.query.staking || !activeEra || !activeEraStakingData.data) return;
+    if (!api.query.staking || !activeEraStakingData.data) return;
 
-    let isSubscribed = true;
-
+    let unsubActiveEraPoints: VoidFn;
     async function getPoints() {
       let pointsOld: Record<string, number> = {};
 
       // Retrieve era points via subscription
-      const unsubActiveEraPoints = await api?.query.staking.erasRewardPoints(activeEra!.toNumber(), (eraPoints) => {
-        if (!isSubscribed || !api.isConnected) {
-          unsubActiveEraPoints!();
-          return;
-        }
+      unsubActiveEraPoints = await api.query.staking.erasRewardPoints(activeEra.toNumber(), (eraPoints) => {
+        const pointsRecord: Record<string, number> = {};
 
-        let labels: string[] = [];
+        eraPoints.individual.forEach((rewardPoints, operatorId) => {
+          pointsRecord[operatorId.toString()] = rewardPoints.toNumber();
+        });
+
+        const pointsRecordAllOperators: { operator: string; points: number }[] = [];
+        // Create a record of all elected operators so even operators who fail to produce a block will display with 0 points.
+        Object.keys(activeEraStakingData.data?.operators!).forEach((operator, i) => {
+          pointsRecordAllOperators[i] = { operator: operator, points: pointsRecord[operator.toString()] || 0 };
+        });
+
+        // Sort the array from highest to lowest points
+        pointsRecordAllOperators.sort((a, b) => {
+          return b.points - a.points;
+        });
+
         let data: number[] = [];
         let bgcolor: any[] = [];
         let bdcolor: any[] = [];
-        let pos: number;
+        let labels: string[] = [];
 
-        eraPoints.individual.forEach((rewardPoints, operatorId) => {
-          const points = rewardPoints.toNumber();
-          const operator = operatorId.toString();
-
-          // Sort from highest to Lowest
-          // If there is nothing in the array add to first position.
-          if (data.length === 0) {
-            data.push(points);
-            pos = 0;
-          }
-          // Perform a binary search to find correct position in the sort order.
-          else {
-            let start = 0;
-            let end = data.length - 1;
-            pos = 0;
-
-            while (start <= end) {
-              var mid = start + Math.floor((end - start) / 2);
-              // If the amount is the same as mid position position we can add at the mid +1 posiiton.
-              if (points === data[mid]) {
-                pos = mid + 1;
-                break;
-                // If the amount is greater than the mid position it should be before mid.
-              } else if (points > data[mid]) {
-                pos = end = mid - 1;
-              } else {
-                //  If the amount is less than than the mid position it should be added after it.
-                pos = start = mid + 1;
-              }
-              // Once the end of the search is reached the posiiton should be the final "start"
-              // This ensures the new data is not inserted at a position of mid -1 which would
-              // place it out of order.
-              if (start > end) {
-                pos = start;
-              }
-            }
-            data.splice(pos, 0, points);
-          }
-
-          labels.splice(pos, 0, operator);
-        });
-
-        // Assign colors.
-        labels.forEach((operator, index) => {
-          const color = d3.rgb(d3.interpolateSinebow(index / (labels.length - 1)));
+        pointsRecordAllOperators.forEach(({ operator, points }, index) => {
+          data[index] = points;
+          // Assign colors.
           // Green for increase points.
           if (!!pointsOld[operator] && data[index] > pointsOld[operator]) {
             bgcolor[index] = 'green';
@@ -163,19 +131,17 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
             bgcolor[index] = 'red';
             bdcolor[index] = 'black';
           }
-          // Otherwise a color from d3 color scale
+          // Otherwise a defaults
           else {
-            bdcolor[index] = color;
-            const opacity = 0.5;
-            bgcolor[index] = `rgba(${color.r},${color.g},${color.b},${opacity})`;
-
-            if (encodedSelectedAddress && activeEraStakingData.data?.nominators[encodedSelectedAddress]) {
-              activeEraStakingData.data?.nominators[encodedSelectedAddress].forEach(({ operator: backedOperator }) => {
-                if (operator === backedOperator) {
-                  bdcolor[index] = 'black';
-                  bgcolor[index] = color;
-                }
-              });
+            if (
+              encodedSelectedAddress &&
+              activeEraStakingData.data?.nominators[encodedSelectedAddress]?.some((nominated) => nominated.operator === operator)
+            ) {
+              bdcolor[index] = 'black';
+              bgcolor[index] = '#43195B95';
+            } else {
+              bdcolor[index] = '#EC4673';
+              bgcolor[index] = '#EC467395';
             }
           }
 
@@ -209,9 +175,9 @@ const OperatorsActiveEraPoints = ({ eraInfo: { activeEra } }: IProps) => {
     }
     getPoints();
     return () => {
-      isSubscribed = false;
+      unsubActiveEraPoints && unsubActiveEraPoints();
     };
-  }, [activeEra, activeEraStakingData.data, api.isConnected, api?.query.staking, encodedSelectedAddress]);
+  }, [activeEra, activeEraStakingData.data, api.isConnected, api.query.staking, encodedSelectedAddress]);
 
   return (
     <div className='LineChart'>

@@ -5,17 +5,14 @@ import { Scatter } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { inflationCurve, rewardCurve } from '../../../constants/rewardCurve';
 import { useSdk } from '../../../hooks/useSdk';
-import { EraInfo } from '../../../pages/overview-charts';
-import { useEraTotalStaked } from '../../../hooks/stakingPalletHooks/useEraTotalStaked';
+import { useEraTotalStaked } from '../../../hooks/StakingQueries';
 import annotationPlugin from 'chartjs-plugin-annotation';
+import { useStakingContext } from '../../../hooks/useStakingContext';
+import { VoidFn } from '@polkadot/api/types';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin);
 
-interface IProps {
-  eraInfo: EraInfo;
-}
-
-const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
+const RewardCurve = () => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -25,6 +22,10 @@ const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
       mountedRef.current = false;
     };
   }, []);
+
+  const {
+    eraInfo: { activeEra },
+  } = useStakingContext();
 
   const [chartData, setChartData] = useState<ChartData<'scatter'>>();
   const [totalIssuance, setTotalIssuance] = useState<Balance>();
@@ -43,17 +44,13 @@ const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
 
   // Subscribe to Total POLYX Issuance.
   useEffect(() => {
-    let isSubscribed = true;
-    if (!api?.query.balances) {
+    let unsubPolyxSupply: VoidFn;
+    if (!api.query.balances) {
       return;
     }
 
     const getTotalIssuance = async () => {
-      const unsubPolyxSupply = await api?.query.balances.totalIssuance((total) => {
-        if (!isSubscribed || !api.isConnected) {
-          unsubPolyxSupply!();
-          return;
-        }
+      unsubPolyxSupply = await api.query.balances.totalIssuance((total) => {
         setTotalIssuance(total);
       });
     };
@@ -61,9 +58,9 @@ const RewardCurve = ({ eraInfo: { activeEra } }: IProps) => {
     getTotalIssuance();
 
     return () => {
-      isSubscribed = false;
+      unsubPolyxSupply && unsubPolyxSupply();
     };
-  }, [api.isConnected, api?.query.balances]);
+  }, [api.isConnected, api.query.balances]);
 
   // Calculate percent of total staked, APR and annual inflation.
   const { percentTotalStaked, apr, inflation } = useMemo(() => {
