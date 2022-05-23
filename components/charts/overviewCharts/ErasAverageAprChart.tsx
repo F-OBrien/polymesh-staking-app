@@ -22,7 +22,6 @@ const ErasAverageAprChart = () => {
   }, []);
 
   const {
-    api,
     chainData: { expectedBlockTime, epochDuration, sessionsPerEra },
   } = useSdk();
   const [chartData, setChartData] = useState<ChartData<'line'>>();
@@ -189,7 +188,7 @@ const ErasAverageAprChart = () => {
     }
 
     getAverageAprData();
-  }, [api, erasRewards.data, erasPerYear, erasPrefs.data, erasTotalStaked.data, erasPoints.data]);
+  }, [erasRewards.data, erasPerYear, erasPrefs.data, erasTotalStaked.data, erasPoints.data]);
 
   return (
     <div className='LineChart'>
