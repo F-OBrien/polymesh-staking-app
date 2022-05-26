@@ -13,7 +13,7 @@ import {
   ChartData,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import { Bar } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN } from '@polkadot/util';
@@ -28,6 +28,7 @@ interface NominationData {
   labels?: string[];
   amount?: number[];
   commission?: number[];
+  nominationCount?: number[];
 }
 const OperatorsTokensNominated = () => {
   const {
@@ -73,6 +74,12 @@ const OperatorsTokensNominated = () => {
         y1: {
           beginAtZero: true,
           title: { display: true, text: `Commission [%]` },
+          position: 'right' as const,
+        },
+        y2: {
+          display: false,
+          beginAtZero: true,
+          title: { display: true, text: `Nominations` },
           position: 'right' as const,
         },
       },
@@ -156,12 +163,14 @@ const OperatorsTokensNominated = () => {
     let labels: string[] = [];
     let amount: number[] = [];
     let commission: number[] = [];
+    let nominationCount: number[] = [];
 
     async function getNominatedTokens() {
       //TODO: get data to determine if an operator is waiting so it can be highlighted on the chart.
 
       const amountStaked: Record<string, BN> = {};
       const nominated: Record<string, BN> = {};
+      const nomCount: Record<string, number> = {};
 
       stakingLedger.data!.forEach(([, ledger]) => {
         const unwrappedLedger = ledger.unwrapOrDefault();
@@ -174,6 +183,7 @@ const OperatorsTokensNominated = () => {
             nominated[operator.toString()] = nominated[operator.toString()]
               ? nominated[operator.toString()].add(amountStaked[nominator.toString()])
               : amountStaked[nominator.toString()];
+            nomCount[operator.toString()] = nomCount[operator.toString()] ? nomCount[operator.toString()] + 1 : 1;
           });
         }
       });
@@ -226,9 +236,10 @@ const OperatorsTokensNominated = () => {
         labels.splice(pos, 0, operator.toString());
         // Build array of operator commissions, as percent values.
         commission.splice(pos, 0, preferences.commission.unwrap().toNumber() / 10_000_000);
+        nominationCount.splice(pos, 0, nomCount[operator.toString()]);
       });
       if (mountedRef.current) {
-        setNominationData({ labels, amount, commission });
+        setNominationData({ labels, amount, commission, nominationCount });
       }
     }
     getNominatedTokens();
@@ -236,7 +247,7 @@ const OperatorsTokensNominated = () => {
 
   // Effect to set the ChartData and apply formatting.
   useEffect(() => {
-    if (!nominationData.labels || !nominationData.amount || !nominationData.commission) return;
+    if (!nominationData.labels || !nominationData.amount || !nominationData.commission || !nominationData.nominationCount) return;
 
     let bgcolor: any[] = [];
     let bdcolor: any[] = [];
@@ -267,14 +278,23 @@ const OperatorsTokensNominated = () => {
           type: 'line' as const,
           label: 'Commission',
           data: nominationData.commission,
-          backgroundColor: '#43195B95',
-          borderColor: '#43195B',
+          backgroundColor: 'rgba(35,87,49,0.5)',
+          borderColor: 'rgba(35,87,49,1)',
           borderWidth: 2,
           yAxisID: 'y1',
         },
+        {
+          type: 'line' as const,
+          label: 'Nomination Count',
+          data: nominationData.nominationCount,
+          backgroundColor: '#43195B95',
+          borderColor: '#43195B',
+          borderWidth: 2,
+          yAxisID: 'y2',
+        },
 
         {
-          label: 'Nominated',
+          label: 'Amount Nominated',
           data: nominationData.amount,
           backgroundColor: bgcolor,
           borderColor: bdcolor,
@@ -293,12 +313,7 @@ const OperatorsTokensNominated = () => {
     <div className='LineChart'>
       {chartData ? (
         <>
-          <Bar
-            ref={chartRef}
-            options={chartOptions}
-            /* @ts-ignore data type complains about mixed chart data*/
-            data={chartData}
-          />
+          <Chart type='bar' ref={chartRef} options={chartOptions} data={chartData} />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
