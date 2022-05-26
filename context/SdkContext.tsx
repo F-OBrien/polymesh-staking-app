@@ -7,6 +7,7 @@ import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
 import { useQueryClient } from 'react-query';
 import type { u32 } from '@polkadot/types';
+import { defaultNetwork } from '../constants/constants';
 
 export const SdkContext = createContext({} as unknown as SdkProps);
 export const SdkContextProvider = SdkContext.Provider;
@@ -85,37 +86,40 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
       // Would also requires selection of network as not provided by other wallet extensions.
       const polyWallet = allInjected.filter((extension) => extension.name === 'polywallet');
       // If the Polymesh wallet is not present throw an error.
-      if (polyWallet.length === 0) throw new Error('Polymesh wallet not found');
-      // If there is more than 1 Polymesh wallet throw an error.
-      if (polyWallet.length > 1) {
-        throw new Error(`There is more than one extension named "polywallet"`);
+      if (polyWallet.length === 0) {
+        setNetwork(defaultNetwork);
+      } else {
+        // If there is more than 1 Polymesh wallet throw an error.
+        if (polyWallet.length > 1) {
+          throw new Error(`There is more than one extension named "polywallet"`);
+        }
+
+        const wallet = polyWallet[0] as PolywalletExtension;
+        setWallet(wallet);
+        console.log('wallet:', wallet);
+
+        // Get and set the selected network from the wallet extension.
+        const selectedNetwork = await wallet.network.get();
+        setNetwork(selectedNetwork);
+        console.log('selected network:', selectedNetwork);
+
+        wallet.network.subscribe((network) => {
+          setNetwork(network);
+          console.log('network changed to:', network);
+        });
+
+        // Get the list of polywallet accounts
+        const polyAccounts = await polyWallet[0].accounts.get();
+        if (polyAccounts.length === 0) throw new Error('No accounts found');
+        // Set the wallet account information.
+        setWalletAccounts(polyAccounts);
+
+        // Subscribe to accounts for changes to selected account or adding/removing accounts.
+        polyWallet[0].accounts.subscribe((accounts) => {
+          if (accounts.length === 0) throw new Error('No accounts found');
+          setWalletAccounts(accounts);
+        });
       }
-
-      const wallet = polyWallet[0] as PolywalletExtension;
-      setWallet(wallet);
-      console.log('wallet:', wallet);
-
-      // Get and set the selected network from the wallet extension.
-      const selectedNetwork = await wallet.network.get();
-      setNetwork(selectedNetwork);
-      console.log('selected network:', selectedNetwork);
-
-      wallet.network.subscribe((network) => {
-        setNetwork(network);
-        console.log('network changed to:', network);
-      });
-
-      // Get the list of polywallet accounts
-      const polyAccounts = await polyWallet[0].accounts.get();
-      if (polyAccounts.length === 0) throw new Error('No accounts found');
-      // Set the wallet account information.
-      setWalletAccounts(polyAccounts);
-
-      // Subscribe to accounts for changes to selected account or adding/removing accounts.
-      polyWallet[0].accounts.subscribe((accounts) => {
-        if (accounts.length === 0) throw new Error('No accounts found');
-        setWalletAccounts(accounts);
-      });
     };
 
     connectPolymeshWallet();
@@ -211,7 +215,8 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   return (
     <>
       <div>
-        <b>Blockchain:</b> {chainData.systemChain} | <b>WebSocket:</b> {network?.wssUrl} | <b>Selected Account:</b> {encodedSelectedAddress}
+        <b>Blockchain:</b> {chainData.systemChain} | <b>WebSocket:</b> {network?.wssUrl} | <b>Selected Account:</b>{' '}
+        {encodedSelectedAddress || 'Polymesh wallet extension not found'}
       </div>
       <SdkContextProvider value={{ sdk, api, network, encodedSelectedAddress, chainData, walletAccounts }}>{children}</SdkContextProvider>
     </>

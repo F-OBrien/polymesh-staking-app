@@ -6,6 +6,12 @@ export const networkURLs: Record<string, string> = {
   testnet: 'wss://testnet-rpc.polymesh.live',
 };
 
+export const defaultNetwork = {
+  name: 'mainnet',
+  label: 'Mainnet',
+  wssUrl: networkURLs.mainnet,
+};
+
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
   '2CU1WcxacoDxdLFRqySMPQ9cNwzUZLnkVZhHYfw3uTQ4spdY': 'B89 2 (2CU1W..)',
