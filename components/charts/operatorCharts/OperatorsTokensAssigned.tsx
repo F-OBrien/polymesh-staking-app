@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import { Bar } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { useSdk } from '../../../hooks/useSdk';
@@ -13,6 +13,7 @@ ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title
 interface AssignedData {
   labels?: string[];
   data?: number[];
+  nominatingCount?: number[];
 }
 
 const OperatorsTokensAssigned = () => {
@@ -25,7 +26,7 @@ const OperatorsTokensAssigned = () => {
     eraInfo: { currentEra },
   } = useStakingContext();
 
-  const [chartData, setChartData] = useState<ChartData<'bar'>>();
+  const [chartData, setChartData] = useState<ChartData<'bar' | 'line'>>();
   const [assignedData, setAssignedData] = useState<AssignedData>({});
   const currentEraStakingData = useEraStakers(currentEra, { staleTime: Infinity });
 
@@ -53,6 +54,15 @@ const OperatorsTokensAssigned = () => {
           beginAtZero: true,
           title: { display: true, text: `Amount [${tokenSymbol}]` },
           // type: 'logarithmic' as const,
+        },
+        y1: {
+          display: false,
+          beginAtZero: true,
+          title: { display: true, text: `Active Nominations` },
+          position: 'right' as const,
+          grid: {
+            display: false,
+          },
         },
       },
       plugins: {
@@ -90,10 +100,10 @@ const OperatorsTokensAssigned = () => {
 
     let labels: string[] = [];
     let data: number[] = [];
-
+    let nominatingCount: number[] = [];
     let pos: number;
 
-    Object.entries(currentEraStakingData.data.operators).forEach(([operator, { total }]) => {
+    Object.entries(currentEraStakingData.data.operators).forEach(([operator, { total, others }]) => {
       const totalAssigned = total.unwrap().toNumber() / divisor;
       // Sort from highest to Lowest
       // If there is nothing in the array add to first position.
@@ -131,17 +141,18 @@ const OperatorsTokensAssigned = () => {
       }
 
       labels.splice(pos, 0, operator.toString());
+      nominatingCount.splice(pos, 0, others.length);
     });
 
     if (mountedRef.current) {
-      setAssignedData({ labels, data });
+      setAssignedData({ labels, data, nominatingCount });
     }
   }, [currentEraStakingData.data, divisor]);
 
   useEffect(() => {
-    if (!assignedData.labels || !assignedData.data) return;
+    if (!assignedData.labels || !assignedData.data || !assignedData.nominatingCount) return;
 
-    const { labels, data } = assignedData;
+    const { labels, data, nominatingCount } = assignedData;
 
     let bgcolor: any[] = [];
     let bdcolor: any[] = [];
@@ -168,6 +179,16 @@ const OperatorsTokensAssigned = () => {
       labels: namedLabels,
       datasets: [
         {
+          type: 'line' as const,
+          label: 'Active Nominations',
+          data: nominatingCount,
+          backgroundColor: '#43195B95',
+          borderColor: '#43195B',
+          borderWidth: 2,
+          yAxisID: 'y1',
+        },
+
+        {
           label: 'Assigned',
           data: data,
           backgroundColor: bgcolor,
@@ -187,7 +208,7 @@ const OperatorsTokensAssigned = () => {
     <div className='LineChart'>
       {chartData ? (
         <>
-          <Bar ref={chartRef} options={chartOptions} data={chartData} />
+          <Chart type='bar' ref={chartRef} options={chartOptions} data={chartData} />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
