@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { Bar } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
 import { operatorsNames } from '../../../constants/constants';
 import Spinner from '../../Spinner';
 import { useSdk } from '../../../hooks/useSdk';
@@ -122,12 +122,12 @@ const OperatorsActiveEraPoints = () => {
           data[index] = points;
           // Assign colors.
           // Green for increase points.
-          if (!!pointsOld[operator] && data[index] > pointsOld[operator]) {
+          if (pointsOld[operator] !== undefined && data[index] > pointsOld[operator]) {
             bgcolor[index] = 'green';
             bdcolor[index] = 'black';
           }
           // Red for decreased points.
-          else if (!!pointsOld[operator] && data[index] < pointsOld[operator]) {
+          else if (pointsOld[operator] !== undefined && data[index] < pointsOld[operator]) {
             bgcolor[index] = 'red';
             bdcolor[index] = 'black';
           }
@@ -183,7 +183,7 @@ const OperatorsActiveEraPoints = () => {
     <div className='LineChart'>
       {chartData ? (
         <>
-          <Bar ref={chartRef} options={chartOptions} data={chartData} plugins={[ChartDataLabels]} />
+          <Chart type='bar' ref={chartRef} options={chartOptions} data={chartData} plugins={[ChartDataLabels]} />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
