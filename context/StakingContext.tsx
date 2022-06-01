@@ -1,8 +1,8 @@
 import { useSdk } from '../hooks/useSdk';
 import { createContext, useEffect, useState, useRef } from 'react';
 import Spinner from '../components/Spinner';
-import { StakingContextProps, EraInfo } from '../types/types';
-import { EraIndex } from '@polkadot/types/interfaces';
+import { StakingContextProps, EraInfo, StakingConstants } from '../types/types';
+import { EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 
 export const StakingContext = createContext({} as unknown as StakingContextProps);
 export const StakingContextProvider = StakingContext.Provider;
@@ -19,6 +19,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
   const [currentEra, setCurrentEra] = useState<EraIndex>();
   const [historyDepth, setHistoryDepth] = useState<number>();
   const [eraInfo, setEraInfo] = useState<EraInfo>();
+  const [stakingConstants, setStakingConstants] = useState<StakingConstants>();
 
   // Define reference for tracking mounted state.
   const mountedRef = useRef(false);
@@ -84,6 +85,13 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
   }, [api.query.staking]);
 
   useEffect(() => {
+    const maxVariableInflationTotalIssuance = api.consts.staking.maxVariableInflationTotalIssuance as BalanceOf;
+    const fixedYearlyReward = api.consts.staking.fixedYearlyReward as BalanceOf;
+
+    setStakingConstants({ maxVariableInflationTotalIssuance, fixedYearlyReward });
+  }, [api.consts.staking.fixedYearlyReward, api.consts.staking.maxVariableInflationTotalIssuance]);
+
+  useEffect(() => {
     if (!activeEra || !currentEra || !historyDepth) return;
     const historicWithCurrent: EraIndex[] = [];
     const historicWithActive: EraIndex[] = [];
@@ -109,7 +117,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     setEraInfo({ activeEra, currentEra, historyDepth, historicWithCurrent, historicWithActive, historicWithoutActive });
   }, [activeEra, api.registry, currentEra, historyDepth]);
 
-  if (!eraInfo) {
+  if (!eraInfo || !stakingConstants) {
     return (
       <header className='App-header'>
         <Spinner />
@@ -118,7 +126,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
   }
   return (
     <>
-      <StakingContextProvider value={{ eraInfo, operatorsToHighlight }}>{children}</StakingContextProvider>
+      <StakingContextProvider value={{ eraInfo, stakingConstants, operatorsToHighlight }}>{children}</StakingContextProvider>
     </>
   );
 }

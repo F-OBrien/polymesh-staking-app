@@ -1,7 +1,7 @@
 import { Balance } from '@polkadot/types/interfaces';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
-import { Scatter } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { inflationCurve, rewardCurve } from '../../../constants/rewardCurve';
 import { useSdk } from '../../../hooks/useSdk';
@@ -25,6 +25,7 @@ const RewardCurve = () => {
 
   const {
     eraInfo: { activeEra },
+    stakingConstants: { fixedYearlyReward, maxVariableInflationTotalIssuance },
   } = useStakingContext();
 
   const [chartData, setChartData] = useState<ChartData<'scatter'>>();
@@ -89,21 +90,20 @@ const RewardCurve = () => {
     const percentTotalStaked = (100 * activeEraTotalStaked.data.toNumber()) / totalIssuance?.toNumber();
 
     let inflation;
-    // 1_000_000_000 hard coded for now could be replaced with onchain constant `maxVariableInflationTotalIssuance`.
-    if (totalIssuance?.toNumber() / divisor < 1_000_000_000) {
+
+    if (totalIssuance?.toNumber() < maxVariableInflationTotalIssuance.toNumber()) {
       if (percentTotalStaked <= xIdeal) {
         inflation = iZero + (iIdeal - iZero) * (percentTotalStaked / xIdeal);
       } else {
         inflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentTotalStaked) / decay);
       }
     } else {
-      // 140_000_000 hard coded for now could be replaced with onchain constant `maxVariableInflationTotalIssuance`.
-      inflation = (100 * 140_000_000 * divisor) / totalIssuance?.toNumber();
+      inflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance?.toNumber();
     }
     const apr = 100 * (inflation / percentTotalStaked);
 
     return { percentTotalStaked, apr, inflation };
-  }, [totalIssuance, activeEraTotalStaked.data, divisor]);
+  }, [totalIssuance, activeEraTotalStaked.data, maxVariableInflationTotalIssuance, fixedYearlyReward]);
 
   // Set the chart options including annotation.
   const chartOptions = useMemo(() => {
@@ -297,7 +297,7 @@ const RewardCurve = () => {
     <div className='LineChart'>
       {chartData && chartOptions ? (
         <>
-          <Scatter options={chartOptions} data={chartData} />
+          <Chart type='scatter' options={chartOptions} data={chartData} />
           {dataIsFetching ? <MiniSpinner /> : <></>}
         </>
       ) : (

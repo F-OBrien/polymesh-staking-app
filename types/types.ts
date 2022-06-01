@@ -2,7 +2,7 @@ import type { Polymesh } from '@polymathnetwork/polymesh-sdk';
 import type { ApiPromise } from '@polkadot/api';
 import type { InjectedExtension, InjectedAccount } from '@polkadot/extension-inject/types';
 import type { u32, u64 } from '@polkadot/types';
-import { Moment, EraIndex } from '@polkadot/types/interfaces';
+import { Moment, EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 
 export interface SdkProps {
   sdk: Polymesh;
@@ -15,6 +15,7 @@ export interface SdkProps {
 
 export interface StakingContextProps {
   eraInfo: EraInfo;
+  stakingConstants: StakingConstants;
   operatorsToHighlight?: string[];
 }
 
@@ -67,4 +68,9 @@ export interface EraInfo {
   historicWithCurrent: EraIndex[];
   historicWithActive: EraIndex[];
   historicWithoutActive: EraIndex[];
+}
+
+export interface StakingConstants {
+  maxVariableInflationTotalIssuance: BalanceOf;
+  fixedYearlyReward: BalanceOf;
 }
