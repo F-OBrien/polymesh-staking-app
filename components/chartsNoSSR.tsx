@@ -23,6 +23,13 @@ export const PointCommissionAdjustedDeviationsFromAverage = dynamic(
   { ssr: false }
 );
 
+export const AprDeviationFromAverage = dynamic(
+  () => {
+    return import('./charts/operatorCharts/AprDeviationFromAverage');
+  },
+  { ssr: false }
+);
+
 export const ErasPointsTotalsChart = dynamic(
   () => {
     return import('./charts/overviewCharts/ErasPointsTotalsChart');

@@ -16,7 +16,11 @@ interface PointsHistoryData {
   averageDeviationDatasets?: { [key: string]: number[] };
 }
 
-const PointCommissionAdjustedDeviationsFromAverage = () => {
+interface Props {
+  trendPeriod: number;
+}
+
+const PointCommissionAdjustedDeviationsFromAverage = ({ trendPeriod }: Props) => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -94,8 +98,9 @@ const PointCommissionAdjustedDeviationsFromAverage = () => {
     // Read all era points
     const allErasPoints = erasPoints.data;
     const historicalErasPrefs = erasPrefs.data!;
+    const erasPointsToTrend = allErasPoints.slice(-trendPeriod);
 
-    allErasPoints?.forEach(({ era, total, operators }, index) => {
+    erasPointsToTrend?.forEach(({ era, total, operators }, index) => {
       if (total.toNumber()) {
         // Build array of x-axis labels with eras.
         labels[index] = era.toString();
@@ -121,7 +126,7 @@ const PointCommissionAdjustedDeviationsFromAverage = () => {
           averageDeviationSum[id] = averageDeviationSum[id] || 0;
           averageDeviationSum[id] = averageDeviationSum[id] + percentOfAverage;
 
-          averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(allErasPoints.length);
+          averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(erasPointsToTrend.length);
           averageDeviationDatasets[id][index] = averageDeviationSum[id];
         });
       }
@@ -129,7 +134,7 @@ const PointCommissionAdjustedDeviationsFromAverage = () => {
     if (mountedRef.current) {
       setPointsHistoryData({ labels, averageDeviationDatasets });
     }
-  }, [erasPoints.data, erasPrefs.data]);
+  }, [erasPoints.data, erasPrefs.data, trendPeriod]);
 
   useEffect(() => {
     if (!pointsHistoryData.labels || !pointsHistoryData.averageDeviationDatasets) return;

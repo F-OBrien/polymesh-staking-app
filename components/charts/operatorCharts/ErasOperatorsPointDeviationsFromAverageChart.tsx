@@ -16,7 +16,11 @@ interface PointsHistoryData {
   averageDeviationDatasets?: { [key: string]: number[] };
 }
 
-const ErasOperatorsPointDeviationsFromAverageChart = () => {
+interface Props {
+  trendPeriod: number;
+}
+
+const ErasOperatorsPointDeviationsFromAverageChart = ({ trendPeriod }: Props) => {
   // Define reference for tracking mounted state
   const mountedRef = useRef(false);
   // Effect for tracking mounted state
@@ -90,8 +94,9 @@ const ErasOperatorsPointDeviationsFromAverageChart = () => {
 
     // Read all era points
     const allErasPoints = erasPoints.data;
+    const erasPointsToTrend = allErasPoints.slice(-trendPeriod);
 
-    allErasPoints?.forEach(({ era, total, operators }, index) => {
+    erasPointsToTrend?.forEach(({ era, total, operators }, index) => {
       if (total.toNumber()) {
         averagePoints[index] = total.toNumber() / Object.keys(operators).length;
         // Build array of x-axis labels with eras.
@@ -103,7 +108,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = () => {
           averageDeviationSum[id] = averageDeviationSum[id] || 0;
           averageDeviationSum[id] = averageDeviationSum[id] + percentOfAverage;
 
-          averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(allErasPoints.length);
+          averageDeviationDatasets[id] = averageDeviationDatasets[id] || new Array(erasPointsToTrend.length);
           averageDeviationDatasets[id][index] = averageDeviationSum[id];
         });
       }
@@ -111,7 +116,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = () => {
     if (mountedRef.current) {
       setPointsHistoryData({ labels, averageDeviationDatasets });
     }
-  }, [erasPoints.data]);
+  }, [erasPoints.data, trendPeriod]);
 
   useEffect(() => {
     if (!pointsHistoryData.labels || !pointsHistoryData.averageDeviationDatasets) return;

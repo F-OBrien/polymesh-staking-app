@@ -15,10 +15,13 @@ export const Navbar = (): ReactElement => {
         <a className={styles.btn}>Overview</a>
       </Link>
       <Link href='/operator-charts'>
-        <a className={styles.btn}>Operator History</a>
+        <a className={styles.btn}>History</a>
+      </Link>
+      <Link href='/operator-trends'>
+        <a className={styles.btn}>Trends</a>
       </Link>
       <Link href='/operator-info'>
-        <a className={styles.btn}>Operator Info</a>
+        <a className={styles.btn}>Current Info</a>
       </Link>
     </nav>
   );

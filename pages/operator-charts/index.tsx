@@ -5,9 +5,7 @@ import {
   ErasOperatorsAprChart,
   ErasOperatorsCommissionChart,
   ErasOperatorsPointsChart,
-  ErasOperatorsPointDeviationsFromAverageChart,
   ErasOperatorsTotalStakedChart,
-  PointCommissionAdjustedDeviationsFromAverage,
 } from '../../components/chartsNoSSR';
 
 function App() {
@@ -18,8 +16,6 @@ function App() {
         <ErasOperatorsAprChart />
         <ErasOperatorsTotalStakedChart />
         <ErasOperatorsPointsChart />
-        <ErasOperatorsPointDeviationsFromAverageChart />
-        <PointCommissionAdjustedDeviationsFromAverage />
         <ErasOperatorsPercentOfPointsChart />
         <ErasOperatorsRewardsChart />
         <ErasOperatorsCommissionChart />
