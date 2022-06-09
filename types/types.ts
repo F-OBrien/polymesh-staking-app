@@ -2,7 +2,7 @@ import type { Polymesh } from '@polymathnetwork/polymesh-sdk';
 import type { ApiPromise } from '@polkadot/api';
 import type { InjectedExtension, InjectedAccount } from '@polkadot/extension-inject/types';
 import type { u32, u64 } from '@polkadot/types';
-import { Moment, EraIndex, BalanceOf } from '@polkadot/types/interfaces';
+import { Moment, EraIndex, BalanceOf, SessionIndex } from '@polkadot/types/interfaces';
 
 export interface SdkProps {
   sdk: Polymesh;
@@ -57,7 +57,7 @@ export interface ChainData {
   genesisHash: string;
   epochDuration: u64;
   expectedBlockTime: Moment;
-  sessionsPerEra: u64;
+  sessionsPerEra: SessionIndex;
   electionLookahead: u32;
 }
 

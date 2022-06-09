@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import { Line } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { BN_MILLISECONDS_PER_YEAR, defaultChartOptions } from '../../../constants/constants';
 import { useSdk } from '../../../hooks/useSdk';
@@ -194,7 +194,7 @@ const ErasAverageAprChart = () => {
     <div className='LineChart'>
       {chartData ? (
         <>
-          <Line ref={chartRef} options={chartOptions} data={chartData} />
+          <Chart type='line' ref={chartRef} options={chartOptions} data={chartData} />
           <button className='resetZoomButton' onClick={resetChartZoom}>
             Reset Zoom
           </button>
