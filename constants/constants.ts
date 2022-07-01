@@ -36,6 +36,7 @@ export const operatorsNames: Record<string, string> = {
   '2EXypWKU82c1ZFQ92ynNzKWjQmX1ZfnFEcaFoVzPEUhmM72g': 'Genesis Block 2 (2EXyp..)',
   '2FawFuGUJzXtebwxTxwUjTsiwwV63WbK9ckojpPK3WkmwnA2': 'Genesis Block 3 (2FawF..)',
   '2FjuFr7YNQ6qQPYSLCZrMDEQr284ktW88H8T6p6nmJe2URny': 'Greentrail 1 (2FjuF..)',
+  '2Gw7nZrGbvKMJNu5i88TeK45Ygy8jiP6xDaBixrPMh4L1Lr5': 'Huobi 1 (2Gw7n..)',
   '2EGKNqWLx2VhjgFZ6BwXZ9Tf6jQXzWjW4cNvE2Bd24z85xfq': 'Marketlend 1 (2EGKN..)',
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2G3CJWkzusVqtxYoofCjGqwxgjFYJS6Rxvg8supREvQBmtvy': 'Marketlend 3 (2G3CJ..)',
@@ -74,6 +75,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0xbc06bd9d9450d9f5083eec8490da7131b8b07f19fababecc578dd79d58d85956': { name: 'Bloxxon', website: 'https://www.bloxxon.co/' },
   '0xf820c02c85c98bb9609049ad9f555517d35dd73d04b080aaa481720119a23bb8': { name: 'Scrypt', website: 'https://www.scrypt.swiss/' },
   '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
+  '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
   '0x4d42a6a3d3d4977987f2ae50ec49c9f3ce9093cf1f5c0162c49eada21573c9f4': { name: 'Netki', website: 'https://netki.com/' },
