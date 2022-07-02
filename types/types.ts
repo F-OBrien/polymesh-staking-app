@@ -1,4 +1,4 @@
-import type { Polymesh } from '@polymathnetwork/polymesh-sdk';
+import type { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import type { ApiPromise } from '@polkadot/api';
 import type { InjectedExtension, InjectedAccount } from '@polkadot/extension-inject/types';
 import type { u32, u64 } from '@polkadot/types';

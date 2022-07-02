@@ -7,7 +7,7 @@ import { defaultChartOptions, operatorsNames } from '../../../constants/constant
 import * as d3 from 'd3';
 import { useSdk } from '../../../hooks/useSdk';
 import { useErasStakers } from '../../../hooks/StakingQueries';
-import { BigNumber } from '@polymathnetwork/polymesh-sdk';
+import { BigNumber } from '@polymeshassociation/polymesh-sdk';
 import { useStakingContext } from '../../../hooks/useStakingContext';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);

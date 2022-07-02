@@ -7,7 +7,7 @@ import { defaultChartOptions, operatorsNames } from '../../../constants/constant
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { useErasRewardPoints } from '../../../hooks/StakingQueries';
 import { useStakingContext } from '../../../hooks/useStakingContext';
-import { BigNumber } from '@polymathnetwork/polymesh-sdk';
+import { BigNumber } from '@polymeshassociation/polymesh-sdk';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 

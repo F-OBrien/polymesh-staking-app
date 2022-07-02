@@ -21,7 +21,7 @@ import { useEraPreferences, useEraStakers } from '../../../hooks/StakingQueries'
 import { useStakingContext } from '../../../hooks/useStakingContext';
 import { Balance } from '@polkadot/types/interfaces';
 import { useEraTotalStaked } from '../../../hooks/StakingQueries';
-import { BigNumber } from '@polymathnetwork/polymesh-sdk';
+import { BigNumber } from '@polymeshassociation/polymesh-sdk';
 
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
