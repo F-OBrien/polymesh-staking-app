@@ -1,7 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from 'react';
 import Spinner from '../components/Spinner';
 import { ApiPromise } from '@polkadot/api';
-import { Polymesh } from '@polymathnetwork/polymesh-sdk';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import { InjectedAccount, InjectedExtension } from '@polkadot/extension-inject/types';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
