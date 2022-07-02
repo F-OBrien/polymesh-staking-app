@@ -38,10 +38,10 @@ const ErasPointsTotalsChart = () => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = 'Points';
-    options.plugins.title.text = 'Total Points per Era';
-    options.plugins.legend.display = false;
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = 'Points';
+    options.plugins!.title!.text = 'Total Points per Era';
+    options.plugins!.legend!.display = false;
 
     return options;
   }, []);

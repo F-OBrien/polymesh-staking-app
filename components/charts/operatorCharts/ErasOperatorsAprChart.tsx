@@ -54,9 +54,9 @@ const ErasOperatorsAprChart = () => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = 'APR [%]';
-    options.plugins.title.text = 'Operator APR per Era (excl. commission)';
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = 'APR [%]';
+    options.plugins!.title!.text = 'Operator APR per Era (excl. commission)';
 
     return options;
   }, []);

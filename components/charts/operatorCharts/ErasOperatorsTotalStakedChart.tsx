@@ -53,9 +53,9 @@ const ErasOperatorsTotalStakedChart = () => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = `Amount [${tokenSymbol}]`;
-    options.plugins.title.text = `Total ${tokenSymbol} Assigned to Operators per Era`;
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = `Amount [${tokenSymbol}]`;
+    options.plugins!.title!.text = `Total ${tokenSymbol} Assigned to Operators per Era`;
 
     return options;
   }, [tokenSymbol]);

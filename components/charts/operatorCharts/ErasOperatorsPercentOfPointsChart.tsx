@@ -48,9 +48,9 @@ const ErasOperatorsPercentOfPointsChart = () => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = 'Percent [%]';
-    options.plugins.title.text = 'Operator % of Reward/Total Points per Era';
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = 'Percent [%]';
+    options.plugins!.title!.text = 'Operator % of Reward/Total Points per Era';
 
     return options;
   }, []);

@@ -58,10 +58,10 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = 'Percent [%]';
-    options.plugins.title.text = 'Cumulative % Deviation from Average APR (inc. commission)';
-    options.plugins.zoom.limits = undefined;
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = 'Percent [%]';
+    options.plugins!.title!.text = 'Cumulative % Deviation from Average APR (inc. commission)';
+    options.plugins!.zoom!.limits = undefined;
 
     return options;
   }, []);

@@ -1,5 +1,5 @@
 import { BN } from '@polkadot/util';
-// import { ChartOptions } from 'chart.js';
+import { ChartOptions } from 'chart.js';
 
 export const networkURLs: Record<string, string> = {
   mainnet: 'wss://mainnet-rpc.polymesh.network',
@@ -93,8 +93,7 @@ export const defaultChartZoomOptions = {
   limits: { y: { min: 0 } },
 };
 
-// export const defaultChartOptions: ChartOptions<'line'> = {
-export const defaultChartOptions = {
+export const defaultChartOptions: ChartOptions<'line' | 'bar'> = {
   responsive: true,
   scales: {
     x: { title: { display: true, text: 'X-axis Title' } },
