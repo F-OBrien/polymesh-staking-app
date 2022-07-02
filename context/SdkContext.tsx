@@ -205,20 +205,19 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   //     });
   // }, [encodedSelectedAddress, sdk?._polkadotApi /* sdk?.context */]);
 
-  if (!sdk || !api || !network || !chainData) {
     return (
+    <>
+      <div>
+        <b>Blockchain:</b> {chainData?.systemChain || 'awaiting chain data'} | <b>WebSocket:</b> {network?.wssUrl} | <b>Selected Account:</b>{' '}
+        {encodedSelectedAddress || 'Polymesh wallet extension not connected'}
+      </div>
+      {!sdk || !api || !network || !chainData ? (
       <header className='App-header'>
         <Spinner /> {loadingStep}
       </header>
-    );
-  }
-  return (
-    <>
-      <div>
-        <b>Blockchain:</b> {chainData.systemChain} | <b>WebSocket:</b> {network?.wssUrl} | <b>Selected Account:</b>{' '}
-        {encodedSelectedAddress || 'Polymesh wallet extension not found'}
-      </div>
+      ) : (
       <SdkContextProvider value={{ sdk, api, network, encodedSelectedAddress, chainData, walletAccounts }}>{children}</SdkContextProvider>
+      )}
     </>
   );
 }
