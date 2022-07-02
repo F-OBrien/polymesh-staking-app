@@ -84,12 +84,14 @@ const OperatorsTokensAssigned = () => {
         y: {
           beginAtZero: true,
           title: { display: true, text: `Amount [${tokenSymbol}]` },
+          ticks: { count: 11 },
         },
         y1: {
-          display: false,
+          display: true,
           beginAtZero: true,
-          title: { display: true, text: `Active Nominations` },
+          title: { display: true, text: `Percent [%]` },
           position: 'right' as const,
+          ticks: { count: 11 },
           grid: {
             display: false,
           },
@@ -97,8 +99,9 @@ const OperatorsTokensAssigned = () => {
         y2: {
           display: true,
           beginAtZero: true,
-          title: { display: true, text: `Percent [%]` },
+          title: { display: true, text: `Active Nominations` },
           position: 'right' as const,
+          ticks: { count: 11 },
           grid: {
             display: false,
           },
@@ -283,21 +286,12 @@ const OperatorsTokensAssigned = () => {
       datasets: [
         {
           type: 'line' as const,
-          label: 'Active Nominations',
-          data: nominatingCounts,
-          backgroundColor: '#43195B95',
-          borderColor: '#43195B',
-          borderWidth: 2,
-          yAxisID: 'y1',
-        },
-        {
-          type: 'line' as const,
           label: 'Estimated APR',
           data: apr,
           backgroundColor: 'rgba(35,87,49,0.5)',
           borderColor: 'rgba(35,87,49,1)',
           borderWidth: 2,
-          yAxisID: 'y2',
+          yAxisID: 'y1',
         },
         {
           type: 'line' as const,
@@ -306,9 +300,17 @@ const OperatorsTokensAssigned = () => {
           backgroundColor: 'rgba(150,10,10,0.5)',
           borderColor: 'rgba(150,10,10,1)',
           borderWidth: 2,
+          yAxisID: 'y1',
+        },
+        {
+          type: 'line' as const,
+          label: 'Active Nominations',
+          data: nominatingCounts,
+          backgroundColor: '#43195B95',
+          borderColor: '#43195B',
+          borderWidth: 2,
           yAxisID: 'y2',
         },
-
         {
           label: 'Assigned',
           data: totalsAssigned,
