@@ -42,10 +42,10 @@ const ErasRewardsTotalsChart = () => {
     // Make a copy of the default options.
     const options = structuredClone(defaultChartOptions);
     // Override defaults with chart specific options.
-    options.scales.x.title.text = 'Era';
-    options.scales.y.title.text = `Reward [${tokenSymbol}]`;
-    options.plugins.title.text = `Total ${tokenSymbol} Rewards per Era`;
-    options.plugins.legend.display = false;
+    options.scales!.x!.title!.text = 'Era';
+    options.scales!.y!.title!.text = `Reward [${tokenSymbol}]`;
+    options.plugins!.title!.text = `Total ${tokenSymbol} Rewards per Era`;
+    options.plugins!.legend!.display = false;
 
     return options;
   }, [tokenSymbol]);
