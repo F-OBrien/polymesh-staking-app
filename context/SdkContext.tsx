@@ -208,7 +208,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
     return (
     <>
       <div>
-        <b>Blockchain:</b> {chainData?.systemChain || 'awaiting chain data'} | <b>WebSocket:</b> {network?.wssUrl} | <b>Selected Account:</b>{' '}
+        <b>Blockchain: </b> {chainData?.systemChain || 'awaiting chain data'} | <b>WebSocket: </b> {network?.wssUrl} | <b>Selected Account: </b>
         {encodedSelectedAddress || 'Polymesh wallet extension not connected'}
       </div>
       {!sdk || !api || !network || !chainData ? (
