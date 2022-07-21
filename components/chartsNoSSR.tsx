@@ -127,3 +127,10 @@ export const RewardCurve = dynamic(
   },
   { ssr: false }
 );
+
+export const OperatorRewards = dynamic(
+  () => {
+    return import('./charts/operatorCharts/OperatorsRewards');
+  },
+  { ssr: false }
+);

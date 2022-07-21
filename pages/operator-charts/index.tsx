@@ -6,6 +6,7 @@ import {
   ErasOperatorsCommissionChart,
   ErasOperatorsPointsChart,
   ErasOperatorsTotalStakedChart,
+  OperatorRewards,
 } from '../../components/chartsNoSSR';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
       <>
         <ErasOperatorsAprIncCommissionChart />
         <ErasOperatorsAprChart />
+        <OperatorRewards />
         <ErasOperatorsTotalStakedChart />
         <ErasOperatorsPointsChart />
         <ErasOperatorsPercentOfPointsChart />
