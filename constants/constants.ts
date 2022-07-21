@@ -1,13 +1,14 @@
 import { BN } from '@polkadot/util';
 import { ChartOptions } from 'chart.js';
+import { NetworkMeta, NetworkName } from '../types/types';
 
 export const networkURLs: Record<string, string> = {
   mainnet: 'wss://mainnet-rpc.polymesh.network',
   testnet: 'wss://testnet-rpc.polymesh.live',
 };
 
-export const defaultNetwork = {
-  name: 'mainnet',
+export const defaultNetwork: NetworkMeta = {
+  name: NetworkName.mainnet,
   label: 'Mainnet',
   wssUrl: networkURLs.mainnet,
 };

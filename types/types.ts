@@ -20,7 +20,7 @@ export interface StakingContextProps {
 }
 
 export interface NetworkMeta {
-  name: string;
+  name: NetworkName;
   label: string;
   wssUrl: string;
 }
