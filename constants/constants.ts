@@ -15,8 +15,8 @@ export const defaultNetwork = {
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
   '2CU1WcxacoDxdLFRqySMPQ9cNwzUZLnkVZhHYfw3uTQ4spdY': 'B89 2 (2CU1W..)',
-  '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Bloxxon 1 (2DJrn..)',
-  '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Bloxxon 2 (2Fb8F..)',
+  '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Nyala 1 (2DJrn..)',
+  '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Nyala 2 (2Fb8F..)',
   '2FQ1RRJiUm4BXeZyMFLdtnVLTPxJ8qKfut3G29GhkwrKJsgy': 'CM Equity 1 (2FQ1R..)',
   '2Gr55WYCpsPChyhnfiSyCDYZrUUseaYeKXMLRzEJERnLbc4e': 'CM Equity 2 (2Gr55..)',
   '2GrEHDSx2ud2nHkhA3pqpF316knPRAjCprkezwUuzQ5xf627': 'CM Equity 3 (2GrEH..)',
@@ -55,6 +55,10 @@ export const operatorsNames: Record<string, string> = {
   '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt 1 (2HaPR..)',
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV': 'Tokenise 2 (2Hkhr..)',
+  // Testnet Operators
+  '5C7kNpSvVr22Z1X6gVAUjfahSJfSpvw4DHNoY7uUHpLfEJZR': 'Polymesh Assoc. 1 (5C7kN..)',
+  '5EFbtwDBQu64WjUGqAgC3kuaiH86E34CHtqxbN7zAgwwT2cg': 'Polymesh Assoc. 2 (5EFbt..)',
+  '5E4gAVQf6j3wKY4pq24PorXCnsvFe4oGbvrfpkVN6zBsGVzE': 'Polymesh Assoc. 3 (5E4gA..)',
 };
 
 export const didInfo: Record<string, { name: string; website: string }> = {
@@ -72,7 +76,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x7b5de4a8dfb706a24f5288082c3e4efdd834309785f7bee95ecea0d8f3abd80a': { name: 'Etana', website: 'https://www.etana.com/' },
   '0xadb26ff440bf4e7c0892e1f8ae53d5927cbe1749c23d2b0b5f8a9edbbc8678b4': { name: 'DigiVault', website: 'https://digivault.com/' },
   '0xb56098cc0d320c86785f2162e0028d0e31c7453efbcae44f938a26b2ee478e06': { name: 'Crypto Lawyers', website: 'https://www.crypto-lawyers.ch/' },
-  '0xbc06bd9d9450d9f5083eec8490da7131b8b07f19fababecc578dd79d58d85956': { name: 'Bloxxon', website: 'https://www.bloxxon.co/' },
+  '0xbc06bd9d9450d9f5083eec8490da7131b8b07f19fababecc578dd79d58d85956': { name: 'Nyala (formerly Bloxxon)', website: 'https://www.nyala.de/' },
   '0xf820c02c85c98bb9609049ad9f555517d35dd73d04b080aaa481720119a23bb8': { name: 'Scrypt', website: 'https://www.scrypt.swiss/' },
   '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
   '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
