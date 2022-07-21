@@ -3,7 +3,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
-import { inflationCurve, rewardCurve } from '../../../constants/rewardCurve';
+import { inflationCurve, rewardCurve, apyRewardCurve } from '../../../constants/rewardCurve';
 import { useSdk } from '../../../hooks/useSdk';
 import { useEraTotalStaked } from '../../../hooks/StakingQueries';
 import annotationPlugin from 'chartjs-plugin-annotation';
@@ -63,8 +63,8 @@ const RewardCurve = () => {
     };
   }, [api.isConnected, api.query.balances]);
 
-  // Calculate percent of total staked, APR and annual inflation.
-  const { percentTotalStaked, apr, inflation } = useMemo(() => {
+  // Calculate percent of total staked, APR, APY and annual inflation.
+  const { percentTotalStaked, apr, inflation, apy } = useMemo(() => {
     if (!totalIssuance || !activeEraTotalStaked.data) return {};
 
     // Inflation and reward data based on formula:
@@ -101,8 +101,9 @@ const RewardCurve = () => {
       inflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance?.toNumber();
     }
     const apr = 100 * (inflation / percentTotalStaked);
+    const apy = 100 * ((1 + inflation / percentTotalStaked / 365) ** 365 - 1);
 
-    return { percentTotalStaked, apr, inflation };
+    return { percentTotalStaked, apr, inflation, apy };
   }, [totalIssuance, activeEraTotalStaked.data, maxVariableInflationTotalIssuance, fixedYearlyReward]);
 
   // Set the chart options including annotation.
@@ -156,11 +157,11 @@ const RewardCurve = () => {
               yMax: apr,
               xMin: 0,
               xMax: percentTotalStaked,
-              borderColor: 'red',
+              borderColor: 'blue',
               borderWidth: 2,
               borderDash: [5, 5],
               label: {
-                backgroundColor: 'red',
+                backgroundColor: 'blue',
                 content: `APR: ${apr.toFixed(3)} %`,
                 enabled: true,
               },
@@ -168,14 +169,14 @@ const RewardCurve = () => {
             line2: {
               type: 'line',
               yMin: 0,
-              yMax: apr,
+              yMax: apy,
               xMin: percentTotalStaked,
               xMax: percentTotalStaked,
-              borderColor: 'green',
+              borderColor: 'black',
               borderWidth: 2,
               borderDash: [5, 5],
               label: {
-                backgroundColor: 'green',
+                backgroundColor: 'black',
                 content: `${percentTotalStaked.toFixed(3)} %`,
                 enabled: true,
               },
@@ -186,22 +187,38 @@ const RewardCurve = () => {
               yMax: inflation,
               xMin: 0,
               xMax: percentTotalStaked,
-              borderColor: 'blue',
+              borderColor: 'red',
               borderWidth: 2,
               borderDash: [5, 5],
               label: {
-                backgroundColor: 'blue',
+                backgroundColor: 'red',
                 content: `Inflation: ${inflation.toFixed(3)} %`,
                 enabled: true,
               },
             },
+            line4: {
+              type: 'line',
+              yMin: apy,
+              yMax: apy,
+              xMin: 0,
+              xMax: percentTotalStaked,
+              borderColor: 'green',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              label: {
+                backgroundColor: 'green',
+                content: `APY: ${apy.toFixed(3)} %`,
+                enabled: true,
+              },
+            },
+
             point1: {
               type: 'point',
               xValue: percentTotalStaked,
               yValue: inflation,
               radius: 3,
-              borderColor: 'blue',
-              backgroundColor: 'blue',
+              borderColor: 'red',
+              backgroundColor: 'red',
               borderWidth: 2,
             },
             point2: {
@@ -209,8 +226,17 @@ const RewardCurve = () => {
               xValue: percentTotalStaked,
               yValue: apr,
               radius: 3,
-              borderColor: 'red',
-              backgroundColor: 'red',
+              borderColor: 'blue',
+              backgroundColor: 'blue',
+              borderWidth: 2,
+            },
+            point3: {
+              type: 'point',
+              xValue: percentTotalStaked,
+              yValue: apy,
+              radius: 3,
+              borderColor: 'green',
+              backgroundColor: 'green',
               borderWidth: 2,
             },
             label1: {
@@ -252,7 +278,7 @@ const RewardCurve = () => {
     };
 
     return options;
-  }, [activeEraTotalStaked.data, apr, divisor, inflation, percentTotalStaked, tokenSymbol, totalIssuance]);
+  }, [activeEraTotalStaked.data, apr, apy, divisor, inflation, percentTotalStaked, tokenSymbol, totalIssuance]);
 
   // Set chart data.
   useEffect(() => {
@@ -266,10 +292,19 @@ const RewardCurve = () => {
     rewardCurveChartData = {
       datasets: [
         {
+          label: 'APY',
+          data: apyRewardCurve,
+          borderColor: 'green',
+          backgroundColor: 'green',
+          borderWidth: 2,
+          pointRadius: 0,
+          yAxisID: 'y',
+        },
+        {
           label: 'APR',
           data: rewardCurve,
-          borderColor: 'red',
-          backgroundColor: 'red',
+          borderColor: 'blue',
+          backgroundColor: 'blue',
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
@@ -277,8 +312,8 @@ const RewardCurve = () => {
         {
           label: 'Inflation',
           data: inflationCurve,
-          borderColor: 'blue',
-          backgroundColor: 'blue',
+          borderColor: 'red',
+          backgroundColor: 'red',
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
