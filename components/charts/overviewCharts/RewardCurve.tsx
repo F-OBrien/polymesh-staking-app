@@ -163,7 +163,7 @@ const RewardCurve = () => {
               label: {
                 backgroundColor: 'blue',
                 content: `APR: ${apr.toFixed(3)} %`,
-                enabled: true,
+                display: true,
               },
             },
             line2: {
@@ -178,7 +178,7 @@ const RewardCurve = () => {
               label: {
                 backgroundColor: 'black',
                 content: `${percentTotalStaked.toFixed(3)} %`,
-                enabled: true,
+                display: true,
               },
             },
             line3: {
@@ -193,7 +193,7 @@ const RewardCurve = () => {
               label: {
                 backgroundColor: 'red',
                 content: `Inflation: ${inflation.toFixed(3)} %`,
-                enabled: true,
+                display: true,
               },
             },
             line4: {
@@ -208,7 +208,7 @@ const RewardCurve = () => {
               label: {
                 backgroundColor: 'green',
                 content: `APY: ${apy.toFixed(3)} %`,
-                enabled: true,
+                display: true,
               },
             },
 
@@ -268,7 +268,7 @@ const RewardCurve = () => {
                 size: 12,
               },
               callout: {
-                enabled: true,
+                display: true,
                 side: 10,
               },
             },

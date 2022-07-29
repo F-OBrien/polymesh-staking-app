@@ -8,26 +8,26 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@polkadot/extension-dapp": "^0.44.1",
+    "@polkadot/extension-dapp": "^0.44.2",
     "@polymeshassociation/polymesh-sdk": "^14.0.0-beta.11",
-    "chart.js": "^3.8.0",
-    "chartjs-plugin-annotation": "^1.4.0",
+    "chart.js": "^3.8.2",
+    "chartjs-plugin-annotation": "^2.0.0",
     "chartjs-plugin-datalabels": "^2.0.0",
     "chartjs-plugin-zoom": "^1.2.1",
-    "d3": "^7.5.0",
+    "d3": "^7.6.1",
     "d3-scale-chromatic": "^3.0.0",
-    "next": "^12.2.0",
+    "next": "^12.2.3",
     "react": "^18.2.0",
-    "react-chartjs-2": "^4.2.0",
+    "react-chartjs-2": "^4.3.1",
     "react-dom": "^18.2.0",
     "react-query": "^3.39.1"
   },
   "devDependencies": {
     "@types/d3": "^7.4.0",
-    "@types/node": "^18.0.0",
-    "@types/react": "^18.0.14",
-    "eslint": "^8.19.0",
-    "eslint-config-next": "^12.2.0",
+    "@types/node": "^18.6.2",
+    "@types/react": "^18.0.15",
+    "eslint": "^8.20.0",
+    "eslint-config-next": "^12.2.3",
     "typescript": "^4.7.4"
   }
 }
