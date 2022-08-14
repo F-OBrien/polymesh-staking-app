@@ -114,7 +114,6 @@ const OperatorsTokensAssigned = () => {
         title: {
           display: true,
           text: `Total ${tokenSymbol} Assigned to Operators (Era ${currentEra.toNumber()})`,
-          font: { size: 20 },
         },
         zoom: {
           pan: { enabled: true, mode: 'y' as const, overScaleMode: 'y' as const },

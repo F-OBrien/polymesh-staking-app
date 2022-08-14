@@ -86,6 +86,9 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x4d42a6a3d3d4977987f2ae50ec49c9f3ce9093cf1f5c0162c49eada21573c9f4': { name: 'Netki', website: 'https://netki.com/' },
   '0xd332d9c2752b01f01b19dfa559e436125d50f084a5d038ec80518c4f23f077e5': { name: 'Fractal', website: 'https://company.fractal.id/' },
   '0x590d4abea96b22dd88133d1b0b84d44d3a8e6a07bc4786799465344d5b88a4bd': { name: 'Jumio', website: 'https://www.jumio.com/' },
+  // Exchanges
+  '0x191ad8c72a13aba33630315b0aa564decc8795f9b8539f3ff3ad2340c6ca8bf1': { name: 'Huobi Deposit', website: 'https://www.huobi.com/' },
+  '0x22dbdce70771f6499a631a9e1fde0bbedf5641532d5b8a249320da58435cc9a0': { name: 'Huobi Stash', website: 'https://www.huobi.com/' },
 };
 
 export const defaultChartZoomOptions = {
@@ -119,7 +122,6 @@ export const defaultChartOptions: ChartOptions<'line' | 'bar'> = {
     title: {
       display: true,
       text: `Chart Title`,
-      font: { size: 20 },
     },
     legend: {
       position: 'bottom' as const,

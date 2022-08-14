@@ -55,7 +55,6 @@ const OperatorsActiveEraPoints = () => {
         title: {
           display: true,
           text: `Operator Points (Era ${activeEra?.toNumber()})`,
-          font: { size: 20 },
         },
         zoom: {
           pan: { enabled: true, mode: 'y' as const, overScaleMode: 'y' as const },
@@ -76,9 +75,6 @@ const OperatorsActiveEraPoints = () => {
           padding: { left: 0, right: 0, top: 0, bottom: 0 },
           // textStrokeColor: 'black',
           // textStrokeWidth: 1,
-          font: {
-            weight: 'bold' as const,
-          },
         },
       },
     };
