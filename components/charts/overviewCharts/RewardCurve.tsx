@@ -111,7 +111,6 @@ const RewardCurve = () => {
     if (!apr || !inflation || !percentTotalStaked || !activeEraTotalStaked.data || !totalIssuance) return;
 
     const options: ChartOptions<'scatter'> = {
-      responsive: true,
       showLine: true,
       interaction: { intersect: false, mode: 'nearest', axis: 'x' },
       scales: {

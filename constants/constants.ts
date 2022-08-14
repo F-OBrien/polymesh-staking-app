@@ -99,7 +99,6 @@ export const defaultChartZoomOptions = {
 };
 
 export const defaultChartOptions: ChartOptions<'line' | 'bar'> = {
-  responsive: true,
   scales: {
     x: { title: { display: true, text: 'X-axis Title' } },
     y: { title: { display: true, text: 'Y-axis Title' } },

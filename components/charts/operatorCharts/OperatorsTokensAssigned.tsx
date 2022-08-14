@@ -79,7 +79,6 @@ const OperatorsTokensAssigned = () => {
 
   const chartOptions = useMemo(() => {
     const options = {
-      responsive: true,
       scales: {
         y: {
           beginAtZero: true,

@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
   ChartData,
+  ChartOptions,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Chart } from 'react-chartjs-2';
@@ -62,9 +63,8 @@ const OperatorsTokensNominated = () => {
     chartRef.current?.resetZoom();
   };
 
-  const chartOptions = useMemo(() => {
-    const options = {
-      responsive: true,
+  const chartOptions: ChartOptions = useMemo(() => {
+    const options: ChartOptions = {
       scales: {
         y: {
           beginAtZero: true,
