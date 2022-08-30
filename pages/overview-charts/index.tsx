@@ -1,3 +1,4 @@
+import FineCurves from '../../components/charts/overviewCharts/FineCurves';
 import { ErasAverageAprChart, ErasPointsTotalsChart, ErasRewardsTotalsChart, ErasTotalsStakedChart, RewardCurve } from '../../components/chartsNoSSR';
 
 function App() {
@@ -5,6 +6,7 @@ function App() {
     <div className='App'>
       <>
         <RewardCurve />
+        <FineCurves />
         <ErasAverageAprChart />
         <ErasTotalsStakedChart />
         <ErasPointsTotalsChart />
