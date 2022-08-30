@@ -50,7 +50,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
     // Override defaults with chart specific options.
     options.scales!.x!.title!.text = 'Era';
     options.scales!.y!.title!.text = 'Percent [%]';
-    options.plugins!.title!.text = 'Operator % of Reward/Total Points per Era';
+    options.plugins!.title!.text = 'Node % of Reward/Total Points per Era';
 
     return options;
   }, []);
@@ -121,7 +121,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
           backgroundColor: 'rgba(200,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
@@ -139,7 +139,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
@@ -151,7 +151,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });

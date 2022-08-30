@@ -113,7 +113,7 @@ const OperatorsTokensAssigned = () => {
         },
         title: {
           display: true,
-          text: `Total ${tokenSymbol} Assigned to Operators (Era ${currentEra.toNumber()})`,
+          text: `Total ${tokenSymbol} Assigned to Nodes (Era ${currentEra.toNumber()})`,
         },
         zoom: {
           pan: { enabled: true, mode: 'y' as const, overScaleMode: 'y' as const },

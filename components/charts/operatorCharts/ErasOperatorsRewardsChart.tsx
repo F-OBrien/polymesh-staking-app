@@ -55,7 +55,7 @@ const ErasOperatorsRewardsChart = () => {
     // Override defaults with chart specific options.
     options.scales!.x!.title!.text = 'Era';
     options.scales!.y!.title!.text = `Reward [${tokenSymbol}]`;
-    options.plugins!.title!.text = `${tokenSymbol} Rewards per Era by Operator`;
+    options.plugins!.title!.text = `${tokenSymbol} Rewards per Era by Node`;
 
     return options;
   }, [tokenSymbol]);
@@ -145,7 +145,7 @@ const ErasOperatorsRewardsChart = () => {
           backgroundColor: 'rgba(200,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
@@ -163,7 +163,7 @@ const ErasOperatorsRewardsChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
@@ -175,7 +175,7 @@ const ErasOperatorsRewardsChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });

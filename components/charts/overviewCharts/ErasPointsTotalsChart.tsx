@@ -98,7 +98,7 @@ const ErasPointsTotalsChart = () => {
           borderColor: 'rgb(200,0,0)',
           backgroundColor: 'rgba(200,0,0,0.5)',
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
         },
       ],

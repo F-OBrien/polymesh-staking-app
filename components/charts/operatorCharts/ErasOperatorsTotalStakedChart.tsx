@@ -55,7 +55,7 @@ const ErasOperatorsTotalStakedChart = () => {
     // Override defaults with chart specific options.
     options.scales!.x!.title!.text = 'Era';
     options.scales!.y!.title!.text = `Amount [${tokenSymbol}]`;
-    options.plugins!.title!.text = `Total ${tokenSymbol} Assigned to Operators per Era`;
+    options.plugins!.title!.text = `Total ${tokenSymbol} Assigned to Node per Era`;
 
     return options;
   }, [tokenSymbol]);
@@ -128,7 +128,7 @@ const ErasOperatorsTotalStakedChart = () => {
           backgroundColor: 'rgba(255,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
@@ -146,7 +146,7 @@ const ErasOperatorsTotalStakedChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
@@ -158,7 +158,7 @@ const ErasOperatorsTotalStakedChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });

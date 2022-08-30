@@ -15,9 +15,9 @@ export const defaultNetwork: NetworkMeta = {
 
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
-  '2CU1WcxacoDxdLFRqySMPQ9cNwzUZLnkVZhHYfw3uTQ4spdY': 'B89 2 (2CU1W..)',
   '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Nyala 1 (2DJrn..)',
   '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Nyala 2 (2Fb8F..)',
+  '2DQgvaATTCeaNyqPvd1XpUoN6PagtPi1tFG6Bd7TyC1krFB7': 'Nyala 3 (2DQgv..)',
   '2FQ1RRJiUm4BXeZyMFLdtnVLTPxJ8qKfut3G29GhkwrKJsgy': 'CM Equity 1 (2FQ1R..)',
   '2Gr55WYCpsPChyhnfiSyCDYZrUUseaYeKXMLRzEJERnLbc4e': 'CM Equity 2 (2Gr55..)',
   '2GrEHDSx2ud2nHkhA3pqpF316knPRAjCprkezwUuzQ5xf627': 'CM Equity 3 (2GrEH..)',
@@ -116,7 +116,7 @@ export const defaultChartOptions: ChartOptions<'line' | 'bar'> = {
   // },
   hover: {
     mode: 'dataset' as const,
-    intersect: true,
+    intersect: false,
   },
   plugins: {
     title: {

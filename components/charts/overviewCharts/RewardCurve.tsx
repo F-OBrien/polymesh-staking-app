@@ -141,6 +141,7 @@ const RewardCurve = () => {
           text: `Polymesh Staking Reward / Inflation Curve`,
         },
         legend: {
+          display: true,
           position: 'bottom' as const,
           labels: {
             usePointStyle: true,
@@ -159,6 +160,7 @@ const RewardCurve = () => {
               borderWidth: 3,
               borderDash: [5, 5],
               label: {
+                position: '50%',
                 backgroundColor: '#D557EA',
                 content: `APR: ${apr.toFixed(3)} %`,
                 display: true,
@@ -190,6 +192,7 @@ const RewardCurve = () => {
               borderWidth: 3,
               borderDash: [5, 5],
               label: {
+                position: '20%',
                 backgroundColor: '#EC4673',
                 content: `Inflation: ${inflation.toFixed(3)} %`,
                 display: true,
@@ -205,6 +208,7 @@ const RewardCurve = () => {
               borderWidth: 3,
               borderDash: [5, 5],
               label: {
+                position: '20%',
                 backgroundColor: '#60D3CB',
                 content: `APY: ${apy.toFixed(3)} %`,
                 display: true,

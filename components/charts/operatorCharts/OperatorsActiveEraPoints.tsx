@@ -54,7 +54,7 @@ const OperatorsActiveEraPoints = () => {
         },
         title: {
           display: true,
-          text: `Operator Points (Era ${activeEra?.toNumber()})`,
+          text: `Node Points (Era ${activeEra?.toNumber()})`,
         },
         zoom: {
           pan: { enabled: true, mode: 'y' as const, overScaleMode: 'y' as const },

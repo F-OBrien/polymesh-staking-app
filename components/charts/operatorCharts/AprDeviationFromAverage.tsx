@@ -60,7 +60,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
     // Override defaults with chart specific options.
     options.scales!.x!.title!.text = 'Era';
     options.scales!.y!.title!.text = 'Percent [%]';
-    options.plugins!.title!.text = 'Cumulative % Deviation from Average APR (inc. commission)';
+    options.plugins!.title!.text = 'Cumulative % Deviation from Average APR (after operator commission)';
     options.plugins!.zoom!.limits = undefined;
 
     return options;
@@ -208,7 +208,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           backgroundColor: 'rgba(255,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
           borderJoinStyle: 'round',
@@ -227,7 +227,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           stepped: false,
           tension: 0.0,
           hoverBorderColor: 'black',
@@ -240,7 +240,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           stepped: false,
           tension: 0.0,
           hoverBorderColor: 'black',

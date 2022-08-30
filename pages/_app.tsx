@@ -15,7 +15,6 @@ Chart.register(Title, chartAreaBorder);
 Chart.defaults.font.family = 'Poppins';
 Chart.defaults.scale.grid.drawOnChartArea = false;
 Chart.defaults.scale.grid.drawBorder = false;
-console.log(Chart.defaults);
 
 // define a new react-query client for caching across pages
 const queryClient = new QueryClient({

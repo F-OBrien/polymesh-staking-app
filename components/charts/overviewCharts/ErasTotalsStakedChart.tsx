@@ -113,7 +113,7 @@ const ErasTotalsStakedChart = () => {
             borderColor: 'rgb(0,0,255)',
             backgroundColor: 'rgba(0,0,255,0.5)',
             borderWidth: 2,
-            pointRadius: 2,
+            pointRadius: 0,
             yAxisID: 'y',
           },
         ],

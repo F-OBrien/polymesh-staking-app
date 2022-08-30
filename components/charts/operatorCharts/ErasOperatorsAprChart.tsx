@@ -56,7 +56,7 @@ const ErasOperatorsAprChart = () => {
     // Override defaults with chart specific options.
     options.scales!.x!.title!.text = 'Era';
     options.scales!.y!.title!.text = 'APR [%]';
-    options.plugins!.title!.text = 'Operator APR per Era (excl. commission)';
+    options.plugins!.title!.text = 'Node APR per Era (before operator commission)';
 
     return options;
   }, []);
@@ -173,7 +173,7 @@ const ErasOperatorsAprChart = () => {
           backgroundColor: 'rgba(255,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
@@ -192,7 +192,7 @@ const ErasOperatorsAprChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
@@ -204,7 +204,7 @@ const ErasOperatorsAprChart = () => {
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });

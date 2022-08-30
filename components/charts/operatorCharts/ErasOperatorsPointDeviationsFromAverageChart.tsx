@@ -133,7 +133,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ trendPeriod }: Props) =>
           backgroundColor: 'rgba(200,0,0,0.5)',
           borderWidth: 2,
           borderDash: [3, 5],
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
           hoverBackgroundColor: 'rgb(255,0,0)',
@@ -151,7 +151,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ trendPeriod }: Props) =>
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
@@ -163,7 +163,7 @@ const ErasOperatorsPointDeviationsFromAverageChart = ({ trendPeriod }: Props) =>
           borderColor: color.formatRgb(),
           backgroundColor: color.formatRgb(),
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 0,
           yAxisID: 'y',
           hoverBorderColor: 'black',
         });
