@@ -12,6 +12,7 @@ import {
   Legend,
   ChartData,
   ChartOptions,
+  BarController,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Chart } from 'react-chartjs-2';
@@ -23,7 +24,19 @@ import { useStakingContext } from '../../../hooks/useStakingContext';
 import { useQuery } from 'react-query';
 import { VoidFn } from '@polkadot/api/types';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  LogarithmicScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  zoomPlugin,
+  BarController
+);
 
 interface NominationData {
   labels?: string[];

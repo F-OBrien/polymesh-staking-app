@@ -11,6 +11,7 @@ import {
   ChartData,
   PointElement,
   LineElement,
+  BarController,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { Chart } from 'react-chartjs-2';
@@ -23,7 +24,19 @@ import { Balance } from '@polkadot/types/interfaces';
 import { useEraTotalStaked } from '../../../hooks/StakingQueries';
 import { BigNumber } from '@polymeshassociation/polymesh-sdk';
 
-ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  LogarithmicScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  zoomPlugin,
+  BarController
+);
 
 interface AssignedData {
   operator: string;

@@ -1,5 +1,16 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, ChartData } from 'chart.js';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  LogarithmicScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData,
+  BarController,
+} from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Chart } from 'react-chartjs-2';
@@ -10,7 +21,7 @@ import { useEraStakers } from '../../../hooks/StakingQueries';
 import { useStakingContext } from '../../../hooks/useStakingContext';
 import { VoidFn } from '@polkadot/api/types';
 
-ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin);
+ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin, BarController);
 
 const OperatorsActiveEraPoints = () => {
   const { api, encodedSelectedAddress } = useSdk();
