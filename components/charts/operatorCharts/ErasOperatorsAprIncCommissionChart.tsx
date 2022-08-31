@@ -190,8 +190,6 @@ const ErasOperatorsAprIncCommissionChart = () => {
           borderWidth: 2,
           borderDash: [3, 5],
           pointRadius: 0,
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
           borderJoinStyle: 'round',
         },
       ],
@@ -199,7 +197,10 @@ const ErasOperatorsAprIncCommissionChart = () => {
 
     Object.entries(aprDatasets).forEach(([operator, apr], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(aprDatasets).length - 1)));
-
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
       if (highlight?.includes(operator)) {
         color.opacity = 0.9;
         aprChartData.datasets.unshift({
@@ -211,7 +212,7 @@ const ErasOperatorsAprIncCommissionChart = () => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -224,7 +225,7 @@ const ErasOperatorsAprIncCommissionChart = () => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
           borderJoinStyle: 'round',
         });
       }

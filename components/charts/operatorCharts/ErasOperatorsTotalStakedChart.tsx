@@ -130,16 +130,18 @@ const ErasOperatorsTotalStakedChart = () => {
           borderDash: [3, 5],
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
         },
       ],
     };
 
     Object.entries(totalsDatasets).forEach(([operator, total], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(totalsDatasets).length - 1)));
-      color.opacity = 0.9;
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
       if (highlight?.includes(operator)) {
+        color.opacity = 0.9;
         totalsChartData.datasets.unshift({
           label: operatorsNames[operator] ? operatorsNames[operator] : operator,
           data: total,
@@ -148,7 +150,7 @@ const ErasOperatorsTotalStakedChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -160,7 +162,7 @@ const ErasOperatorsTotalStakedChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       }
     });

@@ -209,8 +209,6 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           borderWidth: 2,
           borderDash: [3, 5],
           pointRadius: 0,
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
           borderJoinStyle: 'round',
         },
       ],
@@ -218,6 +216,10 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
 
     Object.entries(averageDeviationDatasets).forEach(([operator, apr], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(averageDeviationDatasets).length - 1)));
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
 
       if (highlight?.includes(operator)) {
         color.opacity = 0.9;
@@ -230,7 +232,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -243,7 +245,7 @@ const AprDeviationFromAverage = ({ trendPeriod }: Props) => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
           borderJoinStyle: 'round',
         });
       }

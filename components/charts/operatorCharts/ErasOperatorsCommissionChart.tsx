@@ -128,16 +128,19 @@ const ErasOperatorsCommissionChart = () => {
           borderDash: [3, 5],
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
         },
       ],
     };
 
     Object.entries(commissionDatasets).forEach(([operator, commission], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(commissionDatasets).length - 1)));
-      color.opacity = 0.9;
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
+
       if (highlight?.includes(operator)) {
+        color.opacity = 0.9;
         commissionChartData.datasets.unshift({
           label: operatorsNames[operator] ? operatorsNames[operator] : operator,
           data: commission,
@@ -146,7 +149,7 @@ const ErasOperatorsCommissionChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -158,7 +161,7 @@ const ErasOperatorsCommissionChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       }
     });

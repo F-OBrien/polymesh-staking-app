@@ -179,8 +179,6 @@ const OperatorsRewards = () => {
           borderWidth: 2,
           borderDash: [3, 5],
           pointRadius: 0,
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
           borderJoinStyle: 'round',
         },
       ],
@@ -188,6 +186,10 @@ const OperatorsRewards = () => {
 
     Object.entries(rewardDatasets).forEach(([operator, apr], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(rewardDatasets).length - 1)));
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
 
       if (highlight?.includes(operator)) {
         color.opacity = 0.7;
@@ -200,7 +202,7 @@ const OperatorsRewards = () => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.7;
@@ -213,7 +215,7 @@ const OperatorsRewards = () => {
           pointRadius: 0,
           stepped: false,
           tension: 0.0,
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
           borderJoinStyle: 'round',
         });
       }

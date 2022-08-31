@@ -127,14 +127,16 @@ const ErasOperatorsPointsChart = () => {
           borderDash: [3, 5],
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
         },
       ],
     };
 
     Object.entries(pointsDatasets).forEach(([operator, points], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(pointsDatasets).length - 1)));
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
       if (highlight?.includes(operator)) {
         color.opacity = 0.9;
         pointsChartData.datasets.unshift({
@@ -145,7 +147,7 @@ const ErasOperatorsPointsChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -157,7 +159,7 @@ const ErasOperatorsPointsChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       }
     });

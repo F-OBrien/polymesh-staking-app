@@ -123,16 +123,18 @@ const ErasOperatorsPercentOfPointsChart = () => {
           borderDash: [3, 5],
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
-          hoverBackgroundColor: 'rgb(255,0,0)',
         },
       ],
     };
 
     Object.entries(pointsPercentDatasets).forEach(([operator, percent], index) => {
       let color = d3.rgb(d3.interpolateTurbo(index / (Object.keys(pointsPercentDatasets).length - 1)));
-      color.opacity = 0.9;
+      const hoverColor = (color: d3.RGBColor) => {
+        color.opacity = 1;
+        return color;
+      };
       if (highlight?.includes(operator)) {
+        color.opacity = 0.9;
         percentPointsChartData.datasets.unshift({
           label: operatorsNames[operator] ? operatorsNames[operator] : operator,
           data: percent,
@@ -141,7 +143,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
         color.opacity = 0.2;
@@ -153,7 +155,7 @@ const ErasOperatorsPercentOfPointsChart = () => {
           borderWidth: 2,
           pointRadius: 0,
           yAxisID: 'y',
-          hoverBorderColor: 'black',
+          hoverBorderColor: hoverColor(color).formatRgb(),
         });
       }
     });
