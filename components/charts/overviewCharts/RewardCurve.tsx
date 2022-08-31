@@ -1,6 +1,18 @@
 import { Balance } from '@polkadot/types/interfaces';
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData,
+  ChartOptions,
+  ScatterController,
+} from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
 import { inflationCurve, rewardCurve, apyRewardCurve } from '../../../constants/rewardCurve';
@@ -10,7 +22,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import { useStakingContext } from '../../../hooks/useStakingContext';
 import { VoidFn } from '@polkadot/api/types';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin, ScatterController);
 
 const RewardCurve = () => {
   // Define reference for tracking mounted state

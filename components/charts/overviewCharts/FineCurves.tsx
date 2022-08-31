@@ -1,12 +1,24 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartData,
+  ChartOptions,
+  ScatterController,
+} from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import Spinner from '../../Spinner';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { useEraStakers } from '../../../hooks/StakingQueries';
 import { useStakingContext } from '../../../hooks/useStakingContext';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin, ScatterController);
 
 const FineCurves = () => {
   // Define reference for tracking mounted state
