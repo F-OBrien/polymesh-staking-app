@@ -254,20 +254,6 @@ const RewardCurve = () => {
               ],
               textAlign: 'right',
             },
-            label2: {
-              type: 'label',
-              xValue: 70, //xIdeal
-              yValue: 20, // Ideal Reward
-              xAdjust: 150,
-              yAdjust: -50,
-              backgroundColor: 'rgba(245,245,245)',
-              content: [`Target / Ideal Percent`, `of Total Staked: 70%`],
-              textAlign: 'left',
-              callout: {
-                display: true,
-                side: 10,
-              },
-            },
           },
         },
       },
