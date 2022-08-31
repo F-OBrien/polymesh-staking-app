@@ -15,7 +15,7 @@ const Home: NextPage = () => {
         <h1> Homepage</h1>
         <div style={{ textAlign: 'center', fontSize: '25px' }}>
           This is the home page. Not much to see here. <br />
-          {`If you're here it's because you love.`} <br />
+          {`If you're here it's because you love`} <br />
           <Image src='/Polymesh-logo.svg' alt='Polymesh' width={500} height={100} />
           <br />
           Click the above links to see staking related charts
