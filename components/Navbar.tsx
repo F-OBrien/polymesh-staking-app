@@ -6,7 +6,7 @@ export const Navbar = (): ReactElement => {
   return (
     <nav>
       <div className='logo'>
-        <h1> Polymesh Staking Stats</h1>
+        <h1> Polymesh Staking Charts</h1>
       </div>
       <Link href='/'>
         <a className={styles.btn}>Home</a>
