@@ -192,7 +192,7 @@ const OperatorsRewards = () => {
       };
 
       if (highlight?.includes(operator)) {
-        color.opacity = 0.7;
+        color.opacity = 0.9;
         aprChartData.datasets.unshift({
           label: operatorsNames[operator] ? operatorsNames[operator] : operator,
           data: apr,
@@ -205,7 +205,7 @@ const OperatorsRewards = () => {
           hoverBorderColor: hoverColor(color).formatRgb(),
         });
       } else {
-        color.opacity = 0.7;
+        color.opacity = 0.2;
         aprChartData.datasets.push({
           label: operatorsNames[operator] ? operatorsNames[operator] : operator,
           data: apr,

@@ -82,7 +82,8 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
   '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
   // Permissioned CDD Providers
-  '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
+  '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymath', website: 'https://polymath.network/' },
+  // '0x0400000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
   '0x4d42a6a3d3d4977987f2ae50ec49c9f3ce9093cf1f5c0162c49eada21573c9f4': { name: 'Netki', website: 'https://netki.com/' },
   '0xd332d9c2752b01f01b19dfa559e436125d50f084a5d038ec80518c4f23f077e5': { name: 'Fractal', website: 'https://company.fractal.id/' },
   '0x590d4abea96b22dd88133d1b0b84d44d3a8e6a07bc4786799465344d5b88a4bd': { name: 'Jumio', website: 'https://www.jumio.com/' },

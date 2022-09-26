@@ -50,13 +50,23 @@ function MyApp({ Component, pageProps }: AppProps) {
         Chart.defaults.plugins.title.font = { weight: 'normal', size: 15 };
         return;
       }
-      if (window.innerWidth > 1200) {
+      if (window.innerWidth > 1225) {
         Chart.defaults.font.size = 11;
         Chart.defaults.plugins.title.font = { weight: 'normal', size: 14 };
         return;
       }
-      Chart.defaults.font.size = 10;
-      Chart.defaults.plugins.title.font = { weight: 'normal', size: 13 };
+      if (window.innerWidth > 1140) {
+        Chart.defaults.font.size = 10;
+        Chart.defaults.plugins.title.font = { weight: 'normal', size: 13 };
+        return;
+      }
+      if (window.innerWidth > 1060) {
+        Chart.defaults.font.size = 9;
+        Chart.defaults.plugins.title.font = { weight: 'normal', size: 12 };
+        return;
+      }
+      Chart.defaults.font.size = 8;
+      Chart.defaults.plugins.title.font = { weight: 'normal', size: 11 };
     }
     handleWindowResize();
     window.addEventListener('resize', handleWindowResize);
@@ -68,16 +78,16 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SdkAppWrapper>
-        <StakingContextAppWrapper>
-          <Layout>
+      <Layout>
+        <SdkAppWrapper>
+          <StakingContextAppWrapper>
             <>
               <Component {...pageProps} />
               {/* <ReactQueryDevtools initialIsOpen /> */}
             </>
-          </Layout>
-        </StakingContextAppWrapper>
-      </SdkAppWrapper>
+          </StakingContextAppWrapper>
+        </SdkAppWrapper>
+      </Layout>
     </QueryClientProvider>
   );
 }
