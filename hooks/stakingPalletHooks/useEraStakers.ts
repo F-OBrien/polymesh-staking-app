@@ -2,7 +2,7 @@ import { AccountId, Balance, EraIndex, Exposure } from '@polkadot/types/interfac
 import type { StorageKey, Compact } from '@polkadot/types';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 
 export const useEraStakers = (
   era: EraIndex,
@@ -30,10 +30,10 @@ export const useEraStakers = (
   );
 };
 
-export const getEraStakersData = async (api: ApiPromise, era: EraIndex) => {
+export const getEraStakersData = async (api: Polymesh['_polkadotApi'], era: EraIndex) => {
   const operators: Record<string, Exposure> = {};
   const nominators: Record<string, { operator: string; value: Compact<Balance> }[]> = {};
-
+  //@ts-ignore
   const exposure: [StorageKey<[EraIndex, AccountId]>, Exposure][] = await api.query.staking.erasStakersClipped.entries(era);
 
   exposure.forEach(([{ args }, exposure]) => {

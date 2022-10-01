@@ -1,4 +1,4 @@
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import { EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 import { Option } from '@polkadot/types';
 import { useQuery, UseQueryOptions } from 'react-query/';
@@ -23,9 +23,9 @@ export const useErasRewards = (
   );
 };
 
-export const getErasReward = async (api: ApiPromise, eras: EraIndex[]) => {
+export const getErasReward = async (api: Polymesh['_polkadotApi'], eras: EraIndex[]) => {
   // const results = await Promise.all(eras.map(async (era) => await getEraReward(api, era)));
-
+  // @ts-ignore
   const rewards: Option<BalanceOf>[] = await api.query.staking.erasValidatorReward.multi(eras);
   const result = rewards.map((reward, index) => {
     return { era: eras[index], reward: reward.unwrapOrDefault() };

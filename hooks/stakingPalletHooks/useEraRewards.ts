@@ -1,7 +1,7 @@
 import { EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 
 export const useEraRewards = (
   era: EraIndex,
@@ -20,11 +20,12 @@ export const useEraRewards = (
     // Query Function
     () => getEraReward(api, era),
     // Query Options
+    // @ts-ignore
     queryOptions
   );
 };
 
-export const getEraReward = async (api: ApiPromise, era: EraIndex) => {
+export const getEraReward = async (api: Polymesh['_polkadotApi'], era: EraIndex) => {
   const queryResults = await api.query.staking.erasValidatorReward(era);
   const reward = queryResults.unwrapOrDefault();
   return { era, reward };

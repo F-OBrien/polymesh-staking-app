@@ -1,6 +1,6 @@
 import { EraIndex, ValidatorPrefs } from '@polkadot/types/interfaces';
 import { useQuery, UseQueryOptions } from 'react-query/';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import { useSdk } from '../useSdk';
 import { getEraPreferences } from './useEraPreferences';
 import { useStakingContext } from '../useStakingContext';
@@ -26,7 +26,7 @@ export const useErasPreferences = (
   );
 };
 
-export const getErasPreferences = async (api: ApiPromise, eras: EraIndex[]) => {
+export const getErasPreferences = async (api: Polymesh['_polkadotApi'], eras: EraIndex[]) => {
   const results = await Promise.all(eras.map(async (era) => getEraPreferences(api, era)));
 
   return results;

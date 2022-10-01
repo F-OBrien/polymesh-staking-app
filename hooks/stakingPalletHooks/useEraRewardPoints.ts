@@ -1,7 +1,7 @@
 import { EraIndex, RewardPoint } from '@polkadot/types/interfaces';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 
 export const useEraRewardPoints = (
   era: EraIndex,
@@ -29,10 +29,11 @@ export const useEraRewardPoints = (
   );
 };
 
-export const getEraRewardPoints = async (api: ApiPromise, era: EraIndex) => {
+export const getEraRewardPoints = async (api: Polymesh['_polkadotApi'], era: EraIndex) => {
   const operators: Record<string, RewardPoint> = {};
   const queryResults = await api.query.staking.erasRewardPoints(era);
   const total = queryResults.total;
+  // @ts-ignore
   queryResults.individual.forEach((points, operator) => {
     operators[operator.toString()] = points;
   });

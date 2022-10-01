@@ -26,9 +26,13 @@ export const useHistoricalEras = (
     'ERAS_HISTORICAL',
 
     async () => {
+      // @ts-ignore
       const historicInfo: [Option<EraIndex>, Option<ActiveEraInfo>, u32] = await api.queryMulti([
+        // @ts-ignore
         api.query.staking.currentEra,
+        // @ts-ignore
         api.query.staking.activeEra,
+        // @ts-ignore
         api.query.staking.historyDepth,
       ]);
 
@@ -42,11 +46,14 @@ export const useHistoricalEras = (
       let lastEra = currentEra.toNumber();
 
       while (lastEra >= 0 && historicWithCurrent.length < historyDepth + 1) {
+        // @ts-ignore
         historicWithCurrent.push(api.registry.createType('EraIndex', lastEra));
         if (lastEra <= activeEra) {
+          // @ts-ignore
           historicWithActive.push(api.registry.createType('EraIndex', lastEra));
         }
         if (lastEra < activeEra) {
+          // @ts-ignore
           historicWithoutActive.push(api.registry.createType('EraIndex', lastEra));
         }
         lastEra -= 1;

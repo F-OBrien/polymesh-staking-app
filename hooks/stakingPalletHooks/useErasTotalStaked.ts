@@ -1,7 +1,7 @@
 import { EraIndex, BalanceOf } from '@polkadot/types/interfaces';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import { useStakingContext } from '../useStakingContext';
 
 export const useErasTotalStaked = (
@@ -22,7 +22,8 @@ export const useErasTotalStaked = (
   );
 };
 
-export const getErasTotals = async (api: ApiPromise, eras: EraIndex[]) => {
+export const getErasTotals = async (api: Polymesh['_polkadotApi'], eras: EraIndex[]) => {
+  // @ts-ignore
   const totals: BalanceOf[] = await api.query.staking.erasTotalStake.multi(eras);
   const result = totals.map((total, index) => {
     return { era: eras[index], total: total };

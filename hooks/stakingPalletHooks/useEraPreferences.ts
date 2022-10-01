@@ -2,7 +2,7 @@ import { AccountId, EraIndex, ValidatorPrefs } from '@polkadot/types/interfaces'
 import type { StorageKey } from '@polkadot/types';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 
 export const useEraPreferences = (
   era: EraIndex,
@@ -25,7 +25,8 @@ export const useEraPreferences = (
   );
 };
 
-export const getEraPreferences = async (api: ApiPromise, era: EraIndex) => {
+export const getEraPreferences = async (api: Polymesh['_polkadotApi'], era: EraIndex) => {
+  // @ts-ignore
   const preferences: [StorageKey<[EraIndex, AccountId]>, ValidatorPrefs][] = await api.query.staking.erasValidatorPrefs.entries(era);
 
   const operators: Record<string, ValidatorPrefs> = {};

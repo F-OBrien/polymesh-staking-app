@@ -192,6 +192,7 @@ const OperatorsTokensNominated = () => {
 
       nominations.data!.forEach(([{ args: nominator }, nominations]) => {
         if (nominations.isSome) {
+          // @ts-ignore
           nominations.unwrap().targets.forEach((operator) => {
             nominated[operator.toString()] = nominated[operator.toString()]
               ? nominated[operator.toString()].add(amountStaked[nominator.toString()])

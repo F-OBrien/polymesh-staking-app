@@ -64,6 +64,7 @@ const RewardCurve = () => {
 
     const getTotalIssuance = async () => {
       unsubPolyxSupply = await api.query.balances.totalIssuance((total) => {
+        // @ts-ignore
         setTotalIssuance(total);
       });
     };

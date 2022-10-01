@@ -2,7 +2,7 @@ import { Balance, EraIndex, Exposure } from '@polkadot/types/interfaces';
 import type { Compact } from '@polkadot/types';
 import { useQuery, UseQueryOptions } from 'react-query/';
 import { useSdk } from '../useSdk';
-import { ApiPromise } from '@polkadot/api';
+import { Polymesh } from '@polymeshassociation/polymesh-sdk';
 import { getEraStakersData } from './useEraStakers';
 import { useStakingContext } from '../useStakingContext';
 
@@ -32,7 +32,7 @@ export const useErasStakers = (
   );
 };
 
-export const getErasStakersData = async (api: ApiPromise, eras: EraIndex[]) => {
+export const getErasStakersData = async (api: Polymesh['_polkadotApi'], eras: EraIndex[]) => {
   const results = await Promise.all(eras.map(async (era) => await getEraStakersData(api, era)));
 
   return results;

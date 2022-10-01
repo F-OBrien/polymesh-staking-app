@@ -40,6 +40,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     let unSubNominations: () => void;
     const getNominations = async () => {
       unSubNominations = await api.query.staking.nominators(encodedSelectedAddress, (nominations) => {
+        // @ts-ignore
         const targets = nominations.unwrapOrDefault().targets.map((target) => {
           return target.toString();
         });
@@ -66,6 +67,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
       });
       // Retrieve the current era via subscription
       unsubCurrentEra = await api.query.staking.currentEra((current) => {
+        // @ts-ignore
         setCurrentEra(current.unwrapOrDefault());
       });
     };
@@ -85,7 +87,9 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
   }, [api.query.staking]);
 
   useEffect(() => {
+    // @ts-ignore
     const maxVariableInflationTotalIssuance = api.consts.staking.maxVariableInflationTotalIssuance as BalanceOf;
+    // @ts-ignore
     const fixedYearlyReward = api.consts.staking.fixedYearlyReward as BalanceOf;
 
     setStakingConstants({ maxVariableInflationTotalIssuance, fixedYearlyReward });
@@ -100,11 +104,14 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     let lastEra = currentEra.toNumber();
 
     while (lastEra >= 0 && historicWithCurrent.length < historyDepth + 1) {
+      // @ts-ignore
       historicWithCurrent.push(api.registry.createType('EraIndex', lastEra));
       if (lastEra <= activeEra.toNumber()) {
+        // @ts-ignore
         historicWithActive.push(api.registry.createType('EraIndex', lastEra));
       }
       if (lastEra < activeEra.toNumber()) {
+        // @ts-ignore
         historicWithoutActive.push(api.registry.createType('EraIndex', lastEra));
       }
       lastEra -= 1;

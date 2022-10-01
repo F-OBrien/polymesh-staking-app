@@ -103,7 +103,7 @@ const OperatorsActiveEraPoints = () => {
       // Retrieve era points via subscription
       unsubActiveEraPoints = await api.query.staking.erasRewardPoints(activeEra.toNumber(), (eraPoints) => {
         const pointsRecord: Record<string, number> = {};
-
+        // @ts-ignore
         eraPoints.individual.forEach((rewardPoints, operatorId) => {
           pointsRecord[operatorId.toString()] = rewardPoints.toNumber();
         });

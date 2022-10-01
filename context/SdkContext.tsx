@@ -1,12 +1,10 @@
 import { createContext, useEffect, useMemo, useState } from 'react';
 import Spinner from '../components/Spinner';
-import { ApiPromise } from '@polkadot/api';
 import { Polymesh } from '@polymeshassociation/polymesh-sdk';
-import { InjectedAccount, InjectedExtension } from '@polkadot/extension-inject/types';
+import { InjectedAccount } from '@polkadot/extension-inject/types';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
 import { useQueryClient } from 'react-query';
-import type { u32 } from '@polkadot/types';
 import { defaultNetwork } from '../constants/constants';
 
 export const SdkContext = createContext({} as unknown as SdkProps);
@@ -22,7 +20,7 @@ interface Props {
  * @param api Polymesh(Polkadot) API instance
  * @returns Chain Data
  */
-const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
+const retrieveChainData = async (api: Polymesh['_polkadotApi']): Promise<ChainData> => {
   const [systemChain, systemName, systemVersion, systemChainType, genesisHash] = await Promise.all([
     api.rpc.system.chain(),
     api.rpc.system.name(),
@@ -40,10 +38,14 @@ const retrieveChainData = async (api: ApiPromise): Promise<ChainData> => {
     ss58Format: api.registry.chainSS58,
     systemName: systemName.toString(),
     genesisHash: genesisHash.toString(),
+    // @ts-ignore
     epochDuration: api.consts.babe.epochDuration,
+    // @ts-ignore
     expectedBlockTime: api.consts.babe.expectedBlockTime,
+    // @ts-ignore
     sessionsPerEra: api.consts.staking.sessionsPerEra,
-    electionLookahead: api.consts.staking.electionLookahead as u32,
+    // @ts-ignore
+    electionLookahead: api.consts.staking.electionLookahead,
   };
 };
 
@@ -64,10 +66,10 @@ export function changeAddressFormat(address: string, ss58Format: number): string
 function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   const [loadingStep, setLoadingStep] = useState<string>();
   const [sdk, setSdk] = useState<Polymesh>();
-  const [api, setApi] = useState<ApiPromise>();
+  const [api, setApi] = useState<Polymesh['_polkadotApi']>();
   const [network, setNetwork] = useState<NetworkMeta>();
   const [chainData, setChainData] = useState<ChainData>();
-  const [wallet, setWallet] = useState<PolywalletExtension | InjectedExtension>();
+  // const [wallet, setWallet] = useState<PolywalletExtension | InjectedExtension>();
   const [walletAccounts, setWalletAccounts] = useState<InjectedAccount[]>();
   const queryClient = useQueryClient();
   // Connect Polymesh wallet, set selected account and subscribe to changes in accounts/selection.
@@ -95,7 +97,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
         }
 
         const wallet = polyWallet[0] as PolywalletExtension;
-        setWallet(wallet);
+        // setWallet(wallet);
         console.log('wallet:', wallet);
 
         // Get and set the selected network from the wallet extension.
@@ -163,11 +165,11 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
     };
   }, [network, queryClient]);
 
-  // If a wallet extension signer is available set for the api
-  useEffect(() => {
-    if (!api || !wallet?.signer) return;
-    api.setSigner(wallet.signer);
-  }, [api, wallet?.signer]);
+  // // If a wallet extension signer is available set for the api
+  // useEffect(() => {
+  //   if (!api || !wallet?.signer) return;
+  //   api.setSigner(wallet.signer);
+  // }, [api, wallet?.signer]);
 
   //Set the currently selected account as the signing key (for polywallet index 0 = selected).
   const encodedSelectedAddress = useMemo(() => {
@@ -205,18 +207,18 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   //     });
   // }, [encodedSelectedAddress, sdk?._polkadotApi /* sdk?.context */]);
 
-    return (
+  return (
     <>
       <div>
         <b>Blockchain: </b> {chainData?.systemChain || 'awaiting chain data'} | <b>WebSocket: </b> {network?.wssUrl} | <b>Selected Account: </b>
         {encodedSelectedAddress || 'Polymesh wallet extension not connected'}
       </div>
       {!sdk || !api || !network || !chainData ? (
-      <header className='App-header'>
-        <Spinner /> {loadingStep}
-      </header>
+        <header className='App-header'>
+          <Spinner /> {loadingStep}
+        </header>
       ) : (
-      <SdkContextProvider value={{ sdk, api, network, encodedSelectedAddress, chainData, walletAccounts }}>{children}</SdkContextProvider>
+        <SdkContextProvider value={{ sdk, api, network, encodedSelectedAddress, chainData, walletAccounts }}>{children}</SdkContextProvider>
       )}
     </>
   );
