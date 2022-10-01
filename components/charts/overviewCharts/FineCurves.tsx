@@ -88,7 +88,6 @@ const FineCurves = () => {
   useEffect(() => {
     if (!activeEraStakingData.data) return;
     const operatorCount = Object.keys(activeEraStakingData.data.operators).length;
-    console.log(operatorCount);
 
     let unresponsivenessFineCurve: { x: number; y: number }[] = [];
     let equivocationFineCurve: { x: number; y: number }[] = [];
