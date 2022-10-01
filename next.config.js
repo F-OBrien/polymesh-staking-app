@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  swcMinify: true,
+  swcMinify: false,
   basePath: '/polymesh-staking-app',
   images: {
     loader: 'akamai',
-    path: './',
+    path: '/polymesh-staking-app',
   },
 };
 
