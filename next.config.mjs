@@ -1,11 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false,
-  swcMinify: true,
-  images: {
-    loader: 'akamai',
-    path: './',
-  },
   typescript: {
     // This is a temporary workaround to allow redeployment while I work on
     // fixing types after updates.
@@ -14,6 +8,12 @@ const nextConfig = {
     // your project has type errors.
     // !! WARN !!
     ignoreBuildErrors: true,
+  },
+  reactStrictMode: false,
+  swcMinify: true,
+  images: {
+    loader: 'akamai',
+    path: './',
   },
 };
 
