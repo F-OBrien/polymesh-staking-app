@@ -56,6 +56,7 @@ export const operatorsNames: Record<string, string> = {
   '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt 1 (2HaPR..)',
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV': 'Tokenise 2 (2Hkhr..)',
+  '2J4vUU6rUKhgYykuxi1ve1cEAFAbxfy97YvsxKvAQfpdjKjd': 'Tokenise 3 (2J4vU..)',
   // Testnet Operators
   '5C7kNpSvVr22Z1X6gVAUjfahSJfSpvw4DHNoY7uUHpLfEJZR': 'Polymesh Assoc. 1 (5C7kN..)',
   '5EFbtwDBQu64WjUGqAgC3kuaiH86E34CHtqxbN7zAgwwT2cg': 'Polymesh Assoc. 2 (5EFbt..)',
