@@ -41,6 +41,7 @@ export const operatorsNames: Record<string, string> = {
   '2EGKNqWLx2VhjgFZ6BwXZ9Tf6jQXzWjW4cNvE2Bd24z85xfq': 'Marketlend 1 (2EGKN..)',
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2G3CJWkzusVqtxYoofCjGqwxgjFYJS6Rxvg8supREvQBmtvy': 'Marketlend 3 (2G3CJ..)',
+  '2EwgKqSEGReJTtFqjTcdW6eDffnYE4Gi6AErWrLTLgew663z': 'MyCointainer 1 (2EwgK..)',
   '2EzwX3nVVysJwvZ8NeZojCJ9xsprE4mr3989mWiWKsdSki3b': 'Oasis Pro Markets 1 (2EzwX..)',
   '2DVrQgBLdRyvLvC13dXMBc7yEMAMDzGNSG2ZKYunmiyvJPUN': 'Oasis Pro Markets 2 (2DVrQ..)',
   '2EgBuMoRWbqNimZF3bv3aMmDAAna5F6jTm7hWNmFQwXhZcEB': 'Oasis Pro Markets 3 (2EgBu..)',
@@ -82,6 +83,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0xf820c02c85c98bb9609049ad9f555517d35dd73d04b080aaa481720119a23bb8': { name: 'Scrypt', website: 'https://www.scrypt.swiss/' },
   '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
   '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
+  '0x2fcee3ea024833439825a9579b659904ab85f1b35bfe8b0c96975721a0167a9a': { name: 'MyCointainer', website: 'https://www.huobi.com/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymath', website: 'https://polymath.network/' },
   // '0x0400000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
@@ -90,7 +92,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x590d4abea96b22dd88133d1b0b84d44d3a8e6a07bc4786799465344d5b88a4bd': { name: 'Jumio', website: 'https://www.jumio.com/' },
   // Exchanges
   '0x191ad8c72a13aba33630315b0aa564decc8795f9b8539f3ff3ad2340c6ca8bf1': { name: 'Huobi Deposit', website: 'https://www.huobi.com/' },
-  '0x22dbdce70771f6499a631a9e1fde0bbedf5641532d5b8a249320da58435cc9a0': { name: 'Huobi Stash', website: 'https://www.huobi.com/' },
+  '0x22dbdce70771f6499a631a9e1fde0bbedf5641532d5b8a249320da58435cc9a0': { name: 'Huobi Stash', website: 'https://www.mycointainer.com/' },
 };
 
 export const defaultChartZoomOptions = {
