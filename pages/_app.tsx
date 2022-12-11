@@ -9,6 +9,7 @@ import StakingContextAppWrapper from '../context/StakingContext';
 import { Chart, Title } from 'chart.js';
 import { chartAreaBorder } from '../components/charts/chartPlugins/chartAreaBorderPlugin';
 import { useEffect } from 'react';
+import Head from 'next/head';
 
 Chart.register(Title, chartAreaBorder);
 
@@ -77,18 +78,23 @@ function MyApp({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Layout>
-        <SdkAppWrapper>
-          <StakingContextAppWrapper>
-            <>
-              <Component {...pageProps} />
-              {/* <ReactQueryDevtools initialIsOpen /> */}
-            </>
-          </StakingContextAppWrapper>
-        </SdkAppWrapper>
-      </Layout>
-    </QueryClientProvider>
+    <>
+      <Head>
+        <meta name='viewport' content='width=1200, maximum-scale=2.0' />
+      </Head>
+      <QueryClientProvider client={queryClient}>
+        <Layout>
+          <SdkAppWrapper>
+            <StakingContextAppWrapper>
+              <>
+                <Component {...pageProps} />
+                {/* <ReactQueryDevtools initialIsOpen /> */}
+              </>
+            </StakingContextAppWrapper>
+          </SdkAppWrapper>
+        </Layout>
+      </QueryClientProvider>
+    </>
   );
 }
 
