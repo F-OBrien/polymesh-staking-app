@@ -5,7 +5,7 @@ import { InjectedAccount } from '@polkadot/extension-inject/types';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
 import { useQueryClient } from 'react-query';
-import { defaultNetwork } from '../constants/constants';
+import { defaultNetwork, explorerURLs } from '../constants/constants';
 
 export const SdkContext = createContext({} as unknown as SdkProps);
 export const SdkContextProvider = SdkContext.Provider;
@@ -69,6 +69,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   const [api, setApi] = useState<Polymesh['_polkadotApi']>();
   const [network, setNetwork] = useState<NetworkMeta>();
   const [chainData, setChainData] = useState<ChainData>();
+  const [stashAddress, setStashAddress] = useState('');
   // const [wallet, setWallet] = useState<PolywalletExtension | InjectedExtension>();
   const [walletAccounts, setWalletAccounts] = useState<InjectedAccount[]>();
   const queryClient = useQueryClient();
