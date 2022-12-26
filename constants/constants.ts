@@ -7,6 +7,11 @@ export const networkURLs: Record<string, string> = {
   testnet: 'wss://testnet-rpc.polymesh.live',
 };
 
+export const explorerURLs: Record<string, string> = {
+  mainnet: 'https://polymesh.subscan.io/',
+  testnet: 'https://polymesh-testnet.subscan.io/',
+};
+
 export const defaultNetwork: NetworkMeta = {
   name: NetworkName.mainnet,
   label: 'Mainnet',

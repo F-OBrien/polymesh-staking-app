@@ -226,7 +226,15 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
     <>
       <div>
         <b>Blockchain: </b> {chainData?.systemChain || 'awaiting chain data'} | <b>WebSocket: </b> {network?.wssUrl} | <b>Selected Account: </b>
-        {encodedSelectedAddress || 'Polymesh wallet extension not connected'}
+        {!encodedSelectedAddress ? (
+          'Polymesh wallet extension not connected'
+        ) : !network?.name || !explorerURLs[network?.name] ? (
+          encodedSelectedAddress
+        ) : (
+          <a href={`${explorerURLs[network?.name]}account/${encodedSelectedAddress}`} target='_blank' rel='noreferrer noopener'>
+            {encodedSelectedAddress}
+          </a>
+        )}
       </div>
       {!sdk || !api || !network || !chainData ? (
         <header className='App-header'>
