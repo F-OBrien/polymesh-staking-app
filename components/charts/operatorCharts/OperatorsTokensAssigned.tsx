@@ -52,7 +52,7 @@ const OperatorsTokensAssigned = () => {
   const {
     api,
     chainData: { tokenDecimals, tokenSymbol },
-    encodedSelectedAddress,
+    stashAddress,
   } = useSdk();
   const divisor = 10 ** tokenDecimals;
   const {
@@ -281,10 +281,7 @@ const OperatorsTokensAssigned = () => {
       commissions[index] = commission;
       apr[index] = aprAfterCommission;
       namedLabels[index] = namedOperator;
-      if (
-        encodedSelectedAddress &&
-        currentEraStakingData.data?.nominators[encodedSelectedAddress]?.some((nominated) => nominated.operator === operator)
-      ) {
+      if (stashAddress && currentEraStakingData.data?.nominators[stashAddress]?.some((nominated) => nominated.operator === operator)) {
         bdcolor[index] = 'black';
         bgcolor[index] = '#43195B95';
       } else {
@@ -337,7 +334,7 @@ const OperatorsTokensAssigned = () => {
     if (mountedRef.current) {
       setChartData(assignedTokensChartData);
     }
-  }, [assignedData, currentEraStakingData.data?.nominators, encodedSelectedAddress, sortMode]);
+  }, [assignedData, currentEraStakingData.data?.nominators, stashAddress, sortMode]);
 
   return (
     <div className='LineChart'>

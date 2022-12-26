@@ -9,7 +9,7 @@ export interface SdkProps {
   network: NetworkMeta;
   chainData: ChainData;
   walletAccounts?: InjectedAccount[];
-  encodedSelectedAddress?: string;
+  stashAddress: string;
 }
 
 export interface StakingContextProps {

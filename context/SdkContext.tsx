@@ -178,6 +178,21 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
     return changeAddressFormat(walletAccounts[0].address, chainData.ss58Format);
   }, [chainData?.ss58Format, walletAccounts]);
 
+  useEffect(() => {
+    if (!encodedSelectedAddress) return;
+    const getStash = async () => {
+      const stakingLedger = await api?.query.staking.ledger(encodedSelectedAddress);
+
+      if (stakingLedger?.isSome) {
+        const ledger = stakingLedger.unwrapOrDefault();
+        console.log(ledger.stash.toString());
+        setStashAddress(ledger.stash.toString());
+        return;
+      }
+      setStashAddress(encodedSelectedAddress);
+    };
+    getStash();
+  }, [api?.query.staking, encodedSelectedAddress]);
   /* Test transaction*/
   /* TO BE REMOVED once setting a keyring key and pair is not mandatory in the SDK for api transactions*/
   // useEffect(() => {
@@ -218,7 +233,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
           <Spinner /> {loadingStep}
         </header>
       ) : (
-        <SdkContextProvider value={{ sdk, api, network, encodedSelectedAddress, chainData, walletAccounts }}>{children}</SdkContextProvider>
+        <SdkContextProvider value={{ sdk, api, network, chainData, walletAccounts, stashAddress }}>{children}</SdkContextProvider>
       )}
     </>
   );

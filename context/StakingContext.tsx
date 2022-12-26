@@ -13,7 +13,7 @@ interface Props {
 }
 
 function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props> | null {
-  const { api, encodedSelectedAddress } = useSdk();
+  const { api, stashAddress } = useSdk();
   const [operatorsToHighlight, setOperatorsToHighlight] = useState<string[]>([]);
   const [activeEra, setActiveEra] = useState<EraIndex>();
   const [currentEra, setCurrentEra] = useState<EraIndex>();
@@ -33,13 +33,13 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
 
   // Subscribe to list of selected accounts nominated operators.
   useEffect(() => {
-    if (!api.query.staking || !encodedSelectedAddress) {
+    if (!api.query.staking || !stashAddress) {
       setOperatorsToHighlight([]);
       return;
     }
     let unSubNominations: () => void;
     const getNominations = async () => {
-      unSubNominations = await api.query.staking.nominators(encodedSelectedAddress, (nominations) => {
+      unSubNominations = await api.query.staking.nominators(stashAddress, (nominations) => {
         // @ts-ignore
         const targets = nominations.unwrapOrDefault().targets.map((target) => {
           return target.toString();
@@ -51,7 +51,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     return () => {
       unSubNominations && unSubNominations();
     };
-  }, [api.isConnected, api.query.staking, encodedSelectedAddress]);
+  }, [api.isConnected, api.query.staking, stashAddress]);
 
   // Effect to subscribe to active and current Eras.
   useEffect(() => {

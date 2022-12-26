@@ -24,7 +24,7 @@ import { VoidFn } from '@polkadot/api/types';
 ChartJS.register(CategoryScale, LinearScale, LogarithmicScale, BarElement, Title, Tooltip, Legend, zoomPlugin, BarController);
 
 const OperatorsActiveEraPoints = () => {
-  const { api, encodedSelectedAddress } = useSdk();
+  const { api, stashAddress } = useSdk();
   const {
     eraInfo: { activeEra },
   } = useStakingContext();
@@ -139,10 +139,7 @@ const OperatorsActiveEraPoints = () => {
           }
           // Otherwise a defaults
           else {
-            if (
-              encodedSelectedAddress &&
-              activeEraStakingData.data?.nominators[encodedSelectedAddress]?.some((nominated) => nominated.operator === operator)
-            ) {
+            if (stashAddress && activeEraStakingData.data?.nominators[stashAddress]?.some((nominated) => nominated.operator === operator)) {
               bdcolor[index] = 'black';
               bgcolor[index] = '#43195B95';
             } else {
@@ -183,7 +180,7 @@ const OperatorsActiveEraPoints = () => {
     return () => {
       unsubActiveEraPoints && unsubActiveEraPoints();
     };
-  }, [activeEra, activeEraStakingData.data, api.isConnected, api.query.staking, encodedSelectedAddress]);
+  }, [activeEra, activeEraStakingData.data, api.isConnected, api.query.staking, stashAddress]);
 
   return (
     <div className='LineChart'>
