@@ -8,20 +8,20 @@ export const Navbar = (): ReactElement => {
       <div className='logo'>
         <h1> Polymesh Staking Charts</h1>
       </div>
-      <Link href='/'>
-        <a className={styles.btn}>Home</a>
+      <Link href='/' className={styles.btn}>
+        Home
       </Link>
-      <Link href='/overview-charts'>
-        <a className={styles.btn}>Overview</a>
+      <Link href='/overview-charts' className={styles.btn}>
+        Overview
       </Link>
-      <Link href='/operator-charts'>
-        <a className={styles.btn}>History</a>
+      <Link href='/operator-charts' className={styles.btn}>
+        History
       </Link>
-      <Link href='/operator-trends'>
-        <a className={styles.btn}>Trends</a>
+      <Link href='/operator-trends' className={styles.btn}>
+        Trends
       </Link>
-      <Link href='/operator-info'>
-        <a className={styles.btn}>Current Info</a>
+      <Link href='/operator-info' className={styles.btn}>
+        Current Info
       </Link>
     </nav>
   );
