@@ -92,6 +92,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x88a82894621328300ad71de9ccbe46f78335aab8cc6964d812047b72e6d42b75': { name: 'GreenTrail', website: 'https://www.greentrailcap.com/' },
   '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
   '0x2fcee3ea024833439825a9579b659904ab85f1b35bfe8b0c96975721a0167a9a': { name: 'MyCointainer', website: 'https://www.huobi.com/' },
+  '0x99c85793703e6d745b261512c61f2b1ba6c6d1c1c4911ce0552bf55d5cda3f47': { name: 'Korea Digital Asset Custody', website: 'https://www.kdac.io/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymath', website: 'https://polymath.network/' },
   // '0x0400000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
