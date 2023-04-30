@@ -20,6 +20,7 @@ export const defaultNetwork: NetworkMeta = {
 
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
+  '2DzfY8SiDhCwf5VkGKKoyxAUZDDjbojCh85Y5ATYWWF9CnH3': 'Binance 1 (2DzfY..)',
   '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Nyala 1 (2DJrn..)',
   '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Nyala 2 (2Fb8F..)',
   '2DQgvaATTCeaNyqPvd1XpUoN6PagtPi1tFG6Bd7TyC1krFB7': 'Nyala 3 (2DQgv..)',
@@ -46,6 +47,7 @@ export const operatorsNames: Record<string, string> = {
   '2EH8PYvqsPM249f7gbFjgkueZBBjKaNyuwk7GNdL3sYYjFaa': 'Huobi 2 (2EH8P..)',
   '2HzRAKv6vsBnvkGhREfRAJhevozdnwQozUuQZ5sAs8SvbmPr': 'Huobi 3 (2HzRA..)',
   '2F8DfqfUi7Uey1A3owvMpbhpY9QJnh2FpLN3aT2Tdt6mJCJE': 'KDAC 1 (2F8Df..)',
+  '2HkM2U59JkBKoNSysaUfyDcXCh18xjFXwLzYc2PRtjSgmkgz': 'KDAC 2 (2HkM2..)',
   '2EGKNqWLx2VhjgFZ6BwXZ9Tf6jQXzWjW4cNvE2Bd24z85xfq': 'Marketlend 1 (2EGKN..)',
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2G3CJWkzusVqtxYoofCjGqwxgjFYJS6Rxvg8supREvQBmtvy': 'Marketlend 3 (2G3CJ..)',
@@ -93,6 +95,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x9ce770a58b510053d5ec5ef37ffa8cf3517438405912f64ee4d0ff40ed848485': { name: 'Huobi', website: 'https://www.huobi.com/' },
   '0x2fcee3ea024833439825a9579b659904ab85f1b35bfe8b0c96975721a0167a9a': { name: 'MyCointainer', website: 'https://www.huobi.com/' },
   '0x99c85793703e6d745b261512c61f2b1ba6c6d1c1c4911ce0552bf55d5cda3f47': { name: 'Korea Digital Asset Custody', website: 'https://www.kdac.io/' },
+  '0x87f70af83b01f0db214c516c7eafc3c193aa879f3266b2e160b09dc6366ba3f5': { name: 'Binance', website: 'https://www.binance.com/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymath', website: 'https://polymath.network/' },
   // '0x0400000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
