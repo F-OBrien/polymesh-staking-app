@@ -43,6 +43,8 @@ export const operatorsNames: Record<string, string> = {
   '2EXypWKU82c1ZFQ92ynNzKWjQmX1ZfnFEcaFoVzPEUhmM72g': 'Genesis Block 2 (2EXyp..)',
   '2FawFuGUJzXtebwxTxwUjTsiwwV63WbK9ckojpPK3WkmwnA2': 'Genesis Block 3 (2FawF..)',
   '2FjuFr7YNQ6qQPYSLCZrMDEQr284ktW88H8T6p6nmJe2URny': 'Greentrail 1 (2FjuF..)',
+  '2Gk5AMZdMQBg2cAigd3BQFm3UB4554SYDEohK8P8B4Pko3n2': 'Greentrail 2 (2Gk5A..)',
+  '2EPW8CFP6dW7HMgEBEV8aA9LqGuzXDDn7aEZGpofjyBfS3Bw': 'Greentrail 3 (2EPW8..)',
   '2Gw7nZrGbvKMJNu5i88TeK45Ygy8jiP6xDaBixrPMh4L1Lr5': 'Huobi 1 (2Gw7n..)',
   '2EH8PYvqsPM249f7gbFjgkueZBBjKaNyuwk7GNdL3sYYjFaa': 'Huobi 2 (2EH8P..)',
   '2HzRAKv6vsBnvkGhREfRAJhevozdnwQozUuQZ5sAs8SvbmPr': 'Huobi 3 (2HzRA..)',
