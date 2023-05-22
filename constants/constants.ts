@@ -50,6 +50,7 @@ export const operatorsNames: Record<string, string> = {
   '2HzRAKv6vsBnvkGhREfRAJhevozdnwQozUuQZ5sAs8SvbmPr': 'Huobi 3 (2HzRA..)',
   '2F8DfqfUi7Uey1A3owvMpbhpY9QJnh2FpLN3aT2Tdt6mJCJE': 'KDAC 1 (2F8Df..)',
   '2HkM2U59JkBKoNSysaUfyDcXCh18xjFXwLzYc2PRtjSgmkgz': 'KDAC 2 (2HkM2..)',
+  '2D5vLzduaZvErwamwLZBixGozQA33sKfdhXXuAyZ8n1ZdHMd': 'KDAC 3 (2D5vL..)',
   '2EGKNqWLx2VhjgFZ6BwXZ9Tf6jQXzWjW4cNvE2Bd24z85xfq': 'Marketlend 1 (2EGKN..)',
   '2DR8JZWwJ7jDSHYDKoaV7Bfi6dyoQ6FkBx4KYB5owtjiFgj5': 'Marketlend 2 (2DR8J..)',
   '2G3CJWkzusVqtxYoofCjGqwxgjFYJS6Rxvg8supREvQBmtvy': 'Marketlend 3 (2G3CJ..)',
