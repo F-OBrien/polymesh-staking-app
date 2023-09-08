@@ -9,8 +9,8 @@
     "export": "next export"
   },
   "dependencies": {
-    "@polkadot/extension-dapp": "^0.44.9",
-    "@polymeshassociation/polymesh-sdk": "^19.0.0",
+    "@polymeshassociation/browser-extension-signing-manager": "^2.2.0",
+    "@polymeshassociation/polymesh-sdk": "^22.0.1",
     "chart.js": "^3.9.1",
     "chartjs-plugin-annotation": "^2.0.1",
     "chartjs-plugin-datalabels": "^2.1.0",
@@ -24,6 +24,7 @@
     "react-query": "^3.39.3"
   },
   "devDependencies": {
+    "@polymeshassociation/signing-manager-types": "^3.2.0",
     "@types/d3": "^7.4.0",
     "@types/node": "^18.14.0",
     "@types/react": "^18.0.28",

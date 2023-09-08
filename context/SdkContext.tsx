@@ -1,11 +1,12 @@
 import { createContext, useEffect, useMemo, useState } from 'react';
 import Spinner from '../components/Spinner';
 import { Polymesh } from '@polymeshassociation/polymesh-sdk';
-import { InjectedAccount } from '@polkadot/extension-inject/types';
 import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
-import { ChainData, NetworkMeta, PolywalletExtension, SdkProps } from '../types/types';
+import { ChainData, SdkProps } from '../types/types';
 import { useQueryClient } from 'react-query';
 import { defaultNetwork, explorerURLs } from '../constants/constants';
+import { BrowserExtensionSigningManager } from '@polymeshassociation/browser-extension-signing-manager';
+import type { NetworkInfo } from '@polymeshassociation/browser-extension-signing-manager/types';
 
 export const SdkContext = createContext({} as unknown as SdkProps);
 export const SdkContextProvider = SdkContext.Provider;
@@ -67,65 +68,48 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   const [loadingStep, setLoadingStep] = useState<string>();
   const [sdk, setSdk] = useState<Polymesh>();
   const [api, setApi] = useState<Polymesh['_polkadotApi']>();
-  const [network, setNetwork] = useState<NetworkMeta>();
+  const [network, setNetwork] = useState<NetworkInfo>();
   const [chainData, setChainData] = useState<ChainData>();
   const [stashAddress, setStashAddress] = useState('');
   // const [wallet, setWallet] = useState<PolywalletExtension | InjectedExtension>();
-  const [walletAccounts, setWalletAccounts] = useState<InjectedAccount[]>();
+  const [walletAccounts, setWalletAccounts] = useState<string[]>();
   const queryClient = useQueryClient();
   // Connect Polymesh wallet, set selected account and subscribe to changes in accounts/selection.
   useEffect(() => {
+    let unsubNetwork: () => void = () => {};
+    let unsubAccounts: () => void = () => {};
     const connectPolymeshWallet = async () => {
-      // Next.js errors if these are attempted to be rendered server side so import here.
-      const { web3Enable } = await import('@polkadot/extension-dapp');
+      const injectedExtensions = BrowserExtensionSigningManager.getExtensionList();
 
-      // Get an array of all the injected sources. This needs to be called first,
-      // before other requests. Will prompt for authorization first time.
-      const allInjected = await web3Enable('Staking Stats dApp');
-
-      // Filter sources to find the Polymesh wallet.
-      // This implementation only supports polywallet.
-      // TODO: Consider adding support for other substrate wallets through optional selection.
-      // Would also requires selection of network as not provided by other wallet extensions.
-      const polyWallet = allInjected.filter((extension) => extension.name === 'polywallet');
-      // If the Polymesh wallet is not present throw an error.
-      if (polyWallet.length === 0) {
-        setNetwork(defaultNetwork);
-      } else {
-        // If there is more than 1 Polymesh wallet throw an error.
-        if (polyWallet.length > 1) {
-          throw new Error(`There is more than one extension named "polywallet"`);
-        }
-
-        const wallet = polyWallet[0] as PolywalletExtension;
-        // setWallet(wallet);
-        console.log('wallet:', wallet);
-
-        // Get and set the selected network from the wallet extension.
-        const selectedNetwork = await wallet.network.get();
-        setNetwork(selectedNetwork);
-        console.log('selected network:', selectedNetwork);
-
-        wallet.network.subscribe((network) => {
+      if (injectedExtensions.includes('polywallet')) {
+        const signingManagerInstance = await BrowserExtensionSigningManager.create({
+          appName: 'Staking Stats dApp',
+          extensionName: 'polywallet',
+          ss58Format: 42,
+        });
+        const networkInfo = await signingManagerInstance.getCurrentNetwork();
+        networkInfo ? setNetwork(networkInfo) : setNetwork(defaultNetwork);
+        unsubNetwork = signingManagerInstance.onNetworkChange((network) => {
           setNetwork(network);
           console.log('network changed to:', network);
         });
+        const wallets = await signingManagerInstance.getAccounts();
+        if (wallets.length === 0) throw new Error('No accounts found');
+        setWalletAccounts(wallets);
 
-        // Get the list of polywallet accounts
-        const polyAccounts = await polyWallet[0].accounts.get();
-        if (polyAccounts.length === 0) throw new Error('No accounts found');
-        // Set the wallet account information.
-        setWalletAccounts(polyAccounts);
-
-        // Subscribe to accounts for changes to selected account or adding/removing accounts.
-        polyWallet[0].accounts.subscribe((accounts) => {
-          if (accounts.length === 0) throw new Error('No accounts found');
-          setWalletAccounts(accounts);
-        });
+        unsubAccounts = signingManagerInstance.onAccountChange((accounts) => {
+          setWalletAccounts(accounts as string[]);
+        }, false);
+      } else {
+        setNetwork(defaultNetwork);
       }
     };
 
     connectPolymeshWallet();
+    return () => {
+      unsubNetwork && unsubNetwork();
+      unsubAccounts && unsubAccounts();
+    };
   }, []);
 
   // Connect to the Polymesh SDK (and Polkadot API).
@@ -142,17 +126,15 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
       setLoadingStep('Connecting');
       polymeshSdk = await Polymesh.connect({
         nodeUrl: network!.wssUrl,
+        polkadot: { noInitWarn: true },
       });
       setSdk(polymeshSdk);
       setApi(polymeshSdk._polkadotApi);
       setLoadingStep('Connected');
-      console.log('SDK CONNECTED');
-      console.log('sdk', polymeshSdk);
-      console.log('api', polymeshSdk._polkadotApi);
+      console.log(`Connected to ${network?.name}`);
 
       const chainInfo = await retrieveChainData(polymeshSdk._polkadotApi);
       setChainData(chainInfo);
-      console.log('Chain Data:', JSON.stringify(chainInfo, null, 2));
     }
 
     connect();
@@ -176,7 +158,7 @@ function SdkAppWrapper({ children }: Props): React.ReactElement<Props> | null {
   const encodedSelectedAddress = useMemo(() => {
     if (!walletAccounts || !chainData?.ss58Format) return;
     // return '2EZsPKnacSeroCJPd3aseH75kUwcQDtTzFefdSwL3TtxEf3F'; // Whale address
-    return changeAddressFormat(walletAccounts[0].address, chainData.ss58Format);
+    return changeAddressFormat(walletAccounts[0], chainData.ss58Format);
   }, [chainData?.ss58Format, walletAccounts]);
 
   useEffect(() => {
