@@ -67,6 +67,7 @@ export const operatorsNames: Record<string, string> = {
   '2EohUybEWs5Md1ZRByDVWC4SVtAVMx6KR5McYEu7GcVkYnZm': 'Saxon Advisors 1 (2EohU..)',
   '2CVjdqJB62TXkuAG4ebPqdrEyAuzee5FVvZVbxuiUDXian3F': 'Saxon Advisors 2 (2CVjd..)',
   '2Eu9tSri8pDCYd2dFSPNLcgs8QfTaCcaafxAMd1nozznRiF8': 'Saxon Advisors 3 (2Eu9t..)',
+  '2EiQVyXzyC8m8fg8BVokmSo5YKBVPspTUWijuBtKV9biS2s4': 'Sors 1 (2EiQV..)',
   '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt 1 (2HaPR..)',
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV': 'Tokenise 2 (2Hkhr..)',
@@ -100,6 +101,7 @@ export const didInfo: Record<string, { name: string; website: string }> = {
   '0x99c85793703e6d745b261512c61f2b1ba6c6d1c1c4911ce0552bf55d5cda3f47': { name: 'Korea Digital Asset Custody', website: 'https://www.kdac.io/' },
   '0x87f70af83b01f0db214c516c7eafc3c193aa879f3266b2e160b09dc6366ba3f5': { name: 'Binance', website: 'https://www.binance.com/' },
   '0x30be231224de2133696309d0863356fa6318d904d84c67c13c2b7497b63649c2': { name: 'TigerWit', website: 'https://uk.tigerwit.com/' },
+  '0xb1165011950bfa51c155dfdfc50db065f12ec5658aeac688f5b4a62bb4d7e1b4': { name: 'Sors Digital Assets', website: 'https://sorsdigitalassets.com/' },
   // Permissioned CDD Providers
   '0x0100000000000000000000000000000000000000000000000000000000000000': { name: 'Polymath', website: 'https://polymath.network/' },
   // '0x0400000000000000000000000000000000000000000000000000000000000000': { name: 'Polymesh Association', website: 'https://polymesh.network/' },
