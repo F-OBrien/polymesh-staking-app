@@ -73,6 +73,7 @@ export const operatorsNames: Record<string, string> = {
   '2Eu9tSri8pDCYd2dFSPNLcgs8QfTaCcaafxAMd1nozznRiF8': 'Saxon Advisors 3 (2Eu9t..)',
   '2EiQVyXzyC8m8fg8BVokmSo5YKBVPspTUWijuBtKV9biS2s4': 'Sors 1 (2EiQV..)',
   '2HcqzhGa89u7mU6B8hgdRAYED4V3bLDTUqUhpQiJUAzL5NTt': 'Sors 2 (2Hcqz..)',
+  '2DdmQpNJTk9eCvWeyUpuMqusJebNZYGZ869UihJvoRQgfRwo': 'Sors 3 (2DdmQ..)',
   '2HaPRmkcUS2etM4nDA7sEeEDusm7CAQAHZnAFTcf3KLSmDf8': 'Scrypt 1 (2HaPR..)',
   '2EGhYd2A7vypKG2bJ19HgwyoiS3s7dNmDU7YBTDLNDCrASos': 'Scrypt 2 (2EGhY..)',
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
