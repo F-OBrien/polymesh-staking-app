@@ -21,6 +21,9 @@ export const defaultNetwork: NetworkMeta = {
 export const operatorsNames: Record<string, string> = {
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
   '2DzfY8SiDhCwf5VkGKKoyxAUZDDjbojCh85Y5ATYWWF9CnH3': 'Binance 1 (2DzfY..)',
+  '2JD3gyrwpEtRqqUTHXYS97Ce53H2MwyBt8tk5UAU9AKa6Lcy': 'Black Manta CP 1 (2JD3g..)',
+  '2D6bVDgz1AyA8ZyNshgNWuonzdFcRsJjEPCbc3eveH2fCEw6': 'Black Manta CP 2 (2D6bV..)',
+  '2EinjATchBE5i1EVBgWrJ2TXm1BRqYEVHUEHoMrBhoXQ9YbK': 'Black Manta CP 3 (2Einj..)',
   '2DJrnr4qdcERfHAFX7c8Wi7a84w1Nx6mzbWnWmvPtufWFYvh': 'Nyala 1 (2DJrn..)',
   '2Fb8FwXzXywRkkEiFnPmdw86XPHDurcm7T8FrbCECGKB4Kir': 'Nyala 2 (2Fb8F..)',
   '2DQgvaATTCeaNyqPvd1XpUoN6PagtPi1tFG6Bd7TyC1krFB7': 'Nyala 3 (2DQgv..)',
@@ -30,6 +33,7 @@ export const operatorsNames: Record<string, string> = {
   '2GXMe4KZkmxM3ZMF142H4FhGb7EfBAiZ27XydYrUhuuEcnBM': 'TigerWit 1 (2GXMe..)',
   '2GtVwYQqPcUgM4BDSNvdSiKYYMihvRU2s8xVq626jrENBsqh': 'TigerWit 2 (2GtVw..)',
   '2EoZ98L4C4BrHgD82JmecQHyhEywtZYjerimnNH9RQR87FwR': 'TigerWit 3 (2EoZ9..)',
+  '2DrvWhvZNBPx7PwmkPaauG6XoZTQEHrPaxijthiXfj6CkUig': 'DigiShares 1 (2DrvW..)',
   '2DVuKBimttW6kTtXa7V1wvcHfubLJzHF9tJdh9iHFRbYCtmK': 'DigiVault 1 (2DVuK..)',
   '2DQNASGzzCMkEUFW3yCQhWoHiK8ENRaEHoYMmURs4hoD1CZg': 'DigiVault 2 (2DQNA..)',
   '2EoQ165Ui3zSC8ndUozecxq7xPbrebcFkqMPs9wEZSiDEVAN': 'DigiVault 3 (2EoQ1..)',
