@@ -57,7 +57,7 @@ const OperatorsTokensAssigned = () => {
   const divisor = 10 ** tokenDecimals;
   const {
     eraInfo: { currentEra },
-    stakingConstants: { fixedYearlyReward, maxVariableInflationTotalIssuance },
+    stakingConstants: { fixedYearlyReward },
   } = useStakingContext();
 
   const [chartData, setChartData] = useState<ChartData<'bar' | 'line'>>();
@@ -176,22 +176,19 @@ const OperatorsTokensAssigned = () => {
 
     const stakedRatio = currentEraTotalStaked.data.toNumber() / totalIssuance?.toNumber();
 
-    let inflation;
+    let calculatedInflation;
 
-    if (totalIssuance?.toNumber() < maxVariableInflationTotalIssuance.toNumber()) {
-      if (stakedRatio <= xIdeal) {
-        inflation = iZero + (iIdeal - iZero) * (stakedRatio / xIdeal);
-      } else {
-        inflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - stakedRatio) / decay);
-      }
+    if (stakedRatio <= xIdeal) {
+      calculatedInflation = iZero + (iIdeal - iZero) * (stakedRatio / xIdeal);
     } else {
-      inflation = fixedYearlyReward.toNumber() / totalIssuance?.toNumber();
+      calculatedInflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - stakedRatio) / decay);
     }
-
+    const maxInflation = fixedYearlyReward.toNumber() / totalIssuance?.toNumber();
+    const inflation = Math.min(maxInflation, calculatedInflation);
     const annualTotalReward = (inflation * totalIssuance?.toNumber()) / divisor;
 
     return annualTotalReward;
-  }, [totalIssuance, currentEraTotalStaked.data, maxVariableInflationTotalIssuance, divisor, fixedYearlyReward]);
+  }, [currentEraTotalStaked.data, divisor, fixedYearlyReward, totalIssuance]);
 
   // Set `dataIsFetching` to true while any of the queries are fetching.
   const dataIsFetching = useMemo(() => {
