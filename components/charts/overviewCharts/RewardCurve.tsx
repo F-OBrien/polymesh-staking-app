@@ -37,7 +37,7 @@ const RewardCurve = () => {
 
   const {
     eraInfo: { activeEra },
-    stakingConstants: { fixedYearlyReward, maxVariableInflationTotalIssuance },
+    stakingConstants: { fixedYearlyReward },
   } = useStakingContext();
 
   const [chartData, setChartData] = useState<ChartData<'scatter'>>();
@@ -102,22 +102,22 @@ const RewardCurve = () => {
 
     const percentTotalStaked = (100 * activeEraTotalStaked.data.toNumber()) / totalIssuance?.toNumber();
 
-    let inflation;
+    let calculatedInflation;
 
-    if (totalIssuance?.toNumber() < maxVariableInflationTotalIssuance.toNumber()) {
-      if (percentTotalStaked <= xIdeal) {
-        inflation = iZero + (iIdeal - iZero) * (percentTotalStaked / xIdeal);
-      } else {
-        inflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentTotalStaked) / decay);
-      }
+    if (percentTotalStaked <= xIdeal) {
+      calculatedInflation = iZero + (iIdeal - iZero) * (percentTotalStaked / xIdeal);
     } else {
-      inflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance?.toNumber();
+      calculatedInflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentTotalStaked) / decay);
     }
+    const maxInflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance?.toNumber();
+    console.log(calculatedInflation, maxInflation);
+
+    const inflation = Math.min(calculatedInflation, maxInflation);
     const apr = 100 * (inflation / percentTotalStaked);
     const apy = 100 * ((1 + inflation / percentTotalStaked / 365) ** 365 - 1);
 
     return { percentTotalStaked, apr, inflation, apy };
-  }, [totalIssuance, activeEraTotalStaked.data, maxVariableInflationTotalIssuance, fixedYearlyReward]);
+  }, [activeEraTotalStaked.data, fixedYearlyReward, totalIssuance]);
 
   // Set the chart options including annotation.
   const chartOptions = useMemo(() => {
