@@ -15,7 +15,6 @@ import {
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import Spinner, { MiniSpinner } from '../../Spinner';
-import { inflationCurve, rewardCurve, apyRewardCurve } from '../../../constants/rewardCurve';
 import { useSdk } from '../../../hooks/useSdk';
 import { useEraTotalStaked } from '../../../hooks/StakingQueries';
 import annotationPlugin from 'chartjs-plugin-annotation';
@@ -23,6 +22,46 @@ import { useStakingContext } from '../../../hooks/useStakingContext';
 import { VoidFn } from '@polkadot/api/types';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, annotationPlugin, ScatterController);
+
+interface StakingMetrics {
+  apr: number;
+  inflation: number;
+  apy: number;
+}
+// helper function to calculate rewards
+const calculateInflationAndRates = (percentStaked: number, totalIssuance: number, fixedYearlyReward: Balance): StakingMetrics => {
+  // Inflation and reward data based on formula:
+  // Inflation(x) = I0 + (I_ideal - I0) * x / x_ideal  for 0 < x <= x_ideal
+  //              = I0 + (I_ideal - I0) * 2 ^((x_ideal-x)/d) for x_ideal < x <= 1
+  // Where:
+  // x = ratio of staked tokens to token supply,
+  // Inflation(x) = Annual inflation rate at staking ratio x,
+  // I0 = limit of inflation at x=0 = 0.025 = 2.5%,
+  // x_ideal = position of "ideal" staking ratio = 0.7 = 70%,
+  // I_ideal = ideal inflation at x_ideal = 0.14 = 14% (maximum inflation),
+  // d = decay rate for staking ratio > x_ideal = 0.05 = 5%,
+  //
+  // Reward(x) = Inflation(x) / x
+  // Where:
+  // Reward(x) = Annual reward rate at staking ratio x
+  const xIdeal = 70; // Ideal Staked Percent of total supply.
+  const iIdeal = 14; // Inflation at ideal staked percent.
+  const iZero = 2.5; // Inflation at staked percent = 0%.
+  const decay = 5; // decay for staked percent greater than the ideal
+
+  const calculatedInflation =
+    percentStaked <= xIdeal
+      ? iZero + (iIdeal - iZero) * (percentStaked / xIdeal)
+      : iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentStaked) / decay);
+
+  const maxInflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance; // Use 1 as fallback to avoid division by zero
+  const inflation = Math.min(calculatedInflation, maxInflation);
+
+  const apr = 100 * (inflation / percentStaked);
+  const apy = 100 * ((1 + inflation / percentStaked / 365) ** 365 - 1);
+
+  return { apr, inflation, apy };
+};
 
 const RewardCurve = () => {
   // Define reference for tracking mounted state
@@ -78,46 +117,34 @@ const RewardCurve = () => {
 
   // Calculate percent of total staked, APR, APY and annual inflation.
   const { percentTotalStaked, apr, inflation, apy } = useMemo(() => {
-    if (!totalIssuance || !activeEraTotalStaked.data) return {};
-
-    // Inflation and reward data based on formula:
-    // Inflation(x) = I0 + (I_ideal - I0) * x / x_ideal  for 0 < x <= x_ideal
-    //              = I0 + (I_ideal - I0) * 2 ^((x_ideal-x)/d) for x_ideal < x <= 1
-    // Where:
-    // x = ratio of staked tokens to token supply,
-    // Inflation(x) = Annual inflation rate at staking ratio x,
-    // I0 = limit of inflation at x=0 = 0.025 = 2.5%,
-    // x_ideal = position of "ideal" staking ratio = 0.7 = 70%,
-    // I_ideal = ideal inflation at x_ideal = 0.14 = 14% (maximum inflation),
-    // d = decay rate for staking ratio > x_ideal = 0.05 = 5%,
-    //
-    // Reward(x) = Inflation(x) / x
-    // Where:
-    // Reward(x) = Annual reward rate at staking ratio x
-
-    const xIdeal = 70; // Ideal Staked Percent of total supply.
-    const iIdeal = 14; // Inflation at ideal staked percent.
-    const iZero = 2.5; // Inflation at staked percent = 0%.
-    const decay = 5; // decay for staked percent greater than the ideal
+    if (!totalIssuance || !activeEraTotalStaked.data || !fixedYearlyReward) return {};
 
     const percentTotalStaked = (100 * activeEraTotalStaked.data.toNumber()) / totalIssuance?.toNumber();
 
-    let calculatedInflation;
-
-    if (percentTotalStaked <= xIdeal) {
-      calculatedInflation = iZero + (iIdeal - iZero) * (percentTotalStaked / xIdeal);
-    } else {
-      calculatedInflation = iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentTotalStaked) / decay);
-    }
-    const maxInflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance?.toNumber();
-    console.log(calculatedInflation, maxInflation);
-
-    const inflation = Math.min(calculatedInflation, maxInflation);
-    const apr = 100 * (inflation / percentTotalStaked);
-    const apy = 100 * ((1 + inflation / percentTotalStaked / 365) ** 365 - 1);
+    const { apy, apr, inflation } = calculateInflationAndRates(percentTotalStaked, totalIssuance.toNumber(), fixedYearlyReward);
 
     return { percentTotalStaked, apr, inflation, apy };
   }, [activeEraTotalStaked.data, fixedYearlyReward, totalIssuance]);
+
+  // Generate curves
+  const { inflationCurve, rewardCurve, apyRewardCurve } = useMemo(() => {
+    if (!totalIssuance || !fixedYearlyReward) return {};
+
+    const inflationCurve: { x: number; y: number }[] = [];
+    const rewardCurve: { x: number; y: number }[] = [];
+    const apyRewardCurve: { x: number; y: number }[] = [];
+
+    const stepSize = 0.1;
+
+    for (let percentStaked = 0; percentStaked <= 100; percentStaked += stepSize) {
+      const { inflation, apr, apy } = calculateInflationAndRates(percentStaked, totalIssuance.toNumber(), fixedYearlyReward);
+      inflationCurve.push({ x: percentStaked, y: inflation });
+      rewardCurve.push({ x: percentStaked, y: apr });
+      apyRewardCurve.push({ x: percentStaked, y: apy });
+    }
+
+    return { inflationCurve, rewardCurve, apyRewardCurve };
+  }, [fixedYearlyReward, totalIssuance]);
 
   // Set the chart options including annotation.
   const chartOptions = useMemo(() => {
@@ -320,7 +347,7 @@ const RewardCurve = () => {
       setChartData(rewardCurveChartData);
     }
     return;
-  }, [activeEraTotalStaked.data, apr, inflation, totalIssuance]);
+  }, [activeEraTotalStaked.data, apr, apyRewardCurve, inflation, inflationCurve, rewardCurve, totalIssuance]);
 
   return (
     <div className='LineChart'>
