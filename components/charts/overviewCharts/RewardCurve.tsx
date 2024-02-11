@@ -54,7 +54,7 @@ const calculateInflationAndRates = (percentStaked: number, totalIssuance: number
       ? iZero + (iIdeal - iZero) * (percentStaked / xIdeal)
       : iZero + (iIdeal - iZero) * 2 ** ((xIdeal - percentStaked) / decay);
 
-  const maxInflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance; // Use 1 as fallback to avoid division by zero
+  const maxInflation = (100 * fixedYearlyReward.toNumber()) / totalIssuance;
   const inflation = Math.min(calculatedInflation, maxInflation);
 
   const apr = 100 * (inflation / percentStaked);
