@@ -31,6 +31,7 @@ export const operatorsNames: Record<string, string> = {
   '2Gr55WYCpsPChyhnfiSyCDYZrUUseaYeKXMLRzEJERnLbc4e': 'CM Equity 2 (2Gr55..)',
   '2GrEHDSx2ud2nHkhA3pqpF316knPRAjCprkezwUuzQ5xf627': 'CM Equity 3 (2GrEH..)',
   '2DrvWhvZNBPx7PwmkPaauG6XoZTQEHrPaxijthiXfj6CkUig': 'DigiShares 1 (2DrvW..)',
+  '2CxhYZeDY7wFVcej7sS9EmRT6iCKzimuFhH8sRS6Mmqwcqwk': 'DigiShares 2 (2CxhY..)',
   '2DVuKBimttW6kTtXa7V1wvcHfubLJzHF9tJdh9iHFRbYCtmK': 'DigiVault 1 (2DVuK..)',
   '2DQNASGzzCMkEUFW3yCQhWoHiK8ENRaEHoYMmURs4hoD1CZg': 'DigiVault 2 (2DQNA..)',
   '2EoQ165Ui3zSC8ndUozecxq7xPbrebcFkqMPs9wEZSiDEVAN': 'DigiVault 3 (2EoQ1..)',
