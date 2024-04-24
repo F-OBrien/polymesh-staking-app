@@ -47,6 +47,7 @@ export const operatorsNames: Record<string, string> = {
   '2FarNp4Q3p2vSdCJzF1oHvQmDd7gHrZivzJHj7cecXobixW8': 'Entoro 3 (2FarN..)',
   '2JBzQoJs2hV6nRT6K6cwtUYxbjh4QA6afaMkzdMEg5xPAibz': 'Etana 1 (2JBzQ..)',
   '2HqyET3THdGcFYPnLFVdPWhdrNgkn7feQhuXTbod34uNoimT': 'Etana 2 (2HqyE..)',
+  '2JC42dAwsjG1dFyzKTUZSywy8gVwxBdywvWSZ4jcmAUgvsL2': 'Etana 3 (2JC42..)',
   '2ETKjS2cu1LyU88sqVquAeXH5dPgmdMvKrcK5P4Mi1LZZskz': 'GATENet 1 (2ETKj..)',
   '2FCyV1aQ9C1nXMQK65KLacQkosGzf2DpqTLVB1LSMkwHTW28': 'Genesis Block 1 (2FCyV..)',
   '2EXypWKU82c1ZFQ92ynNzKWjQmX1ZfnFEcaFoVzPEUhmM72g': 'Genesis Block 2 (2EXyp..)',
