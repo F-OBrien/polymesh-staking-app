@@ -97,6 +97,10 @@ export const operatorsNames: Record<string, string> = {
   '2Gw8mSc4CUMxXMKEDqEsumQEXE5yTF8ACq2KdHGuigyXkwtz': 'Tokenise 1 (2Gw8m..)',
   '2HkhrGZF69CkvhgSAf9TmoDgSrEPtGJ6s43UqhQgS6eHPDzV': 'Tokenise 2 (2Hkhr..)',
   '2J4vUU6rUKhgYykuxi1ve1cEAFAbxfy97YvsxKvAQfpdjKjd': 'Tokenise 3 (2J4vU..)',
+  '2EG7jpdGuJ5EG6NNBSpSM3ePsywEBRdu9TscfTdfxQNXMsLC': 'ZenCrypto 1 (2EG7j..)',
+  '2G7WRJcQXAhVRaPu9cmMiDJhjEkNYu8LRPEADsthuwHWMLH9': 'ZenCrypto 2 (2G7WR..)',
+  '2H29PnU3ApNeaZGcqqd8sczrckmdqQB142Q8ofGfZXmfJ5PX': 'ZenCrypto 3 (2H29P..)',
+
   // Testnet Operators
   '5C7kNpSvVr22Z1X6gVAUjfahSJfSpvw4DHNoY7uUHpLfEJZR': 'Polymesh Assoc. 1 (5C7kN..)',
   '5EFbtwDBQu64WjUGqAgC3kuaiH86E34CHtqxbN7zAgwwT2cg': 'Polymesh Assoc. 2 (5EFbt..)',
