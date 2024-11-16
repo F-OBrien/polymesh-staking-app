@@ -103,6 +103,7 @@ export const operatorsNames: Record<string, string> = {
   '2HPtMFNSgesL1qVQkXkamh1c5bXprQderkjYq8LiSMKYUvCV': 'Van Sterling 1 (2HPtM..)',
   '2FVqpfzLh7yNJyGG1zewjxtwotgkZXDemLQQ3D9V8CGxRsWb': 'Van Sterling 2 (2FVqp..)',
   '2HPeHZUCmUze1zhPUQR4KMaYCmQiWrYXCupGaSR6bKaNtZBk': 'Van Sterling 3 (2HPeH..)',
+  '2HySX8g4gQhNtihDqoXqJ4ixJcQqu8AVwfHjoWAuSBynMa9W': 'Vero Pulse 1 (2HySX..)',
   '2EG7jpdGuJ5EG6NNBSpSM3ePsywEBRdu9TscfTdfxQNXMsLC': 'ZenCrypto 1 (2EG7j..)',
   '2G7WRJcQXAhVRaPu9cmMiDJhjEkNYu8LRPEADsthuwHWMLH9': 'ZenCrypto 2 (2G7WR..)',
   '2H29PnU3ApNeaZGcqqd8sczrckmdqQB142Q8ofGfZXmfJ5PX': 'ZenCrypto 3 (2H29P..)',
