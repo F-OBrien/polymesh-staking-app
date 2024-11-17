@@ -1,8 +1,10 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
-import Image from "next/legacy/image";
+import Image from 'next/legacy/image';
+import { useRouter } from 'next/router';
 
 const Home: NextPage = () => {
+  const { basePath } = useRouter();
   return (
     <>
       <Head>
@@ -16,7 +18,7 @@ const Home: NextPage = () => {
         <div style={{ textAlign: 'center', fontSize: '25px' }}>
           This is the home page. Not much to see here. <br />
           {`If you're here it's because you love`} <br />
-          <Image src='./polymesh-logo.svg' alt='Polymesh' width={500} height={100} />
+          <Image src={`${basePath}/polymesh-logo.svg`} alt='Polymesh' width={500} height={100} />
           <br />
           Click the above links to see staking related charts
         </div>
