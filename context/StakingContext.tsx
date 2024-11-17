@@ -40,7 +40,6 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     let unSubNominations: () => void;
     const getNominations = async () => {
       unSubNominations = await api.query.staking.nominators(stashAddress, (nominations) => {
-        // @ts-ignore
         const targets = nominations.unwrapOrDefault().targets.map((target) => {
           return target.toString();
         });
@@ -67,7 +66,6 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
       });
       // Retrieve the current era via subscription
       unsubCurrentEra = await api.query.staking.currentEra((current) => {
-        // @ts-ignore
         setCurrentEra(current.unwrapOrDefault());
       });
     };
@@ -80,16 +78,19 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
 
   useEffect(() => {
     const getHistoryDepth = async () => {
-      setHistoryDepth((await api.query.staking.historyDepth()).toNumber());
+      setHistoryDepth(
+        api.consts.staking.historyDepth?.toNumber() ||
+          // Added for backwards compatibility with v6
+          // @ts-ignore
+          (await api.query.staking.historyDepth()).toNumber()
+      );
     };
 
     getHistoryDepth();
-  }, [api.query.staking]);
+  }, [api]);
 
   useEffect(() => {
-    // @ts-ignore
     const maxVariableInflationTotalIssuance = api.consts.staking.maxVariableInflationTotalIssuance as BalanceOf;
-    // @ts-ignore
     const fixedYearlyReward = api.consts.staking.fixedYearlyReward as BalanceOf;
 
     setStakingConstants({ maxVariableInflationTotalIssuance, fixedYearlyReward });
@@ -104,14 +105,11 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
     let lastEra = currentEra.toNumber();
 
     while (lastEra >= 0 && historicWithCurrent.length < historyDepth + 1) {
-      // @ts-ignore
       historicWithCurrent.push(api.registry.createType('EraIndex', lastEra));
       if (lastEra <= activeEra.toNumber()) {
-        // @ts-ignore
         historicWithActive.push(api.registry.createType('EraIndex', lastEra));
       }
       if (lastEra < activeEra.toNumber()) {
-        // @ts-ignore
         historicWithoutActive.push(api.registry.createType('EraIndex', lastEra));
       }
       lastEra -= 1;
