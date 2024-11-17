@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
   reactStrictMode: false,
-  basePath: '/polymesh-staking-app',
   images: {
-    loader: 'akamai',
-    path: '/polymesh-staking-app',
+    unoptimized: true,
   },
+  basePath: '/polymesh-staking-app',
 };
 
 module.exports = nextConfig;
