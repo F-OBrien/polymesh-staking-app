@@ -19,6 +19,8 @@ export const defaultNetwork: NetworkMeta = {
 };
 
 export const operatorsNames: Record<string, string> = {
+  '2F5rUD5cYMmHqSSmV14UmMExgeaeR4Xdgu2zM2PQZeEFaBNz': 'Assetera 1 (2F5rU..)',
+  '2F2ykC85NqrYBKgaK8CpCDwuhNyuHknuzHQ511J2DycjiPSw': 'Assetera 2 (2F2yk..)',
   '2D9Csm3gUoCt4SW6hBrB4tXKJZzsBLB8FL3esjMwom8ZVd4H': 'B89 1 (2D9Cs..)',
   '2DzfY8SiDhCwf5VkGKKoyxAUZDDjbojCh85Y5ATYWWF9CnH3': 'Binance 1 (2DzfY..)',
   '2JD3gyrwpEtRqqUTHXYS97Ce53H2MwyBt8tk5UAU9AKa6Lcy': 'Black Manta CP 1 (2JD3g..)',
@@ -104,6 +106,8 @@ export const operatorsNames: Record<string, string> = {
   '2FVqpfzLh7yNJyGG1zewjxtwotgkZXDemLQQ3D9V8CGxRsWb': 'Van Sterling 2 (2FVqp..)',
   '2HPeHZUCmUze1zhPUQR4KMaYCmQiWrYXCupGaSR6bKaNtZBk': 'Van Sterling 3 (2HPeH..)',
   '2HySX8g4gQhNtihDqoXqJ4ixJcQqu8AVwfHjoWAuSBynMa9W': 'Vero Pulse 1 (2HySX..)',
+  '2E3oWhdvDq6ig64TNjE4LyQ7CbKQXt8k8b7cRcWSm8X5hFcx': 'Vero Pulse 2 (2E3oW..)',
+  '2D8LcQmeGSKegZsbopYP7XmkWmcPy2d7SKV3JNnM1o4prbMW': 'Vero Pulse 3 (2D8Lc..)',
   '2EG7jpdGuJ5EG6NNBSpSM3ePsywEBRdu9TscfTdfxQNXMsLC': 'ZenCrypto 1 (2EG7j..)',
   '2G7WRJcQXAhVRaPu9cmMiDJhjEkNYu8LRPEADsthuwHWMLH9': 'ZenCrypto 2 (2G7WR..)',
   '2H29PnU3ApNeaZGcqqd8sczrckmdqQB142Q8ofGfZXmfJ5PX': 'ZenCrypto 3 (2H29P..)',
