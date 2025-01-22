@@ -187,7 +187,7 @@ const OperatorsTokensNominated = () => {
 
       stakingLedger.data!.forEach(([, ledger]) => {
         const unwrappedLedger = ledger.unwrapOrDefault();
-        amountStaked[unwrappedLedger.stash.toString()] = unwrappedLedger.total.unwrap();
+        amountStaked[unwrappedLedger.stash.toString()] = unwrappedLedger.active.unwrap();
       });
 
       nominations.data!.forEach(([{ args: nominator }, nominations]) => {
