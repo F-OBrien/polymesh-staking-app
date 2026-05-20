@@ -82,7 +82,7 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
         api.consts.staking.historyDepth?.toNumber() ||
           // Added for backwards compatibility with v6
           // @ts-ignore
-          (await api.query.staking.historyDepth()).toNumber()
+          (await api.query.staking.historyDepth()).toNumber(),
       );
     };
 
@@ -90,10 +90,18 @@ function StakingContextAppWrapper({ children }: Props): React.ReactElement<Props
   }, [api]);
 
   useEffect(() => {
+    // TODO: In Polymesh v8 these constants move to the `validators` pallet (api.consts.validators).
+    // The @polymeshassociation/polymesh-types augmentations already reflect v8, so the staking pallet
+    // entries below are not in the augmented types — hence the @ts-ignore suppressions.
+    // When upgrading to v8 (or to support both), check the runtime spec version and conditionally
+    // use api.consts.validators.maxVariableInflationTotalIssuance / fixedYearlyReward instead.
+    // @ts-ignore
     const maxVariableInflationTotalIssuance = api.consts.staking.maxVariableInflationTotalIssuance as BalanceOf;
+    // @ts-ignore
     const fixedYearlyReward = api.consts.staking.fixedYearlyReward as BalanceOf;
 
     setStakingConstants({ maxVariableInflationTotalIssuance, fixedYearlyReward });
+    // @ts-ignore (see TODO above)
   }, [api.consts.staking.fixedYearlyReward, api.consts.staking.maxVariableInflationTotalIssuance]);
 
   useEffect(() => {

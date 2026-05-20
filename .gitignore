@@ -38,3 +38,9 @@ yarn-error.log*
 
 # VS Code
 /.vscode
+
+# Yarn 4 cache and state files
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+.yarn/build-state.yml
