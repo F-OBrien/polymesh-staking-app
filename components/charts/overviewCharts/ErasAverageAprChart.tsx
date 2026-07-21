@@ -101,12 +101,28 @@ const ErasAverageAprChart = () => {
       // Initialize average to zero
       averageCommission[era.toNumber()] = 0;
 
-      if (eraPreferences) {
+      const totalPoints = total.toNumber();
+
+      if (eraPreferences && totalPoints > 0) {
+        // Track the weight actually accounted for. An operator may have reward points
+        // without a corresponding preferences entry for the era, in which case it is
+        // skipped and the average is normalised over the remaining weight.
+        let accountedWeight = 0;
+        let weightedCommission = 0;
+
         Object.entries(operators).forEach(([operator, points]) => {
-          const weight = points.toNumber() / total.toNumber();
-          const commission = eraPreferences?.operators[operator].commission.unwrap().toNumber() / 1_000_000_000;
-          averageCommission[era.toNumber()] = averageCommission[era.toNumber()] + weight * commission;
+          const preferences = eraPreferences.operators[operator];
+          if (!preferences) return;
+
+          const weight = points.toNumber() / totalPoints;
+          const commission = preferences.commission.unwrap().toNumber() / 1_000_000_000;
+          accountedWeight = accountedWeight + weight;
+          weightedCommission = weightedCommission + weight * commission;
         });
+
+        if (accountedWeight > 0) {
+          averageCommission[era.toNumber()] = weightedCommission / accountedWeight;
+        }
       }
     });
 

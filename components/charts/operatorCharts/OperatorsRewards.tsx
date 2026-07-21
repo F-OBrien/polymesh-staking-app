@@ -111,8 +111,10 @@ const OperatorsRewards = () => {
       // Build array of x-axis labels with eras.
       // Eras are sorted so we can use index to populate arrays.
       labels[index] = era.toString();
+      averageReward[index] = '0';
 
       let sumOfOperatorRewards = new BigNumber(0);
+      let rewardedOperatorCount = 0;
 
       // Search for the data for the corresponding era. While the data should be sorted by era this
       // ensures correct calculations if queries were not fetched with the same era range.
@@ -130,12 +132,18 @@ const OperatorsRewards = () => {
       if (eraStakingData && eraPreferences && eraRewards) {
         // Build array of APRs for each validator.
         Object.entries(operators).forEach(([id, points]) => {
+          // An account can earn reward points for an era without having an exposure or preferences
+          // entry for it. Without stake there is no operator reward to calculate, so skip it.
+          const operatorExposure = eraStakingData.operators[id];
+          const operatorPreferences = eraPreferences.operators[id];
+          if (!operatorExposure || !operatorPreferences) return;
+
           // If there is no previous data for the operator create a new array.
           rewardDatasets[id] = rewardDatasets[id] || new Array(historicalErasPoints.length).fill('0');
           // Total POLYX assigned to current operator.
-          const totalAssigned = new BigNumber(eraStakingData.operators[id].total.unwrap().toString());
-          const operatorOwnStake = new BigNumber(eraStakingData.operators[id].own.unwrap().toString());
-          const operatorCommission = new BigNumber(eraPreferences.operators[id].commission.toString());
+          const totalAssigned = new BigNumber(operatorExposure.total.unwrap().toString());
+          const operatorOwnStake = new BigNumber(operatorExposure.own.unwrap().toString());
+          const operatorCommission = new BigNumber(operatorPreferences.commission.toString());
           const nodePortion = new BigNumber(points.toString())
             .times(1_000_000_000)
             .div(totalPoints.toString())
@@ -150,9 +158,12 @@ const OperatorsRewards = () => {
           rewardDatasets[id][index] = operatorReward.div(divisor).toString();
 
           sumOfOperatorRewards = sumOfOperatorRewards.plus(operatorReward);
+          rewardedOperatorCount = rewardedOperatorCount + 1;
         });
-        // Calculate the average APR after commissions.
-        averageReward[index] = sumOfOperatorRewards.div(Object.keys(operators).length).div(divisor).toString();
+        // Calculate the average reward over the operators included above.
+        if (rewardedOperatorCount) {
+          averageReward[index] = sumOfOperatorRewards.div(rewardedOperatorCount).div(divisor).toString();
+        }
       }
     });
 

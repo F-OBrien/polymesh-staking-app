@@ -113,8 +113,10 @@ const ErasOperatorsAprChart = () => {
       // Build array of x-axis labels with eras.
       // Eras are sorted so we can use index to populate arrays.
       labels[index] = era.toString();
+      averageApr[index] = '0';
 
       let sumOfTotals = new BigNumber(0);
+      let sumOfNodeRewards = new BigNumber(0);
 
       // Search for the data for the corresponding era. While the data should be sorted by era this
       // ensures correct calculations if queries were not fetched with the same era range.
@@ -129,10 +131,15 @@ const ErasOperatorsAprChart = () => {
       if (eraStakingData && eraRewards) {
         // Build array of APRs for each validator.
         Object.entries(operators).forEach(([id, points]) => {
+          // An account can earn reward points for an era without having an exposure entry for it.
+          // There is no stake to calculate an APR against, so skip it.
+          const operatorExposure = eraStakingData.operators[id];
+          if (!operatorExposure) return;
+
           // If there is no previous data for the operator create a new array.
           aprDatasets[id] = aprDatasets[id] || new Array(historicalErasPoints.length).fill('0');
           // Total POLYX assigned to current operator.
-          const totalAssigned = new BigNumber(eraStakingData.operators[id].total.unwrap().toString());
+          const totalAssigned = new BigNumber(operatorExposure.total.unwrap().toString());
           // Total Reward for the current operator node.
           const nodeReward = new BigNumber(eraRewards.reward.toString())
             .times(points.toString())
@@ -144,9 +151,13 @@ const ErasOperatorsAprChart = () => {
           aprDatasets[id][index] = apr.toString();
 
           sumOfTotals = sumOfTotals.plus(totalAssigned);
+          sumOfNodeRewards = sumOfNodeRewards.plus(nodeReward);
         });
-        // Calculate the average APR after commissions.
-        averageApr[index] = erasPerYear.times(100).times(eraRewards.reward.toString()).div(sumOfTotals).toString();
+        // Calculate the average APR after commissions. Only the rewards of the operators included
+        // above are counted so the average stays consistent with the individual APRs.
+        if (!sumOfTotals.isZero()) {
+          averageApr[index] = erasPerYear.times(100).times(sumOfNodeRewards).div(sumOfTotals).toString();
+        }
       }
     });
 

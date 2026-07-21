@@ -207,10 +207,14 @@ const OperatorsTokensAssigned = () => {
     let unsortedData: AssignedData[] = [];
 
     Object.entries(currentEraStakingData.data.operators).forEach(([operator, { total, others }]) => {
+      // Without a preferences entry for the operator the commission is unknown, so skip it.
+      const operatorPreferences = currentEraPreferences.data?.operators[operator.toString()];
+      if (!operatorPreferences) return;
+
       const totalAssigned = total.unwrap().toNumber() / divisor;
       const operatorCount = Object.keys(currentEraStakingData.data.operators).length;
       const nominatingCount = others.length;
-      const commission = new BigNumber(currentEraPreferences.data?.operators[operator.toString()].commission.toString()).div(10_000_000).toNumber();
+      const commission = new BigNumber(operatorPreferences.commission.toString()).div(10_000_000).toNumber();
       const aprAfterCommission = ((100 - commission) * annualTotalReward) / operatorCount / totalAssigned;
       const namedOperator = operatorsNames[operator]
         ? operatorsNames[operator]

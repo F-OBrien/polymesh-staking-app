@@ -113,12 +113,20 @@ const PointCommissionAdjustedDeviationsFromAverage = ({ trendPeriod }: Props) =>
         if (eraPreferences) {
           // build array of cumulative deviation from average points for each validator
           Object.entries(operators).forEach(([id, points]) => {
-            pointsAfterCommission[id.toString()] = (1 - eraPreferences.operators[id].commission.toNumber() / 1_000_000_000) * points.toNumber();
+            // An account can earn reward points for an era without having a preferences entry for
+            // it, in which case there is no commission to adjust by, so skip it.
+            const operatorPreferences = eraPreferences.operators[id];
+            if (!operatorPreferences) return;
+
+            pointsAfterCommission[id.toString()] = (1 - operatorPreferences.commission.toNumber() / 1_000_000_000) * points.toNumber();
             totalPointsAfterCommission = totalPointsAfterCommission + pointsAfterCommission[id.toString()];
           });
         }
 
-        averagePointsAfterCommission[index] = totalPointsAfterCommission / Object.keys(operators).length;
+        const adjustedOperatorCount = Object.keys(pointsAfterCommission).length;
+        if (!adjustedOperatorCount) return;
+
+        averagePointsAfterCommission[index] = totalPointsAfterCommission / adjustedOperatorCount;
 
         Object.entries(pointsAfterCommission).forEach(([id, points]) => {
           const percentOfAverage = 100 * (points / averagePointsAfterCommission[index] - 1);

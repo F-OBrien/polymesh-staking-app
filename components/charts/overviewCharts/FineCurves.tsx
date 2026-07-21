@@ -88,6 +88,8 @@ const FineCurves = () => {
   useEffect(() => {
     if (!activeEraStakingData.data) return;
     const operatorCount = Object.keys(activeEraStakingData.data.operators).length;
+    // Both fine formulas divide by the operator count, so without operators there is no curve to draw.
+    if (!operatorCount) return;
 
     let unresponsivenessFineCurve: { x: number; y: number }[] = [];
     let equivocationFineCurve: { x: number; y: number }[] = [];

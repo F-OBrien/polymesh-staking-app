@@ -116,6 +116,7 @@ const ErasOperatorsAprIncCommissionChart = () => {
       // Build array of x-axis labels with eras.
       // Eras are sorted so we can use index to populate arrays.
       labels[index] = era.toString();
+      averageApr[index] = '0';
 
       let sumOfTotals = new BigNumber(0);
       let sumOfStakersRewards = new BigNumber(0);
@@ -136,10 +137,16 @@ const ErasOperatorsAprIncCommissionChart = () => {
       if (eraStakingData && eraPreferences && eraRewards) {
         // Build array of APRs for each validator.
         Object.entries(operators).forEach(([id, points]) => {
+          // An account can earn reward points for an era without having an exposure or preferences
+          // entry for it. There is no stake to calculate an APR against, so skip it.
+          const operatorExposure = eraStakingData.operators[id];
+          const operatorPreferences = eraPreferences.operators[id];
+          if (!operatorExposure || !operatorPreferences) return;
+
           // If there is no previous data for the operator create a new array.
           aprDatasets[id] = aprDatasets[id] || new Array(historicalErasPoints.length).fill('0');
           // Total POLYX assigned to current operator.
-          const totalAssigned = new BigNumber(eraStakingData.operators[id].total.unwrap().toString());
+          const totalAssigned = new BigNumber(operatorExposure.total.unwrap().toString());
           // Total Reward for the current operator node.
           const nodeReward = new BigNumber(eraRewards.reward.toString())
             .times(points.toString())
@@ -149,7 +156,7 @@ const ErasOperatorsAprIncCommissionChart = () => {
           const apr = new BigNumber(100).times(erasPerYear).times(nodeReward).div(totalAssigned);
           // Portion or reward remaining after commission = 1 - commission
           // Note: Commission is scaled by 1 billion.
-          const portionAfterCommission = new BigNumber(1).minus(new BigNumber(eraPreferences.operators[id].commission.toString()).div(1_000_000_000));
+          const portionAfterCommission = new BigNumber(1).minus(new BigNumber(operatorPreferences.commission.toString()).div(1_000_000_000));
 
           const aprAfterCommission = apr.times(portionAfterCommission);
 
@@ -162,8 +169,11 @@ const ErasOperatorsAprIncCommissionChart = () => {
 
           sumOfTotals = sumOfTotals.plus(totalAssigned);
         });
-        // Calculate the average APR after commissions.
-        averageApr[index] = erasPerYear.times(100).times(sumOfStakersRewards).div(sumOfTotals).toString();
+        // Calculate the average APR after commissions. Only the operators included above contribute
+        // so the average stays consistent with the individual APRs.
+        if (!sumOfTotals.isZero()) {
+          averageApr[index] = erasPerYear.times(100).times(sumOfStakersRewards).div(sumOfTotals).toString();
+        }
       }
     });
 
