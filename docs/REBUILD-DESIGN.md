@@ -13,7 +13,7 @@ This document is written to be executed. It is organised as:
 - **§1–4** — audit of the existing app. Read once, for context. Not actionable.
 - **§5–12** — the specification. This is the contract. Build to it.
 - **§13** — the phased execution plan, with acceptance criteria per phase. Work through it in order.
-- **§14** — decisions that need a human answer before or during the relevant phase.
+- **§14** — the resolved decisions, plus the few unknowns still to be measured. Settled; do not re-litigate.
 
 Rules for the executing agent:
 
@@ -313,7 +313,7 @@ This single change is worth more than every other optimisation combined.
 
 ### 6.2 Is there an existing indexer we can use?
 
-**Checked, and no — not for this.** The public Polymesh SubQuery indexer (`https://mainnet-graphql.polymesh.network/` — *verify*) exposes:
+**Checked, and no — not for this.** The public Polymesh SubQuery indexer exposes:
 
 - `StakingEvent` — event-level: `Bonded`, `Unbonded`, `Nominated`, `Rewarded`, `Slashed`, with `stashAccount`, `amount`, `nominatedValidators`, `datetime`.
 - Generic `Block`, `Event`, `Extrinsic`, `Account`, `Identity`.
@@ -322,6 +322,20 @@ It has **no era-level aggregate entities** — no `erasRewardPoints`, no exposur
 
 - **Era aggregates must come from our own RPC snapshot pipeline** (§6.3).
 - **The indexer is still valuable** for the nominator view (§9.6): reward payment history per stash, bonding/unbonding events, and nomination changes over time — data that is *not* available from current chain state at all, since it is historical event data. Use it there, lazily, client-side.
+
+**Endpoints (Q5).** The authoritative list is <https://developers.polymesh.network/developer-resources/links/> — read it at Phase 0 and put the values in config, never inline. That page was egress-blocked from the build environment, so the following are *unverified starting points*, not facts:
+
+| | Endpoint | Confidence |
+|---|---|---|
+| Mainnet RPC (ws) | `wss://mainnet-rpc.polymesh.network/` | High — matches `constants/constants.ts` and the docs |
+| Testnet RPC (ws) | `wss://testnet-rpc.polymesh.live/` | High — same |
+| Mainnet indexer | `https://mainnet-graphql.polymesh.network/` | **Unverified** — from a secondary source |
+| Testnet indexer | *(listed on the links page)* | **Unverified** |
+| Archive node | *(none identified)* | See §6.5 |
+
+Rate limits are documented as existing but not quantified. The client must therefore treat the indexer as unreliable by design: **paginate at 100 results, retry with exponential backoff and jitter on 429, and degrade gracefully** — `/my-staking` shows position and current operators from chain state even when reward history fails to load. Never let an indexer failure blank the page. Measure the actual limit empirically in Phase 7 and record it in `docs/data-sources.md`.
+
+**Network configuration (Q6).** Mainnet only for v1. Testnet is reachable for local development through env vars (`POLYMESH_RPC_URL`, `POLYMESH_INDEXER_URL`, `POLYMESH_NETWORK`) consumed by both the pipeline and the build — never a UI network switcher, and never a hardcoded URL. Because `manifest.json` is keyed by `genesisHash`, adding a second network later is purely additive: a second data directory and a route prefix. The current app's passive "whatever network the wallet extension happens to be on" behaviour is removed — it was a silent correctness hazard, since wallet-driven network changes wiped the cache and re-fetched everything.
 
 ### 6.3 The ingestion pipeline
 
@@ -351,12 +365,23 @@ Key properties:
 
 - **Incremental.** A normal run fetches exactly one era. A cold rebuild fetches `historyDepth + 1`, throttled with a small concurrency limit (4–6) so we are a good citizen to the public RPC — the pipeline can afford to be slow; the browser cannot.
 - **Idempotent and resumable.** Re-running produces byte-identical output for already-ingested eras. Assert this in CI.
-- **Version-tolerant.** Keep the existing v6/v7/v8 fallbacks from `useEraStakers.ts` — they encode real knowledge about the chain's history and are needed for eras that predate the v8 upgrade.
+- **Version-tolerant.** Keep the existing v6/v7/v8 fallbacks from `useEraStakers.ts` — they encode real knowledge about the chain's history and are needed for eras that predate the v8 upgrade. Record the `specVersion` each era was read under, per era, in the chunk (see §6.4) — this is what makes later backfill tractable.
 - **Validated.** Every generated file is checked against a Zod schema before commit. A failed validation fails the run and leaves the previous data in place.
 
-**Where it runs.** GitHub Actions on a cron (every 30 minutes), writing to an orphan `data` branch which the site build consumes. This preserves the current zero-cost, zero-ops deployment. Squash the `data` branch history periodically so the repo does not bloat.
+**Cadence — two jobs, not one.** An era on Polymesh mainnet is 24 hours, so era-level data changes exactly once per day. A blanket 30-minute cron would do 48 pointless full runs a day. Split it:
 
-*Migration path:* if sub-15-minute freshness is later required, move the pipeline to a Cloudflare Worker Cron Trigger writing to R2, and point the client's data base URL at it. The client is agnostic — it reads a manifest and fetches URLs.
+| Job | Schedule | Work | Writes |
+|---|---|---|---|
+| **`ingest-era`** | hourly | Read `activeEra`. If unchanged since the manifest, exit immediately (a few seconds, one RPC call). Otherwise ingest the newly completed era. | chunks, `manifest.json`, `operators.json` |
+| **`snapshot-latest`** | every 30 min | Read active-era live state: era progress, points so far, current exposures, oversubscription, validator set, issuance. | `latest.json` only |
+
+The hourly no-op is essentially free and bounds new-era staleness at one hour — irrelevant for data that moves daily. Do **not** try to schedule against the era boundary: GitHub Actions cron is best-effort and routinely delayed under load, so a self-checking hourly poll is more reliable than a clever schedule.
+
+You are right that **live data is not indexed** — `latest.json` is a direct RPC snapshot, not an indexer read. That is the one place we still talk to a node on a schedule, and it is also the one place where a stale value is visible to users, so it carries a `generatedAt` that the UI surfaces ("as of 12 minutes ago").
+
+**Where it runs.** GitHub Actions, writing to an orphan `data` branch which the site build consumes. This preserves the current zero-cost, zero-ops deployment. Squash the `data` branch history periodically so the repo does not bloat.
+
+*Cloudflare note (Q3):* Cloudflare Pages is free with unlimited bandwidth and 500 builds/month, and Workers Cron Triggers + R2 have usable free tiers — so the migration is free, not just cheap. It is worth doing if you ever want sub-15-minute freshness or outgrow Actions minutes, and it does not require a custom domain (`*.pages.dev` works). Nothing in the client depends on the host: it reads a manifest and fetches relative URLs, with the base path from config (Q7).
 
 ### 6.4 Data contract
 
@@ -462,7 +487,46 @@ Resolve `name`/`website` in this order: (1) on-chain identity / DID registry, (2
 
 **`data/eras/{era}.json`** *(optional, lazy)* — full nominator-level exposure for one era. Only fetched when a user opens nominator-level detail. Keeps the hot path small.
 
-### 6.5 Client runtime
+Every chunk additionally carries, per era, the provenance needed for §6.5:
+
+```jsonc
+"provenance": {
+  "specVersion":  [7000000, 7000000, 8000000, "…"],
+  "exposureShape": ["clipped", "clipped", "paged", "…"],
+  "source":        ["live", "live", "live", "…"]     // live | backfill-archive | backfill-indexer
+}
+```
+
+### 6.5 Deep history beyond `historyDepth` (Q9)
+
+You flagged the real constraint here, and it is the reason this is a separate, later phase rather than part of Phase 1.
+
+**Why it is hard.** Era storage (`erasRewardPoints`, `erasStakersClipped`/`Paged`, `erasValidatorPrefs`, `erasTotalStake`, `erasValidatorReward`) is *pruned from current state* once an era ages past `historyDepth`. It is not merely unindexed — it is gone from the current chain state. Recovering it requires reading state **at a historical block**, which needs a node running with state pruning disabled (an archive node). On top of that, Polymesh v6 → v7 → v8 changed both the storage shape (clipped → paged exposures) and the pallet location of staking constants, so a single code path will not read the whole range.
+
+**The good news: `api.at(blockHash)` handles the decoding.** polkadot-js fetches the runtime metadata *as of that block*, so SCALE decoding is correct per spec version automatically. What we must handle ourselves is the *derivation* branching — and the existing `useEraStakers.ts` compat logic already encodes exactly that knowledge. Preserve it; do not rewrite it from scratch.
+
+**Three sources, in descending order of fidelity:**
+
+| Source | Gives us | Needs | Fidelity |
+|---|---|---|---|
+| **Archive node** via `api.at(hash)` | Everything — points, exposures, prefs, rewards | An archive RPC endpoint | Full |
+| **Subscan API** | Era rewards, validator stats | A free API key, rate limits | Partial, and a third-party dependency |
+| **SubQuery indexer** (`StakingEvent`) | Realised `Rewarded` payouts per stash, from genesis | Nothing new | Rewards only — no points, no exposures |
+
+**The zero-risk path, which we take by default:** from the day the pipeline first runs, every era it ingests is ours permanently. History therefore *grows on its own* at no cost and with no archive dependency — a year from now we have a year of data regardless of what `historyDepth` says. Backfill is strictly additive on top of that, and the `provenance.source` field means backfilled eras are always distinguishable from natively-ingested ones (important: if a backfill turns out to be subtly wrong, we can drop exactly those eras).
+
+**Phase 0 must answer one question before any of this is scheduled:** is a public Polymesh archive endpoint available? Concrete test — take a block hash from an era well past `historyDepth` and run:
+
+```ts
+const at = await api.at(oldBlockHash);
+await at.query.staking.erasRewardPoints(oldEra);
+```
+
+If the node is pruned this fails with a *"State already discarded"* / unknown-block error. Record the result in `docs/baseline.md`. If no public archive node exists, backfill requires either running one (non-trivial: full Polymesh state history) or falling back to Subscan — at which point the honest answer may be that natural accumulation is good enough, and that is a perfectly acceptable outcome.
+
+**UI consequence, whichever way it goes:** the era-range control must never silently imply data exists where it does not. Ranges beyond available history are disabled with an explanatory tooltip, and charts state their actual coverage ("84 eras available — history accumulates daily from 2026-08-08").
+
+### 6.6 Client runtime
 
 ```
 App shell (static, instant)
@@ -481,23 +545,45 @@ App shell (static, instant)
 - **IndexedDB persistence** keyed by chunk hash. A returning visitor with no new era does zero data fetching beyond the manifest.
 - **Progressive rendering.** The shell, nav, and stat-tile skeletons paint immediately. Charts fill in as chunks land. Nothing is gated behind a full-page spinner ever again.
 
-### 6.6 Stack
+### 6.7 Framework decision
+
+**Recommendation: stay on Next.js, upgrade to 16.** This was reconsidered from first principles rather than inherited — the alternatives were weighed and lost on specific grounds.
+
+Note first that **Next.js 16 removes the Pages Router entirely.** The current app is Pages Router, so there is no incremental upgrade path regardless of framework. This is a rewrite either way, which is why the question was worth reopening.
+
+What the site actually is: a fully static host with no server and no rewrites (Q3, Q7); ~150 operator detail pages that want prerendering for SEO; deep URL state across many parameters; and heavy client-side interactivity in charts and tables.
+
+| Candidate | Why it lost |
+|---|---|
+| **Astro 7 + React islands** | Genuinely better on content routes — near-zero JS and native MDX for the glossary. But of nine routes, only `/about` is actually static. Home has live tiles and a gauge; `/network` is all charts; `/operators` is a large interactive table; compare, calculator and my-staking are entirely interactive. The islands advantage applies to roughly one route, and it costs a second mental model plus cross-island shared state (the pinned-operator selection spans charts) via nanostores. Not worth it for 1/9. |
+| **Vite + TanStack Router (SSG)** | Its typed, validated search params are the best-in-class answer to our "URL is the state container" requirement, and it would genuinely be the nicest thing to write. But its prerender/SSG story is the youngest of the three, and we need ~150 prerendered pages with good SEO. Reconsider if the URL-state layer turns out to be the main source of bugs. |
+| **SvelteKit** | Smaller bundles and an excellent static adapter, but TanStack Query/Table are React-first, the existing domain code is React, and an agentic workflow is more reliable on the better-documented path. |
+
+Next.js 16 gives us: battle-tested static export under a base path, `generateStaticParams` for the operator pages, and the patterns an agent is most likely to get right first time. Its cost is a React runtime on `/about` that Astro would have avoided — an acceptable price.
+
+**The framework is not where the performance win comes from.** The data architecture in §6.1–6.6 is. Any of these four would hit the §11 budgets once history stops being recomputed in the browser; the choice above optimises for maintainability by one person plus an agent.
+
+### 6.8 Stack
+
+Versions verified against the npm registry at time of writing. Pin majors; let minors float.
 
 | Concern | Choice | Why |
 |---|---|---|
-| Framework | **Next.js 15, App Router, `output: 'export'`** | Keeps free GitHub Pages hosting; RSC-shaped file layout; modern routing |
+| Framework | **Next.js 16.3** (App Router, `output: 'export'`) | See §6.7. Pages Router no longer exists in 16 |
+| Runtime | **React 19.2** | Required by Next 16 |
 | Language | **TypeScript 5.x, `strict: true`** | Zero `@ts-ignore` budget outside a documented `lib/chain/compat.ts` |
-| Styling | **Tailwind CSS v4** with tokens via `@theme` | Enforces the scale in §7; no ad-hoc values |
+| Styling | **Tailwind CSS 4.3** with tokens via `@theme` | Enforces the scale in §7; no ad-hoc values |
 | Charts | **`d3-scale` / `d3-shape` / `d3-array` + React-rendered SVG** | No chart library. Once we stop drawing 100 lines, SVG is ample — and gives real DOM, CSS theming, crisp text, and accessibility for free. Import d3 submodules only, never the `d3` meta-package |
-| Dense fallback | **uPlot**, only if a specific view profiles poorly in SVG | ~45 KB, canvas. Do not reach for it pre-emptively |
-| Data/cache | **TanStack Query v5** + IndexedDB persister | `staleTime: Infinity` for immutable chunks |
-| Tables | **TanStack Table v8** | Sorting, filtering, column visibility, virtualisation |
-| Validation | **Zod** | One schema, shared by pipeline and client |
-| URL state | thin `useSearchParams` hook (or **nuqs**) | Keeps every view linkable |
+| Dense fallback | **uPlot 1.6**, only if a specific view profiles poorly in SVG | ~45 KB, canvas. Do not reach for it pre-emptively |
+| Data/cache | **TanStack Query 5.101** + IndexedDB persister | `staleTime: Infinity` for immutable chunks |
+| Tables | **TanStack Table 9** | Sorting, filtering, column visibility, virtualisation. Note: v9, not the v8 most examples show |
+| Validation | **Zod 4** | One schema, shared by pipeline and client. v4 — the API differs from v3 |
+| URL state | **nuqs 2.9** | Typed search-param state; the closest thing to TanStack Router's params without changing framework |
 | Wallet | `@polymeshassociation/browser-extension-signing-manager`, lazy | Unchanged, but off the critical path |
-| Worker | **Comlink** | Heavy aggregation off the main thread |
-| Tests | **Vitest** + Testing Library; **Playwright** e2e + visual regression | Chart output is visual; regressions must be caught visually |
-| Tooling | ESLint 9 flat config, Prettier, `knip` (dead-code detection) | `knip` would have caught all three dead files in §2.7 |
+| Worker | **Comlink 4.4** | Heavy aggregation off the main thread |
+| Tests | **Vitest 4** + Testing Library; **Playwright 1.62** e2e + visual regression | Chart output is visual; regressions must be caught visually |
+| A11y CI | **@axe-core/playwright 4.12** | Zero violations, enforced |
+| Tooling | ESLint 9 flat config, Prettier, **knip 6** | `knip` would have caught all three dead files in §2.7 |
 
 **Removed:** `chart.js`, `react-chartjs-2`, `chartjs-plugin-zoom`, `chartjs-plugin-datalabels`, `chartjs-plugin-annotation`, `react-query` v3, the `d3` meta-package, and `@polymeshassociation/polymesh-sdk` from the critical path.
 
@@ -508,6 +594,15 @@ App shell (static, instant)
 ### 7.1 Brand
 
 Taken from `public/polymesh-logo.svg`: deep purple **`#4A125E`**, magenta **`#FF2E72`**. These anchor the identity. `#FF2E72` is too light for data marks on a white surface (contrast ≈ 2.3:1), so the data palette uses a darker step of the same hue.
+
+**On the official brand kit (Q2).** A kit exists at `polymesh.network/brand-kit` (plus the shared Drive folder), and it is thin and not built with accessibility in mind. Treat it as **a statement of hue intent, not a source of token values.** The rule for this project:
+
+- **Logo, wordmark, and clear-space rules: follow the kit exactly.** Identity is theirs.
+- **UI and data colours: use §7.2–7.4, which are validated.** Where a brand value fails a contrast or CVD gate, the validated step wins, and the deviation is recorded in `docs/brand-deviations.md` with the measured number that forced it.
+
+This is the normal relationship between a brand palette and a data palette. Brand colours are chosen to look right on a poster; data colours have to survive being eight thin lines next to each other, in dark mode, viewed by someone with deuteranopia. Those are different constraints, and pretending otherwise is how the current app ended up with 0.2-alpha lines on white.
+
+*Phase 0 task:* the brand kit was unreachable from the build environment (egress-blocked). Extract the exact hex values and any typographic rules from the kit and the Drive folder, record them in `docs/brand-deviations.md`, and reconcile against §7.2–7.4. If the kit's purple/magenta differ from the logo SVG values above, **the kit wins for identity surfaces** and the validated palette is re-derived from the kit's hues — re-run `validate_palette.js` and update §7.3 with the new results.
 
 ### 7.2 Surfaces and ink
 
@@ -569,7 +664,13 @@ Re-run the validator if any hex changes.
 
 ### 7.5 Typography
 
-Self-hosted variable font via `next/font/local`. **Inter** (or the official Polymesh UI face if one is specified — see §14). No display or serif face anywhere, including hero numbers.
+**Inter Variable** for everything, **JetBrains Mono** for addresses and hashes. Both SIL OFL 1.1, both self-hosted via `next/font/local` — no Google Fonts request, no render-blocking `@import` like the current app's.
+
+**Deliberately not Poppins.** Polymesh leans on it, and it is the wrong tool here regardless of taste: Poppins is a geometric display sans with a single-storey `a`, near-circular counters, and wide, evenly-weighted figures. It is handsome at 48px on a marketing page and actively poor at 12–13px in a dense table — which is most of this site. Inter was drawn for UI at small sizes, has genuine tabular figures, and disambiguates `1`/`l`/`I` and `0`/`O`, which matters when the screen is full of SS58 addresses and POLYX amounts.
+
+*If you want something less ubiquitous:* **Geist Sans + Geist Mono** (OFL, designed as a pair) is the one swap I would endorse — similar small-size discipline, more personality. Swap both together and re-check the type scale below; change nothing else.
+
+No display or serif face anywhere, including hero numbers.
 
 | Token | Size / line-height | Weight | Use |
 |---|---|---|---|
@@ -795,20 +896,22 @@ Techniques: route-level code splitting; `@polkadot/api` and the indexer client d
 
 Each phase is a commit (or a small series). **A phase is not done until its acceptance criteria pass.**
 
-### Phase 0 — Baseline and decisions *(no product code)*
+### Phase 0 — Baseline and verification *(no product code)*
 
-1. Record baseline metrics for the **current** app: Lighthouse (mobile + desktop) on every route; total wire bytes and wall-clock for a cold `/operator-charts` load; number of RPC requests; JS bundle size. Write to `docs/baseline.md`.
-2. Verify the runtime facts marked *verify* in this document: `historyDepth`, `sessionsPerEra`, `epochDuration`, `expectedBlockTime`, era duration, active/waiting operator counts, total nominator count, and the indexer endpoint URL.
-3. Capture real chain fixtures for three eras — one pre-v8 (clipped exposures), one post-v8 (paged), one current — into `fixtures/`. These are the test corpus.
-4. Resolve the §14 open questions that block Phase 1 or 2.
+1. **Baseline the current app** — Lighthouse (mobile + desktop) on every route; total wire bytes and wall-clock for a cold `/operator-charts` load; RPC request count; JS bundle size. Also measure R4: the real payload of a single `erasStakersPaged.entries(era)`. Write to `docs/baseline.md`.
+2. **Verify runtime facts** marked *verify*: `historyDepth`, `sessionsPerEra`, `epochDuration`, `expectedBlockTime`, era duration, active/waiting operator counts, total nominator count.
+3. **Resolve R1** — read <https://developers.polymesh.network/developer-resources/links/>, record the real mainnet/testnet RPC and indexer URLs into `config/networks.ts` and `docs/data-sources.md`.
+4. **Resolve R2** — run the archive probe in §6.5 against the public endpoint. Record the result in `docs/baseline.md`. This determines whether Phase 9 is feasible at all.
+5. **Resolve R3** — extract exact hexes and typographic rules from the brand kit and Drive folder into `docs/brand-deviations.md`. If the kit's hues differ from the logo SVG, re-derive the categorical palette and **re-run `validate_palette.js`**, updating §7.3 with the new numbers.
+6. **Capture fixtures** for three eras — one pre-v8 (clipped exposures), one post-v8 (paged), one current — into `fixtures/`. These are the test corpus for every ported metric.
 
-**Acceptance:** `docs/baseline.md` exists with real numbers; fixtures committed; §14 blockers answered.
+**Acceptance:** `docs/baseline.md` has real numbers including the archive probe result and the R4 measurement; `docs/data-sources.md` and `docs/brand-deviations.md` exist; fixtures committed; if the palette changed, validator output is pasted into §7.3.
 
 ### Phase 1 — Data pipeline
 
-Build `scripts/ingest/`. Zod schemas in `lib/schemas/`. Metric derivations in `lib/metrics/`, ported from the existing chart components and unit-tested against Phase 0 fixtures. Cold-ingest the full history depth. Emit `manifest.json`, chunks, `operators.json`, `latest.json`. Wire the GitHub Actions cron and the `data` branch.
+Build `scripts/ingest/`. Zod 4 schemas in `lib/schemas/`. Metric derivations in `lib/metrics/`, ported from the existing chart components and unit-tested against Phase 0 fixtures. Cold-ingest the full history depth. Emit `manifest.json`, chunks (with `provenance`), `operators.json`, `latest.json`. Wire **both** GitHub Actions workflows from §6.3 and the orphan `data` branch.
 
-**Acceptance:** full history ingested and schema-valid; a warm run fetches exactly one era; re-ingest is byte-identical; ported metrics match the current app's output within floating-point tolerance on the fixtures; total chunk payload < 120 KB brotli.
+**Acceptance:** full history ingested and schema-valid; a warm `ingest-era` run with no new era exits in under 10s having made one RPC call; a warm run *with* a new era fetches exactly that era; re-ingest is byte-identical; every era carries correct `provenance.specVersion` and `exposureShape`; ported metrics match the current app's output within floating-point tolerance on all three fixtures; total chunk payload < 120 KB brotli.
 
 ### Phase 2 — App shell and design system
 
@@ -852,23 +955,42 @@ SEO and Open Graph per route; social preview images; sitemap; error boundaries; 
 
 **Acceptance:** every §11 budget met on every route; Lighthouse ≥ 95 × 4; zero axe violations; `knip` clean; zero `@ts-ignore` outside `lib/chain/compat.ts`; `docs/baseline.md` updated with a before/after comparison table.
 
+### Phase 9 — Deep-history backfill *(optional; gated on the Phase 0 archive probe)*
+
+Only attempt this if R2 came back positive. Extend the pipeline with a `backfill` mode that walks eras backwards from `firstEra` using `api.at(historicalBlockHash)`, branching on `exposureShape` per era, writing chunks tagged `provenance.source: "backfill-archive"`. Run it once, offline, not on the cron. Rate-limit hard — this is a long, heavy read against someone else's node.
+
+If R2 came back negative, **do nothing here and say so.** Natural accumulation (§6.5) is already running and is the honest answer; a Subscan-sourced backfill introduces a third-party dependency and a fidelity gap for data nobody has asked for yet. Revisit only if users actually request pre-launch history.
+
+**Acceptance:** backfilled eras are byte-identical on re-run; every backfilled era is provenance-tagged and can be dropped independently; spot-check at least five backfilled eras against Subscan and record the comparison; the era-range control correctly reflects the extended coverage.
+
 ---
 
-## 14. Open questions
+## 14. Decisions
 
-Answer these before the phase noted. Where unanswered, the stated default applies.
+All nine opening questions are **resolved**. These are settled inputs — build to them, do not re-litigate.
 
-| # | Question | Blocks | Default if unanswered |
+| # | Question | Decision | Where it lands |
 |---|---|---|---|
-| Q1 | Is there an official Polymesh brand typeface and web licence? | Phase 2 | Inter, self-hosted |
-| Q2 | Is there a Polymesh design-system/token package to align with? | Phase 2 | The tokens in §7 stand alone |
-| Q3 | Stay on GitHub Pages, or move to Cloudflare Pages? | Phase 1 | GitHub Pages; pipeline written to be host-agnostic |
-| Q4 | Is a 30-minute data refresh acceptable, or is sub-15-minute needed? | Phase 1 | 30 min via Actions cron; documented migration to Workers/R2 |
-| Q5 | Confirm the indexer endpoint and whether it is rate-limited for anonymous use | Phase 7 | `https://mainnet-graphql.polymesh.network/`, assume 100 results/query and rate limits |
-| Q6 | Should testnet be user-selectable, or is mainnet-only acceptable? | Phase 1 | Mainnet-only for v1; the manifest is keyed by `genesisHash` so multi-network is additive |
-| Q7 | Keep the `/polymesh-staking-app` base path, or move to a custom domain? | Phase 2 | Keep the base path; read it from config, never hardcode |
-| Q8 | Is signing (nominate / bond / claim) in scope, or read-only analytics? | Phase 7 | **Read-only.** Signing is a materially larger security surface and belongs in a separate decision |
-| Q9 | Should historical data extend past `historyDepth` (84 eras) via archived snapshots? | Phase 1 | Start at `historyDepth`; the chunk format accumulates history naturally from first ingest onward, so depth grows over time at no cost |
+| Q1 | Brand typeface? | **None official.** Polymesh leans on Poppins; we deliberately do not. **Inter Variable + JetBrains Mono**, self-hosted, both OFL. Geist Sans/Mono is the one endorsed swap | §7.5 |
+| Q2 | Design-system package? | **No.** A thin, non-accessible brand kit exists. Follow it for logo and identity; §7.2–7.4 govern UI and data colour. Deviations recorded with the measurement that forced them | §7.1 |
+| Q3 | Host? | **GitHub Pages** for v1. Cloudflare Pages is genuinely free (unlimited bandwidth, `*.pages.dev`, no domain needed) and is the documented next step — nothing in the client depends on the host | §6.3 |
+| Q4 | Refresh cadence? | **Two jobs.** Hourly `ingest-era` that no-ops unless `activeEra` advanced; 30-minute `snapshot-latest` for live state only. Era data moves once per 24h, so a blanket 30-min full run was 48 wasted runs a day | §6.3 |
+| Q5 | Indexer endpoint and limits? | Authoritative list is the developer-resources links page; **read it in Phase 0** and put values in config. Unverified from this environment. Client treats the indexer as unreliable by design: paginate at 100, backoff on 429, degrade gracefully | §6.2 |
+| Q6 | Testnet selectable? | **Mainnet only.** Testnet via env vars for local dev. No UI switcher — the current wallet-driven switching is removed as a correctness hazard | §6.2 |
+| Q7 | Base path? | **Keep `/polymesh-staking-app`**, read from config, never hardcoded | §6.3 |
+| Q8 | Signing in scope? | **Read-only.** Confirmed | §9.6 |
+| Q9 | History beyond `historyDepth`? | **Desirable, deferred to Phase 9.** Default is natural accumulation, which grows history for free from day one with no archive dependency. Backfill is additive and provenance-tagged. Phase 0 probes whether a public archive node exists | §6.5 |
+
+### Residual unknowns
+
+These do not block anything; they are things to measure rather than decide.
+
+| # | Unknown | Resolved by |
+|---|---|---|
+| R1 | Exact indexer URLs and rate limits | Phase 0 (URLs) and Phase 7 (limits, empirically) |
+| R2 | Whether a public Polymesh archive endpoint exists | Phase 0 probe (§6.5) |
+| R3 | Exact brand-kit hex values and typographic rules | Phase 0 extraction; may trigger a palette re-derivation and validator re-run |
+| R4 | Real payload size of `erasStakersPaged.entries(era)` | Phase 0 baseline — sizes the pipeline's cold run |
 
 ---
 
