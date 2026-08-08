@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+
+  // Scoped to unused FILES and duplicate exports while the rebuild is in
+  // progress: config and lib modules are written one phase ahead of the code
+  // that consumes them, so unused-export and unused-dependency reports are
+  // noise until the app is complete.
+  //
+  // Phase 8 removes the `include` key below, turning the full check back on.
+  // That is an acceptance criterion, not an optional tidy-up — dead code was a
+  // real problem in the previous app (625 unused lines in a single file, plus
+  // two orphaned modules), so this gate must end up strict.
+  "include": ["files", "duplicates"],
+
+  "entry": ["app/**/{page,layout,loading,error,not-found,route,template}.tsx", "scripts/**/*.ts"],
+
+  // `config/` is deliberately outside the project glob for now: it is a leaf
+  // surface written ahead of its consumers (networks.ts is read by the Phase 1c
+  // pipeline, site.ts by the Phase 2 data layer), so knip would report it as
+  // dead throughout the build-out. Phase 8 adds `config` back alongside
+  // removing `include` above.
+  "project": ["{app,components,lib,scripts}/**/*.{ts,tsx}"],
+  "ignore": ["legacy/**"],
+}

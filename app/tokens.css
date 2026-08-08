@@ -1,0 +1,220 @@
+/*
+ * Design tokens — design doc §7.
+ *
+ * Theming has three states, and all three must be handled explicitly:
+ *   1. no `data-theme`  + OS light  -> bare :root
+ *   2. no `data-theme`  + OS dark   -> the media block
+ *   3. explicit toggle              -> the [data-theme] blocks, which win both ways
+ *
+ * The `:not([data-theme='light'])` guard on the media block is what lets an
+ * explicit light choice beat OS-dark. Never define a colour only inside a media
+ * query or a [data-theme] block — a token with no bare :root value is
+ * undefined in state 1.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Surfaces & ink ------------------------------------------------- */
+  --page-plane: #f7f6f8;
+  --surface-1: #fcfbfc; /* chart / card surface — palette validated against this */
+  --surface-2: #ffffff; /* raised: popovers, modals, sticky headers */
+  --text-primary: #14101a;
+  --text-secondary: #55505e;
+  --text-muted: #8b8595; /* axis labels, captions */
+  --gridline: #e6e2ea;
+  --axis: #c4bfcc;
+  --border: rgb(20 16 26 / 0.1);
+
+  /* ---- Brand ----------------------------------------------------------
+   * Official kit swatches, measured in design doc §7.1. Poly Purple is
+   * 13.31:1 on light but 1.37:1 on dark, so the dark theme swaps in Poly
+   * Fuchsia — they are an exact mode pair. Poly Pink clears 3:1 on both
+   * surfaces, so the focus ring is one value everywhere.
+   */
+  --brand-accent: #43195b; /* Poly Purple */
+  --brand-tint: #fad1dc; /* Poly Pink Light — surface tint only, never a mark */
+  --focus-ring: #ec4673; /* Poly Pink */
+
+  /* ---- Categorical series ---------------------------------------------
+   * Fixed order, never cycled. Colour follows the entity, not its rank.
+   * Slot 1 is the brand pink and is mode-invariant.
+   *
+   * Validated (adjacent pairs, 8 slots): worst CVD dE 9.3, worst
+   * normal-vision dE 22.3. Slots marked below sit under 3:1 on the light
+   * surface, so any chart using them must ship direct labels or the table
+   * view — see --series-*-needs-relief consumers in the chart kit.
+   */
+  --series-1: #ec4673; /* Poly Pink   3.58:1 */
+  --series-2: #2a78d6; /* blue        4.24:1 */
+  --series-3: #e08a00; /* amber       2.61:1  <- relief required */
+  --series-4: #1baf7a; /* aqua        2.73:1  <- relief required */
+  --series-5: #7a3fa6; /* purple      7.36:1 */
+  --series-6: #008300; /* green       4.36:1 */
+  --series-7: #00a0c6; /* cyan        2.97:1  <- relief required */
+  --series-8: #b4531f; /* rust        5.44:1 */
+
+  /* Everything that is not a named series: one colour, not a hue per entity. */
+  --series-other: #8b8595;
+  --series-other-alpha: rgb(139 133 149 / 0.12);
+  /* p10-p90 distribution band behind the named series. */
+  --band-fill: rgb(139 133 149 / 0.08);
+
+  /* ---- Sequential (magnitude) — one hue, light to dark ----------------- */
+  --seq-100: #ede4f3;
+  --seq-200: #d8c3e5;
+  --seq-300: #bf9cd4;
+  --seq-400: #a274c1;
+  --seq-500: #7a3fa6;
+  --seq-600: #5d2f80;
+  --seq-700: #43195b;
+
+  /* ---- Diverging (polarity) — two hues, neutral grey midpoint ---------- */
+  --div-neg-strong: #1c5cab;
+  --div-neg: #6da7ec;
+  --div-mid: #efedf1;
+  --div-pos: #ee7fa2;
+  --div-pos-strong: #c01a56;
+
+  /* ---- Status — reserved; never reused as a series colour --------------
+   * Always paired with an icon AND a label, never colour alone.
+   */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* ---- Typography ------------------------------------------------------ */
+  --font-sans: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-mono-jetbrains), ui-monospace, 'SF Mono', monospace;
+
+  /* ---- Spacing — 4px base; nothing off-scale --------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  /* ---- Radius ---------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* ---- Elevation — hairline first, shadow second ----------------------- */
+  --shadow-sm: 0 1px 2px rgb(20 16 26 / 0.04), 0 1px 3px rgb(20 16 26 / 0.06);
+  --shadow-md: 0 4px 12px rgb(20 16 26 / 0.08), 0 2px 4px rgb(20 16 26 / 0.04);
+
+  /* ---- Motion ---------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+}
+
+/* State 2: OS dark, no explicit choice. Guarded so an explicit light wins. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --page-plane: #0d0a10;
+    --surface-1: #141019;
+    --surface-2: #1c1622;
+    --text-primary: #ffffff;
+    --text-secondary: #c4bfcc;
+    --text-muted: #8b8595;
+    --gridline: #2a2432;
+    --axis: #3a3344;
+    --border: rgb(255 255 255 / 0.1);
+
+    --brand-accent: #fa75f8; /* Poly Fuchsia — Poly Purple is 1.37:1 here */
+    --brand-tint: transparent;
+    --focus-ring: #ec4673;
+
+    /* Re-stepped for the dark surface; all 8 clear 3:1. Slot 1 unchanged. */
+    --series-1: #ec4673;
+    --series-2: #4a93eb;
+    --series-3: #c98500;
+    --series-4: #199e70;
+    --series-5: #a96fd1;
+    --series-6: #2e9e4f;
+    --series-7: #1b93b0;
+    --series-8: #c4661f;
+
+    --series-other: #8b8595;
+    --series-other-alpha: rgb(139 133 149 / 0.18);
+    --band-fill: rgb(139 133 149 / 0.12);
+
+    --seq-100: #2a1c38;
+    --seq-200: #3d2851;
+    --seq-300: #55396f;
+    --seq-400: #71508f;
+    --seq-500: #9163b4;
+    --seq-600: #b085d0;
+    --seq-700: #cfaee6;
+
+    --div-neg-strong: #86b6ef;
+    --div-neg: #3987e5;
+    --div-mid: #332c3c;
+    --div-pos: #d55181;
+    --div-pos-strong: #f090b0;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.3);
+  }
+}
+
+/* State 3: explicit dark. Duplicates the block above so the toggle wins
+ * regardless of OS setting. Kept verbatim rather than factored into a shared
+ * class — a stylesheet cannot @extend, and indirection here has repeatedly
+ * proven easier to get subtly wrong than duplication. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --page-plane: #0d0a10;
+  --surface-1: #141019;
+  --surface-2: #1c1622;
+  --text-primary: #ffffff;
+  --text-secondary: #c4bfcc;
+  --text-muted: #8b8595;
+  --gridline: #2a2432;
+  --axis: #3a3344;
+  --border: rgb(255 255 255 / 0.1);
+
+  --brand-accent: #fa75f8;
+  --brand-tint: transparent;
+  --focus-ring: #ec4673;
+
+  --series-1: #ec4673;
+  --series-2: #4a93eb;
+  --series-3: #c98500;
+  --series-4: #199e70;
+  --series-5: #a96fd1;
+  --series-6: #2e9e4f;
+  --series-7: #1b93b0;
+  --series-8: #c4661f;
+
+  --series-other: #8b8595;
+  --series-other-alpha: rgb(139 133 149 / 0.18);
+  --band-fill: rgb(139 133 149 / 0.12);
+
+  --seq-100: #2a1c38;
+  --seq-200: #3d2851;
+  --seq-300: #55396f;
+  --seq-400: #71508f;
+  --seq-500: #9163b4;
+  --seq-600: #b085d0;
+  --seq-700: #cfaee6;
+
+  --div-neg-strong: #86b6ef;
+  --div-neg: #3987e5;
+  --div-mid: #332c3c;
+  --div-pos: #d55181;
+  --div-pos-strong: #f090b0;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 2px 4px rgb(0 0 0 / 0.3);
+}
