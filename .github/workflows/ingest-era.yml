@@ -1,0 +1,85 @@
+name: Ingest era
+
+# An era on Polymesh mainnet is 24 hours, so era data changes once a day. This
+# runs hourly and exits within seconds when nothing new has completed — one RPC
+# call. A blanket 30-minute full run would have been 48 wasted runs a day
+# (design doc §6.3).
+#
+# Deliberately NOT scheduled against the era boundary: GitHub Actions cron is
+# best-effort and routinely delayed under load, so a self-checking poll is more
+# reliable than a clever schedule. One hour of staleness on daily data is fine.
+
+on:
+  schedule:
+    - cron: '17 * * * *' # off the hour; :00 is the most contended minute
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Cold rebuild over the full history depth'
+        type: boolean
+        default: false
+
+# Never let two ingests write the data branch at once. Not cancel-in-progress:
+# a half-finished ingest that is killed mid-push is worse than a queued one.
+concurrency:
+  group: ingest-era
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: public/data
+          # The branch may not exist yet on a first run; the next step creates it.
+          continue-on-error: true
+
+      - name: Ensure data branch exists
+        run: |
+          if [ ! -d public/data/.git ]; then
+            echo "No data branch yet — starting an empty one."
+            rm -rf public/data
+            mkdir -p public/data
+            cd public/data
+            git init -q -b data
+            git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Ingest
+        env:
+          POLYMESH_NETWORK: mainnet
+        run: npm run ingest:era ${{ inputs.full && '-- --full' || '' }}
+
+      - name: Commit data
+        working-directory: public/data
+        run: |
+          git config user.name  "polymesh-staking-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No data changes."
+            exit 0
+          fi
+          git commit -m "data: ingest through era $(node -e "
+            const m = require('./manifest.json');
+            process.stdout.write(String(m.lastCompleteEra));
+          ")"
+          git push origin HEAD:data

@@ -1,0 +1,68 @@
+name: Snapshot latest
+
+# Active-era state: points accruing now, current exposures, oversubscription,
+# validator set, election phase, and the anchors the browser derives era
+# progress from (design doc §6.6a).
+#
+# Cheap — one connection and a handful of reads, writing a single file. Era
+# progress itself is NOT snapshotted: the client ticks its own clock against
+# the anchors, so a countdown costs no network traffic and cannot be stale.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# Skip a run rather than queue it: a snapshot that starts 15 minutes late is
+# worth less than the one behind it, and queueing would compound the delay.
+concurrency:
+  group: snapshot-latest
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: public/data
+          continue-on-error: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Snapshot
+        env:
+          POLYMESH_NETWORK: mainnet
+        run: npm run ingest:latest
+
+      - name: Commit snapshot
+        working-directory: public/data
+        run: |
+          if [ ! -d .git ]; then
+            echo "No data branch yet — the ingest-era workflow creates it first."
+            exit 0
+          fi
+          git config user.name  "polymesh-staking-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add latest.json
+          if git diff --cached --quiet; then
+            echo "No change."
+            exit 0
+          fi
+          git commit -m "data: snapshot $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin HEAD:data
