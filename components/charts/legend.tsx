@@ -1,5 +1,7 @@
 'use client';
 
+import { SERIES_TOKENS } from '@/lib/charts/palette';
+
 /**
  * Chart legend.
  *
@@ -11,17 +13,6 @@
  * hold in your head, and the label text uses text tokens so a low-contrast
  * series colour never becomes something you must read.
  */
-
-const SERIES_TOKENS = [
-  'var(--series-1)',
-  'var(--series-2)',
-  'var(--series-3)',
-  'var(--series-4)',
-  'var(--series-5)',
-  'var(--series-6)',
-  'var(--series-7)',
-  'var(--series-8)',
-] as const;
 
 export interface LegendItem {
   id: string;

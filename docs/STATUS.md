@@ -3,7 +3,7 @@
 Working notes for picking this up cold. The plan is `REBUILD-DESIGN.md`; this
 file is only *where we are* and *what to watch out for*.
 
-**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 4 of 8
+**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 5 of 8
 
 ---
 
@@ -17,48 +17,84 @@ file is only *where we are* and *what to watch out for*.
 | 2 | Design system, app shell, client data layer, `/about` |
 | 3 | Chart kit: banded multi-series, frame + table toggle, legend, sparkline, `/kitchen-sink` |
 | 4 | `/network` — returns, stake, participation, decentralisation; URL-encoded era range; bundle brought under budget |
+| 5 | `/operators` directory + 100 prerendered detail pages; sort/filter/CSV; global `?ops=` pin model; `npm run budget` |
 
-218 unit tests. Every phase green on typecheck, lint, test, knip and build.
+239 unit tests. Every phase green on typecheck, lint, test, knip and build.
 
-## Next: Phase 5 — `/operators`
+## Next: Phase 6 — `/compare`, `/calculator`, `/slashing`
 
-The sortable operator directory (the single most useful artefact on a staking
-site, and entirely absent from the old app), operator detail pages, and the
-global pin/selection model encoded in the URL.
+Three pages, all of which can lean on what Phase 5 built:
 
-`cmdk` is already installed for the operator combobox. `useEraWindow` in
-`components/era-range-control.tsx` is the pattern to follow for URL state —
-add a `?ops=` param alongside it.
+- **`/compare`** is mostly assembled already. `useSelectedOperators` is the
+  selection model, `buildOperatorRows` produces the rows, and
+  `LazyEraSeriesChart` draws them against the field band. What is missing is a
+  side-by-side layout and the `cmdk` combobox for adding operators without
+  going back to the directory — `cmdk` is installed and still unused.
+- **`/calculator`** needs no new data: `stakingReturns`, `curveInflation` and
+  `operatorApr` in `lib/metrics/staking.ts` are ported and tested. Keep the
+  inputs in the URL so a scenario can be shared, same as `?eras=` and `?ops=`.
+- **`/slashing`** is the one with an open question. Nothing in the pipeline
+  currently writes slash events; check `lib/chain/compat.ts` for what the
+  historical storage shape allows before designing the page, because slashing
+  APIs are among the things that moved across the v6/v7/v8 upgrades.
 
-Watch the bundle: the operator table renders a sparkline per row, which is why
-`Sparkline` is deliberately free of d3 (see below).
+Watch the bundle — `/operators` is 3.3 KB over. Run `npm run budget` after any
+change that touches an import graph, not just at the end of a phase.
 
 ---
 
 ## Open items
 
-### 1. Bundle — resolved for real routes, `/kitchen-sink` exempt
+### 1. Bundle — `/operators` is 3.3 KB over, everything else passes
 
-| route | critical-path JS (gzip) |
-|---|---|
-| `/` | 193.9 KB |
-| `/about` | 185.4 KB |
-| `/network` | 199.2 KB |
-| `/kitchen-sink` | 221.5 KB — over, and deliberately so |
+Measure it with **`npm run build && npm run budget`**. Do not read the sizes
+`next build` prints: Turbopack reports chunks uncompressed and grouped by entry,
+which hid the d3 regression below completely. `scripts/budget.ts` gzips what
+each exported HTML file actually references, and exits non-zero on a breach.
 
-Three changes got `/network` from 215 KB to 199 KB:
+```
+skip    221.9 KB  /kitchen-sink/     exempt — workbench, loads every primitive
+OVER    203.3 KB  /operators/        (+3.3 KB)
+OVER    202.2 KB  /operators/[address]/  (+2.2 KB)
+ ok     199.7 KB  /network/
+ ok     194.2 KB  /
+ ok     185.6 KB  /about/            ← shared floor
+```
 
-1. `next/dynamic` splits the chart kit into its own chunk (`LazyChart`), and an
-   IntersectionObserver defers mounting until scrolled near.
-2. **`Sparkline` was rewritten without d3.** It reused `valueScale`/`linePath`,
-   which quietly put d3-scale + d3-shape (14.4 KB) on the critical path of every
-   page with a stat tile — defeating the split entirely. Keep it
-   dependency-free; Phase 5 renders one per table row.
-3. The decentralisation section is code-split — it is below the fold and carries
-   its own Lorenz chart.
+**The floor is 185.6 KB** — React 19, the Next 16 runtime, the app shell, the
+query client and nuqs. Every route pays it, so the 200 KB budget leaves about
+14 KB for a page's own code. `/operators` uses 17.7 KB: the table, the
+per-row sparklines, sorting, filtering and CSV. That is the honest cost of the
+densest page in the app, and closing the gap would mean splitting cohesive
+modules for ~700 bytes each. Left for the Phase 8 perf audit to settle
+deliberately — either by trimming the floor (the query provider is mounted for
+static pages that never query) or by re-expressing the budget as page code over
+the floor, which is what it is really trying to constrain.
+
+**Do not "fix" it by raising the number.** One revision is already recorded in
+§11 of the design doc; a second without a measurement behind it turns the budget
+into decoration.
+
+#### The d3 regression, twice
+
+Both times, a module needed *one constant* from the chart kit and got d3 with it.
+
+1. Phase 4: `Sparkline` reused `valueScale`/`linePath` from `lib/charts/geometry`.
+   Rewritten dependency-free — it is now the most-instantiated chart component
+   in the app, one per table row.
+2. Phase 5: `useSelectedOperators` imported `MAX_NAMED_SERIES` from
+   `banded-line-chart`, putting d3-scale + d3-shape (**17.1 KB gzip**) on the
+   critical path of every page that can pin an operator — including pages whose
+   charts are all behind `next/dynamic`. Fixed by moving the palette to
+   `lib/charts/palette.ts`, which has no imports and must keep it that way.
+   This also removed a verbatim duplicate of `SERIES_TOKENS` in `legend.tsx`.
+
+The lesson worth carrying: **a value import from a chart module is a dependency
+on d3.** Type-only imports are fine — they are erased. If you need a constant,
+put it somewhere with no imports.
 
 `/kitchen-sink` is an internal `noindex` workbench that loads every primitive at
-once by design. It is not held to the budget, and should not be optimised.
+once by design. It is exempt in `scripts/budget.ts`, and should not be optimised.
 
 ### 2. `legacy/` still present
 

@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react';
 import { ChartFrame } from './chart-frame';
-import { BandedLineChart, MAX_NAMED_SERIES, type NamedSeries } from './banded-line-chart';
+import { MAX_NAMED_SERIES } from '@/lib/charts/palette';
+import { BandedLineChart, type NamedSeries } from './banded-line-chart';
 import { Legend, type LegendItem } from './legend';
 import { SeriesTable, type SeriesTableColumn } from './series-table';
 import { EmptyState } from '@/components/states';

@@ -673,7 +673,7 @@ Versions verified against the npm registry at time of writing. Pin majors; let m
 | Charts | **`d3-scale` / `d3-shape` / `d3-array` + React-rendered SVG** | No chart library. Once we stop drawing 100 lines, SVG is ample — and gives real DOM, CSS theming, crisp text, and accessibility for free. Import d3 submodules only, never the `d3` meta-package |
 | Dense fallback | **uPlot 1.6**, only if a specific view profiles poorly in SVG | ~45 KB, canvas. Do not reach for it pre-emptively |
 | Data/cache | **TanStack Query 5.101** + IndexedDB persister | `staleTime: Infinity` for immutable chunks |
-| Tables | **TanStack Table 9** | Sorting, filtering, column visibility, virtualisation. Note: v9, not the v8 most examples show |
+| Tables | ~~TanStack Table 9~~ → **hand-rolled** | **Deviation, Phase 5.** v9 is a feature-composition rewrite (`constructTable`, `columnFilteringFeature`) with little documentation, the directory is ~100 rows so virtualisation buys nothing, and 15 KB against a 14 KB critical-path headroom is a poor trade. Logic is pure and tested in `lib/data/operator-rows.ts`. Revisit if grouping, column pinning or resizing is ever needed |
 | Validation | **Zod 4** | One schema, shared by pipeline and client. v4 — the API differs from v3 |
 | URL state | **nuqs 2.9** | Typed search-param state; the closest thing to TanStack Router's params without changing framework |
 | Wallet | `@polymeshassociation/browser-extension-signing-manager`, lazy | Unchanged, but off the critical path |
@@ -974,13 +974,19 @@ Target: **WCAG 2.2 AA**, verified, not assumed.
 
 Enforced in CI. A build that exceeds a budget fails.
 
+The JS budget is checked by **`npm run budget`** (`scripts/budget.ts`), which
+gzips every script referenced by each exported HTML file. Deliberately not the
+figures `next build` prints — those are uncompressed and grouped by entry, and
+twice failed to show a charting library sitting on the critical path of a page
+that draws no charts eagerly. Measure the payload, not the graph.
+
 | Metric | Budget | Current `‹measure›` |
 |---|---|---|
 | LCP (mobile, 4G, mid-tier device) | **< 1.5s** | ‹measure› |
 | First meaningful chart | **< 2.0s** | ‹measure› |
 | INP | **< 200ms** | ‹measure› |
 | CLS | **< 0.05** | ‹measure› |
-| Critical-path JS (gzip) | **< 200 KB** — see note | measured 189 KB (home), 182 KB (/about) |
+| Critical-path JS (gzip) | **< 200 KB** — see note | 185.6 KB floor · 194.2 (home) · 199.7 (`/network`) · **203.3 (`/operators`, over)** |
 | Critical-path data, default 90d range (brotli) | **< 120 KB** | n/a |
 | Widening to full history (brotli, incremental) | **< 2.5 MB**, streamed with progress, never blocking | n/a |
 | `rollup-weekly.json`, all history (brotli) | **< 60 KB** | n/a |
@@ -995,7 +1001,17 @@ for Next 16 + React 19 is **182 KB gzip** on a page with no application code at
 all (`/about`), so 180 KB was below what this stack can reach. The budget is now
 200 KB, which leaves ~18 KB of headroom over the floor for application code.
 
-Two measurements informed this and are worth keeping:
+**Standing as of Phase 5: the floor has since drifted to 185.6 KB**, so the
+headroom is ~14 KB, and `/operators` — the densest page in the app — needs 17.7
+KB and misses by 3.3 KB. The number has **not** been moved a second time. A
+budget revised whenever it is inconvenient measures nothing, and the underlying
+question is real: a per-route total mostly measures the floor, which no page
+controls. Phase 8 resolves it one way or the other, with a measurement attached:
+either trim the floor (the query provider is mounted on static pages that never
+query) or restate the budget as *page code above the floor*, which is the thing
+actually worth constraining.
+
+Two measurements informed the original revision and are worth keeping:
 
 - **Zod cost 64.6 KB gzip on the critical path** — 26% of it, and more than
   every other dependency of ours combined. It is now development-only

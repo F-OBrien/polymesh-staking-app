@@ -27,10 +27,13 @@ export function Sparkline({
   strokeWidth = 1.5,
 }: {
   values: readonly (number | null)[];
-  width?: number;
-  height?: number;
-  colour?: string;
-  strokeWidth?: number;
+  width?: number | undefined;
+  height?: number | undefined;
+  // `| undefined` explicitly: callers routinely pass a conditional colour, and
+  // exactOptionalPropertyTypes treats an absent property and an explicit
+  // undefined as different things.
+  colour?: string | undefined;
+  strokeWidth?: number | undefined;
 }) {
   const path = buildPath(values, width, height, strokeWidth);
 

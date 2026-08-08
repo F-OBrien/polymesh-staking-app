@@ -12,6 +12,7 @@ import {
   timeScale,
   valueScale,
 } from '@/lib/charts/geometry';
+import { MAX_NAMED_SERIES, SERIES_TOKENS } from '@/lib/charts/palette';
 import { useMeasuredWidth } from '@/lib/charts/use-measure';
 import { formatEraDate } from '@/lib/format';
 import { Grid, XAxis, YAxis } from './axes';
@@ -41,20 +42,6 @@ import { Grid, XAxis, YAxis } from './axes';
  * axis announcing values through a live region, and the caller supplies a table
  * rendering of the same data. Colour is never the only channel.
  */
-
-/** Fixed palette order. Never cycled — a ninth series folds into "Other". */
-const SERIES_TOKENS = [
-  'var(--series-1)',
-  'var(--series-2)',
-  'var(--series-3)',
-  'var(--series-4)',
-  'var(--series-5)',
-  'var(--series-6)',
-  'var(--series-7)',
-  'var(--series-8)',
-] as const;
-
-export const MAX_NAMED_SERIES = SERIES_TOKENS.length;
 
 export interface NamedSeries {
   /** Stable identity — the operator address. Colour follows this, not rank. */
