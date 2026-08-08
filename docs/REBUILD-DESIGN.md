@@ -332,18 +332,15 @@ It has **no era-level aggregate entities** — no `erasRewardPoints`, no exposur
 | **SubQuery GraphQL** | `https://mainnet-graphql.polymesh.network/` | `https://testnet-graphql.polymesh.live/` |
 | REST API | `https://mainnet-restapi.polymesh.network/` | `https://testnet-restapi.polymesh.live/` |
 | Explorer (Subscan) | `https://polymesh.subscan.io/` | `https://polymesh-testnet.subscan.io/` |
-| **Archive node** | *not published* | *not published* |
+| **Archive access** | ✅ the public RPCs above are archive nodes | ✅ same |
 
-The mainnet RPC and indexer URLs match what `constants/constants.ts` already uses, and the earlier-guessed indexer URL was correct.
+The mainnet RPC and indexer URLs match what `constants/constants.ts` already uses. **The public RPCs retain historical state** — undocumented on the resources page but confirmed, and the basis for §6.5.
 
 Rate limits exist but are not quantified anywhere official. The client must therefore treat the indexer as unreliable by design: **paginate at 100 results, retry with exponential backoff and jitter on 429, and degrade gracefully** — `/my-staking` shows position and current operators from chain state even when reward history fails to load. Never let an indexer failure blank the page. Measure the real limit empirically in Phase 7 and record it in `docs/data-sources.md`.
 
-**No archive endpoint is published**, which is a meaningful signal for R2 — see §6.5.
+**Considered and rejected: network telemetry** (`https://stats.polymesh.network/`). It is the only available source of node-health signal — software version, uptime, peer count, sync state — but it is keyed by self-reported node name rather than stash address, so joining a telemetry row to an operator is guesswork, and nodes can disable telemetry entirely. The effort is real and the result would be unreliable enough that it could not be allowed to affect a ranking anyway. **Not in scope.** Revisit only if operators start publishing a verifiable name↔stash mapping on-chain.
 
-**Two optional sources worth knowing about.** Neither is on the critical path; both are nice-to-have enrichment:
-
-- **Network telemetry** — `https://stats.polymesh.network/`. Standard Substrate telemetry: node software version, uptime, peer count, block height, sync state, per node. This is the only source of *node-health* signal available anywhere; everything else in this document is on-chain economics. It would let an operator detail page answer "is this node actually well-run?" rather than only "did it earn points?" **Caveat:** telemetry is keyed by self-reported node name, not stash address, so the join to an operator is fuzzy and opt-in — nodes can disable telemetry entirely. Treat any match as best-effort, label it as self-reported, and never let it affect a ranking. Evaluate in Phase 5; drop it without ceremony if the join proves unreliable.
-- **REST API** — a friendlier wrapper over the same chain data. Not needed (the pipeline speaks to the node directly), but useful for one-off verification when debugging a metric.
+**Useful but not required: the REST API.** A friendlier wrapper over the same chain data. The pipeline speaks to the node directly, but this is handy for one-off verification when debugging a metric.
 
 **Network configuration (Q6).** Mainnet only for v1. Testnet is reachable for local development through env vars (`POLYMESH_RPC_URL`, `POLYMESH_INDEXER_URL`, `POLYMESH_NETWORK`) consumed by both the pipeline and the build — never a UI network switcher, and never a hardcoded URL. Because `manifest.json` is keyed by `genesisHash`, adding a second network later is purely additive: a second data directory and a route prefix. The current app's passive "whatever network the wallet extension happens to be on" behaviour is removed — it was a silent correctness hazard, since wallet-driven network changes wiped the cache and re-fetched everything.
 
@@ -495,6 +492,8 @@ Resolve `name`/`website` in this order: (1) on-chain identity / DID registry, (2
 }
 ```
 
+**`data/rollup-weekly.json`** — network-level metrics only, one row per week, covering all available history. No per-operator arrays, so it stays a few tens of KB even at 1,700+ eras. Long-range overview charts read this instead of chunks (see §6.5a).
+
 **`data/eras/{era}.json`** *(optional, lazy)* — full nominator-level exposure for one era. Only fetched when a user opens nominator-level detail. Keeps the hot path small.
 
 Every chunk additionally carries, per era, the provenance needed for §6.5:
@@ -523,29 +522,46 @@ You flagged the real constraint here, and it is the reason this is a separate, l
 | **Subscan API** | Era rewards, validator stats | A free API key, rate limits | Partial, and a third-party dependency |
 | **SubQuery indexer** (`StakingEvent`) | Realised `Rewarded` payouts per stash, from genesis | Nothing new | Rewards only — no points, no exposures |
 
-**The zero-risk path, which we take by default:** from the day the pipeline first runs, every era it ingests is ours permanently. History therefore *grows on its own* at no cost and with no archive dependency — a year from now we have a year of data regardless of what `historyDepth` says. Backfill is strictly additive on top of that, and the `provenance.source` field means backfilled eras are always distinguishable from natively-ingested ones (important: if a backfill turns out to be subtly wrong, we can drop exactly those eras).
+**R2 resolved: the public Polymesh RPCs are archive nodes.** They retain historical state, so `api.at(oldBlockHash)` works against `wss://mainnet-rpc.polymesh.network/` with no node of our own. This is not advertised on the resources page — record it in `docs/data-sources.md` as a verified-but-undocumented property, and re-verify it at the start of any backfill run, because an undocumented guarantee can be withdrawn without notice.
 
-**Phase 0 must answer one question before any of this is scheduled:** is a public Polymesh archive endpoint available? The official resources page publishes **no archive endpoint** (§6.2), and public Substrate RPCs are conventionally run pruned — so the working expectation is *no*, and the probe exists to confirm rather than discover. Concrete test — take a block hash from an era well past `historyDepth` and run:
+That makes full-history backfill genuinely viable, and changes Q9 from "probably not worth it" to "worth doing, once."
 
-```ts
-const at = await api.at(oldBlockHash);
-await at.query.staking.erasRewardPoints(oldEra);
-```
+**Scale.** Polymesh mainnet launched in 2021 and an era is 24 hours, so full history is on the order of **1,700+ eras** — roughly twenty times `historyDepth`. Establish the exact first era in Phase 1; it sets the size of everything below.
 
-If the node is pruned this fails with a *"State already discarded"* / unknown-block error. Record the result in `docs/baseline.md`.
+**Finding the block to read each era at.** Era N's storage is present in state from the moment era N is written until it ages out — so read it at a block shortly *after* era N ends. Do not binary-search `staking.activeEra` across the chain to find era boundaries; **use the indexer**, which already knows. Query `Event` for `moduleId: staking` with `eventId: EraPaid` (and `EraPayout` on pre-v7 runtimes — the enum documents the rename) to get the exact block for every era transition in one paginated pass. That is the efficient join between the two data sources, and it is the only place in this design where the indexer feeds the pipeline rather than the client.
 
-If it fails — the likely outcome — backfill means either running an archive node ourselves (non-trivial: full Polymesh state history, and ongoing) or falling back to Subscan. **The honest answer is then that natural accumulation is good enough**, and that is a perfectly acceptable place to land. Do not run an archive node for this.
+**Be a good citizen — this is the heaviest thing in the whole design.** A full backfill is ~1,700 eras × three prefix scans at historical blocks, against someone else's shared public node. That is an order of magnitude more load than the current app's already-abusive 255 scans, and it is exactly the kind of traffic that gets endpoints locked down. Therefore:
 
-**UI consequence, whichever way it goes:** the era-range control must never silently imply data exists where it does not. Ranges beyond available history are disabled with an explanatory tooltip, and charts state their actual coverage ("84 eras available — history accumulates daily from 2026-08-08").
+- Run it **once, offline, by hand.** Never on the cron, never in CI, never from the browser.
+- Serial or concurrency ≤ 2, with a deliberate inter-request delay. Slow is fine — this job has no deadline.
+- **Checkpoint after every era** so an interrupted run resumes rather than restarts.
+- **Cache metadata per `specVersion`.** `api.at()` fetches runtime metadata for each distinct spec version; without a cache that refetch dominates the run.
+- Consider running against a local node synced from a snapshot if the public endpoint shows strain. Falling back is cheaper than getting blocked.
+
+**The default remains natural accumulation.** Every era the pipeline ingests is ours permanently, so history grows on its own with no archive dependency at all. Backfill is strictly additive on top of that, and `provenance.source` keeps backfilled eras distinguishable — if a backfill turns out subtly wrong, drop exactly those eras and the natively-ingested history is untouched.
+
+### 6.5a Consequence: the client must be built for unbounded history
+
+This is the part worth catching now rather than after Phase 5.
+
+At 84 eras the whole dataset is ~120 KB and the client can simply load all of it. At 1,700 eras it is on the order of **2–3 MB brotli**, which cannot go on every page load. Since backfill is now likely, **build the client for arbitrary history from Phase 2 onward, regardless of when the backfill actually runs.** Retrofitting range-based loading after the fact would touch every chart.
+
+Three changes, all cheap if made now:
+
+1. **Load chunks by visible range, not all of them.** The manifest already lists each chunk's era span, so the client resolves the selected range to a chunk set and fetches only those. Default range is **90 days (3 chunks)**; widening the range fetches more, with a progress indicator rather than a blocking spinner.
+2. **Add a network-level rollup for long ranges.** `data/rollup-weekly.json` — network metrics only (total staked, issuance, reward, points, average APR, operator count), one row per week, no per-operator arrays. A few tens of KB for all of history. Long-range overview charts (C4–C8) read the rollup; per-operator charts stay on chunks and cap their range accordingly.
+3. **Say what is loaded.** The era-range control must never imply data exists where it does not: ranges beyond available history are disabled with an explanatory tooltip, and every chart states its actual coverage ("1,712 eras — Oct 2021 to today" or "84 eras — history accumulates daily from 2026-08-08", whichever is true).
 
 ### 6.6 Client runtime
 
 ```
 App shell (static, instant)
   ├─ fetch manifest.json                          ~1 KB
-  ├─ fetch chunks in parallel                     ~3 requests, cached forever after first visit
+  ├─ resolve selected era range → chunk set       default 90d = 3 chunks (§6.5a)
+  ├─ fetch those chunks in parallel               cached forever after first visit
   │    └─ hydrate into a typed in-memory store, persisted to IndexedDB by chunk hash
   ├─ fetch latest.json                            ~20 KB, 60s cache
+  ├─ [long ranges] rollup-weekly.json             network metrics only, all history
   └─ [lazy, on demand only]
        ├─ @polkadot/api + wallet   → only when the user connects a wallet
        ├─ indexer GraphQL          → only on /my-staking
@@ -554,7 +570,7 @@ App shell (static, instant)
 
 - **No `@polkadot/api` on the critical path.** It is dynamically imported behind the "Connect wallet" action and the optional live-data toggle.
 - **Derived metrics are memoised once** in a selector layer (`lib/selectors/*`), not recomputed per chart. Heavy aggregations (percentile bands, small-multiples grids) run in a Web Worker via Comlink and are cached by `(metric, eraRange)`.
-- **IndexedDB persistence** keyed by chunk hash. A returning visitor with no new era does zero data fetching beyond the manifest.
+- **IndexedDB persistence** keyed by chunk hash. A returning visitor with no new era does zero data fetching beyond the manifest. Chunks already held are never refetched when the range widens — only the newly-needed ones are.
 - **Progressive rendering.** The shell, nav, and stat-tile skeletons paint immediately. Charts fill in as chunks land. Nothing is gated behind a full-page spinner ever again.
 
 ### 6.7 Framework decision
@@ -896,7 +912,9 @@ Enforced in CI. A build that exceeds a budget fails.
 | INP | **< 200ms** | ‹measure› |
 | CLS | **< 0.05** | ‹measure› |
 | Critical-path JS (gzip) | **< 180 KB** | ‹measure› |
-| Critical-path data (brotli) | **< 120 KB** | n/a |
+| Critical-path data, default 90d range (brotli) | **< 120 KB** | n/a |
+| Widening to full history (brotli, incremental) | **< 2.5 MB**, streamed with progress, never blocking | n/a |
+| `rollup-weekly.json`, all history (brotli) | **< 60 KB** | n/a |
 | Total transfer, cold, home | **< 350 KB** | ‹measure› |
 | Repeat visit, same era | **< 5 KB** (manifest only) | ‹measure› |
 | Lighthouse Perf / A11y / BP / SEO | **≥ 95** each | ‹measure› |
@@ -928,11 +946,11 @@ Each phase is a commit (or a small series). **A phase is not done until its acce
 
 1. **Baseline the current app** — Lighthouse (mobile + desktop) on every route; total wire bytes and wall-clock for a cold `/operator-charts` load; RPC request count; JS bundle size. Also measure R4: the real payload of a single `erasStakersPaged.entries(era)`. Write to `docs/baseline.md`.
 2. **Verify runtime facts** marked *verify*: `historyDepth`, `sessionsPerEra`, `epochDuration`, `expectedBlockTime`, era duration, active/waiting operator counts, total nominator count.
-3. **Resolve R2** — run the archive probe in §6.5 against the mainnet endpoint. Record the result in `docs/baseline.md`. This is the sole gate on Phase 9. Expect it to fail; confirm rather than assume.
+3. **Re-confirm archive access** — R2 is answered (the public RPCs are archive nodes), but it is undocumented, so verify it still holds: `(await api.at(oldHash)).query.staking.erasRewardPoints(oldEra)` for an era well past `historyDepth`. Also establish the **first era on chain**, which sizes Phase 9. Record both in `docs/baseline.md`.
 4. **Transcribe the settled reference data** — endpoints from §6.2 into `config/networks.ts`, brand measurements from §7.1 into `docs/brand-deviations.md`. Both are already resolved in this document; this step just puts them where code reads them.
 5. **Capture fixtures** for three eras — one pre-v8 (clipped exposures), one post-v8 (paged), one current — into `fixtures/`. These are the test corpus for every ported metric.
 
-**Acceptance:** `docs/baseline.md` has real numbers including the archive probe result and the R4 measurement; `config/networks.ts` and `docs/brand-deviations.md` exist; fixtures committed for all three era shapes.
+**Acceptance:** `docs/baseline.md` has real numbers including the R4 measurement, the re-confirmed archive read, and the first era on chain (R6); `config/networks.ts` and `docs/brand-deviations.md` exist; fixtures committed for all three era shapes.
 
 ### Phase 1 — Data pipeline
 
@@ -944,7 +962,7 @@ Build `scripts/ingest/`. Zod 4 schemas in `lib/schemas/`. Metric derivations in 
 
 Next.js 15 App Router scaffold. Tailwind v4 with every token from §7. Light/dark with a working toggle and correct three-state theming. Typography, spacing, layout primitives. Nav, footer, skip link, landmarks. Data-loading layer: manifest → chunks → IndexedDB, with TanStack Query. Loading / empty / **error** states, including a real RPC/data-failure state with retry. `/about` with the glossary and methodology (it is pure content and validates the type scale early).
 
-**Acceptance:** shell renders < 1s cold; theme toggle correct in all three states; axe clean; responsive at all four breakpoints; a simulated data-fetch failure shows a recoverable error, never an infinite spinner.
+**Acceptance:** shell renders < 1s cold; theme toggle correct in all three states; axe clean; responsive at all four breakpoints; a simulated data-fetch failure shows a recoverable error, never an infinite spinner. **The loader resolves an era range to a chunk set and fetches only those chunks** (§6.5a) — verify against a synthetic manifest advertising 1,700 eras, so the range logic is proven before any backfill exists.
 
 ### Phase 3 — Chart kit
 
@@ -982,13 +1000,15 @@ SEO and Open Graph per route; social preview images; sitemap; error boundaries; 
 
 **Acceptance:** every §11 budget met on every route; Lighthouse ≥ 95 × 4; zero axe violations; `knip` clean; zero `@ts-ignore` outside `lib/chain/compat.ts`; `docs/baseline.md` updated with a before/after comparison table.
 
-### Phase 9 — Deep-history backfill *(optional; gated on the Phase 0 archive probe)*
+### Phase 9 — Deep-history backfill
 
-Only attempt this if R2 came back positive. Extend the pipeline with a `backfill` mode that walks eras backwards from `firstEra` using `api.at(historicalBlockHash)`, branching on `exposureShape` per era, writing chunks tagged `provenance.source: "backfill-archive"`. Run it once, offline, not on the cron. Rate-limit hard — this is a long, heavy read against someone else's node.
+Viable, because the public RPCs are archive nodes (§6.5). Extend the pipeline with a `backfill` mode that walks eras backwards from `firstEra`, resolving each era's read-block from indexer `EraPaid`/`EraPayout` events, branching on `exposureShape`, caching metadata per `specVersion`, and writing chunks tagged `provenance.source: "backfill-archive"`.
 
-If R2 came back negative, **do nothing here and say so.** Natural accumulation (§6.5) is already running and is the honest answer; a Subscan-sourced backfill introduces a third-party dependency and a fidelity gap for data nobody has asked for yet. Revisit only if users actually request pre-launch history.
+**Ordering is flexible.** This is pipeline-only work that touches no UI — because the client was built for unbounded history in Phase 2, backfill can run at any point from Phase 1 onward without reworking anything. Listed last because the product should work before it has four years of history, not because it depends on the phases before it.
 
-**Acceptance:** backfilled eras are byte-identical on re-run; every backfilled era is provenance-tagged and can be dropped independently; spot-check at least five backfilled eras against Subscan and record the comparison; the era-range control correctly reflects the extended coverage.
+Run it **once, by hand, offline**, at concurrency ≤ 2 with checkpointing. Re-verify archive access first. See §6.5 for why restraint matters here.
+
+**Acceptance:** backfilled eras are byte-identical on re-run; an interrupted run resumes from its checkpoint; every backfilled era is provenance-tagged and independently droppable; at least five spot-checked against Subscan with the comparison recorded; the era-range control and per-chart coverage labels reflect the extended history; the default 90-day view is **unchanged in payload** after backfill — proof that range-based loading works.
 
 ---
 
@@ -1006,7 +1026,7 @@ All nine opening questions are **resolved**. These are settled inputs — build 
 | Q6 | Testnet selectable? | **Mainnet only.** Testnet via env vars for local dev. No UI switcher — the current wallet-driven switching is removed as a correctness hazard | §6.2 |
 | Q7 | Base path? | **Keep `/polymesh-staking-app`**, read from config, never hardcoded | §6.3 |
 | Q8 | Signing in scope? | **Read-only.** Confirmed | §9.6 |
-| Q9 | History beyond `historyDepth`? | **Desirable, deferred to Phase 9.** Default is natural accumulation, which grows history for free from day one with no archive dependency. Backfill is additive and provenance-tagged. Phase 0 probes whether a public archive node exists | §6.5 |
+| Q9 | History beyond `historyDepth`? | **Yes, and now viable** — the public RPCs are archive nodes, so no node of our own is needed. ~1,700 eras available. Backfill is additive, provenance-tagged, run once by hand. The client is built for unbounded history from Phase 2 so timing is free | §6.5, §6.5a |
 
 ### Residual unknowns
 
@@ -1015,11 +1035,12 @@ These do not block anything; they are things to measure rather than decide.
 | # | Unknown | Status | Resolved by |
 |---|---|---|---|
 | R1 | Indexer URLs | ✅ **Closed** — confirmed in §6.2 | — |
+| R2 | Public archive access | ✅ **Closed** — the public RPCs are archive nodes | — |
 | R3 | Brand-kit hexes | ✅ **Closed** — measured in §7.1, palette updated | — |
+| R5 | Telemetry → stash join | ✅ **Closed — not doing it.** Unreliable join, real effort, could not affect rankings anyway | — |
 | R1b | Indexer rate limits | Open — unpublished | Phase 7, empirically |
-| R2 | Public archive endpoint | Open, expected negative — none published | Phase 0 probe (§6.5) |
 | R4 | Real payload of `erasStakersPaged.entries(era)` | Open | Phase 0 baseline — sizes the pipeline's cold run |
-| R5 | Whether telemetry can be joined to stash addresses | Open, best-effort | Phase 5 evaluation (§6.2) |
+| R6 | First era on chain (sizes the backfill) | Open | Phase 0 |
 
 ---
 
