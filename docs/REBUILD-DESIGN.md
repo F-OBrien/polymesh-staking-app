@@ -936,6 +936,10 @@ Global era-range control (30d · 90d · All · custom), URL-encoded, applied to 
 
 Connected: **Position** (bonded, active, unbonding chunks with unlock dates, reward destination) · **Performance** (C23, realised APR versus network average, total earned) · **My operators** (C24, plus a table with a warning row for any operator that is oversubscribed, has raised commission, or has been slashed) · **Payouts** (unclaimed eras, if determinable) · **Export** (CSV of reward history — a regulated-asset chain's users need this for reporting).
 
+**Deviation, Phase 7: there is no unclaimed-eras figure**, and the "if determinable" clause above is why. The cheap implementation — diffing the ledger's `claimedRewards` against the history-depth window — is simply wrong for nominators: that field tracks pages a *validator* has claimed for itself, whereas a nominator earns only in eras where an operator they backed was elected *and* they landed inside its exposure page. Establishing that means reading exposures for every era against every nomination, roughly a thousand storage reads from the browser — the exact pattern this rebuild exists to remove. Since signing is out of scope (Q8) there is no action to take on the answer either. The page states what the indexer knows exactly (every payout received, and when the last one landed) and says nothing about what might be owed. Revisit when signing lands; the answer should then come from `Rewarded` events, not a storage sweep.
+
+**The disconnected state is the primary state, not a fallback.** Address entry and wallet connection sit side by side with equal weight, because inspecting an address that is not yours is most of the reason to look at a staking page. Reward history comes from the indexer over plain `fetch`, so that half of the page works with none of the chain stack loaded.
+
 Reward history comes from the **indexer** (`StakingEvent` where `eventId` is `Rewarded`, filtered by `stashAccount`) — it is not available from current chain state. Paginate; the endpoint caps at 100 results per query.
 
 `@polkadot/api` loads **only** when the user connects.
@@ -1120,6 +1124,10 @@ Next.js 15 App Router scaffold. Tailwind v4 with every token from §7. Light/dar
 Lazy wallet integration, indexer client, `/my-staking` (C23, C24), reward-history CSV export, oversubscription and commission-change warnings. **Also the tier-4 Live toggle** (§6.6a) — same lazy `@polkadot/api` load, the narrow subscription set, and the staking-event filter. Live defaults on for wallet-connected users (they have already paid for the bundle) and off otherwise.
 
 **Acceptance:** `@polkadot/api` appears in **no** bundle loaded before the user connects *or* enables Live (assert in CI against the build manifest); the disconnected state is fully usable, including the manual-address fallback; indexer pagination handles > 100 results; enabling Live upgrades values in place without a re-render storm and never gates first paint; disabling it tears down every subscription (assert no open sockets).
+
+**Met, and how each was checked.** The lazy-load criterion is `npm run assert:lazy`, which greps the built output rather than the manifest — a manifest cannot show a dynamic import hoisted into a shared chunk — and is confirmed at runtime: `/my-staking` disconnected never fetches the 732 KB chain chunk. Pagination is covered by tests including a 250-row walk, and is sequential because the endpoint's rate limit is undocumented. The re-render criterion is met by coalescing subscription patches into one animation frame, since the subscription set emits a patch per storage key per block. Teardown is a property of the design rather than a discipline: one reference-counted connection in `lib/chain/browser-api.ts`, asserted by tests that count open subscriptions and leases after `stop()`.
+
+**What could not be checked here:** the sandbox has no chain egress and no wallet extension, so the query shapes, storage decoding and extension handshake are unverified against mainnet. Every one of them degrades to a specific visible error rather than a wrong number — which is what made shipping them acceptable, and is itself verified. See `docs/STATUS.md`.
 
 ### Phase 8 — Polish and launch
 

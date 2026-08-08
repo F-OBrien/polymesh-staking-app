@@ -17,6 +17,29 @@ import type { EraStatus } from '@/lib/schemas/data';
  * optional live tier upgrades this to slot-exact.
  */
 
+/**
+ * The current time, as a value that is stable within a render.
+ *
+ * `Date.now()` called during render is impure — React 19's lint rules reject it
+ * outright, and correctly: a component that re-renders for an unrelated reason
+ * would silently recompute a duration against a different clock. Anything that
+ * needs "now" for display arithmetic takes it from here instead.
+ *
+ * The default tick is a minute, not a second: callers of this are rendering
+ * dates and elapsed spans, where a per-second re-render is pure waste. Use
+ * `useEraClock` for a countdown.
+ */
+export function useNow(tickMs = 60_000): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), tickMs);
+    return () => clearInterval(id);
+  }, [tickMs]);
+
+  return now;
+}
+
 export interface EraClock {
   /** Fraction of the active era elapsed, clamped to [0,1]. */
   progress: number;

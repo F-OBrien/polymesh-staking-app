@@ -3,7 +3,7 @@
 Working notes for picking this up cold. The plan is `REBUILD-DESIGN.md`; this
 file is only *where we are* and *what to watch out for*.
 
-**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 6 of 8
+**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 7 of 8
 
 ---
 
@@ -19,31 +19,58 @@ file is only *where we are* and *what to watch out for*.
 | 4 | `/network` — returns, stake, participation, decentralisation; URL-encoded era range; bundle brought under budget |
 | 5 | `/operators` directory + 100 prerendered detail pages; sort/filter/CSV; global `?ops=` pin model; `npm run budget` |
 | 6 | `/compare`, `/calculator`, `/slashing`; slash ingestion + `slashes.json`; penalty-curve maths; numeric-x chart |
+| 7 | `/my-staking`; indexer client; lazy wallet + refcounted chain connection; tier-4 Live; `npm run assert:lazy` |
 
-299 unit tests. Every phase green on typecheck, lint, test, knip and build.
+368 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
+and the lazy-load assertion.
 
-## Next: Phase 7 — `/my-staking`
+## Next: Phase 8 — polish and launch
 
-The last page, and the only one that needs a wallet. Three pieces:
+Every page now exists. What remains is the work that makes it shippable:
 
-- **Lazy wallet integration.** `@polkadot/api` must appear in no bundle loaded
-  before the user connects — the lint rule already forbids static imports, and
-  Phase 7's acceptance criterion is a CI assertion against the build output.
-- **An indexer client.** Reward history is not in chain state; it comes from
-  `StakingEvent` where `eventId` is `Rewarded`, filtered by `stashAccount`.
-  The endpoint caps at 100 results, so pagination is required, not optional.
-  Endpoints are in `config/networks.ts`.
-- **The tier-4 Live toggle** (§6.6a), which shares the same lazy load.
+- **SEO and Open Graph** per route, social preview images, sitemap.
+- **A11y audit** — automated (axe), then manual keyboard and screen reader.
+  Charts and the two hand-rolled tables are where to look hardest.
+- **Performance audit** against every §11 budget. `npm run budget` covers JS;
+  LCP, INP, CLS and Lighthouse are still `‹measure›` in the design doc.
+- **Delete `legacy/`.** It has served its purpose as a porting reference, and
+  it is the source of the 64 Dependabot alerts on the default branch.
+- **Restore the full knip check** — see item 3 below. This is an acceptance
+  criterion, not a tidy-up.
+- **Rewrite `README.md`**, and record a before/after comparison in
+  `docs/baseline.md`.
 
-The disconnected state is the part worth getting right, and the acceptance
-criteria say so: it must be fully usable, including the manual-address
-fallback, so anyone can inspect any stash without an extension.
+### Carried into Phase 8 from earlier phases
 
-**`/slashing` has an open follow-up.** The offence table has no type column
-because `validatorSlashInEra` does not record one — see the note in
-`lib/schemas/data.ts`. The indexer being built for `/my-staking` can supply the
-real offence type, and that is the natural moment to add it. Do not infer it
-from the fraction.
+- **`/slashing` has no offence-type column**, because `validatorSlashInEra`
+  does not record one (see the note in `lib/schemas/data.ts`). The indexer
+  client now exists, so the real type can come from `offences` events. Do not
+  infer it from the fraction — the ranges overlap.
+- **Unverified against a real wallet or chain.** See item 5.
+
+## The one big caveat on Phase 7
+
+**Nothing in `/my-staking` has ever talked to a real chain, indexer or wallet
+extension.** The sandbox has no outbound chain egress and no browser extension,
+so what is verified is: the pure logic (68 tests over the indexer client,
+connection lifecycle, live subscriptions and address handling), the bundle
+behaviour, and every failure path — which was exercised for real, because from
+here every endpoint is unreachable.
+
+What is *not* verified is the happy path. Specifically, treat these as
+unproven until someone runs them against mainnet:
+
+1. The GraphQL query shape in `lib/indexer/rewards.ts` — field names,
+   `orderBy: [BLOCK_ID_ASC]`, and the `Rewarded` enum filter.
+2. `readStashPosition` decoding, particularly the `bonded → ledger` controller
+   indirection and the `RewardDestination` variants.
+3. The extension handshake in `lib/chain/wallet.ts`.
+4. Whether the tier-4 subscription names match the current runtime — the
+   `validators` pallet split is handled, but only from the design doc's
+   reading of the Portal.
+
+Every one of these degrades to a visible, specific error rather than a wrong
+number, which is the property that made it acceptable to ship unverified.
 
 Run `npm run budget` after any change that touches an import graph, not just at
 the end of a phase — three separate regressions have come in that way.
@@ -132,10 +159,48 @@ of their consumers. **Phase 8 must restore the full check.** This is an
 acceptance criterion, not a tidy-up: dead code was a real problem in the old app
 (625 unused lines in one file).
 
-### 4. Pages that 404 in nav
+### 4. Every nav route now exists
 
-Only `/my-staking` remains, which lands in Phase 7. Next prefetch will log a 404
-for it until then.
+Nothing in the nav or footer 404s any more. Resolved in Phase 7.
+
+### 5. The chain stack must stay lazy — and it is checked
+
+`@polkadot/api` and friends are **runtime dependencies** now, not dev-only, so
+the browser can load them. They must never appear in a bundle fetched before
+the user connects a wallet, enters an address or enables Live.
+
+Two things enforce this, and both are needed:
+
+- The **lint rule** in `eslint.config.mjs` bans static `@polkadot/*` imports.
+- **`npm run assert:lazy`** greps the built output. This is the one that
+  matters: a lint rule cannot see a *dynamic* import getting hoisted into a
+  shared chunk because two routes happened to reference it, which is how a
+  megabyte lands on the critical path without anyone writing a bad import.
+
+Measured: `/my-staking` disconnected downloads no part of the 732 KB chain
+chunk; it arrives only once a stash is set.
+
+**Note on the assertion's markers.** They are package specifier strings
+(`@polkadot/api`), not exported identifiers (`ApiPromise`). The first attempt
+used identifiers and produced a false positive, because
+`const { ApiPromise } = await import('@polkadot/api')` leaves the destructured
+name in the *calling* chunk while the library sits in a separate lazy one. The
+script also self-checks that its markers still match something in the build —
+an assertion that can no longer fail is worse than no assertion.
+
+### 6. Connection lifecycle
+
+One websocket, reference-counted, in `lib/chain/browser-api.ts`. Wallet reads,
+stash reads and Live all lease the same connection; it opens on the first lease
+and closes on the last. That is what makes "turning Live off tears down every
+subscription" true without each caller having to remember it — and what stops
+turning Live off from disconnecting a wallet session.
+
+**Always bound a browser dial.** `WsProvider` auto-reconnects by default, so
+`ApiPromise.create` against an unreachable node never rejects — it retries
+silently forever while the UI shows a skeleton. That is exactly the "spinner
+turning forever with no message" failure this rebuild exists to remove, and it
+was reproduced here before being fixed with a 12s timeout and `retry: false`.
 
 ---
 

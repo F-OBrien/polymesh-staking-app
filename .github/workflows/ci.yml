@@ -43,3 +43,15 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Both of these check the *built output* rather than the source, because
+      # the failures they catch are ones a lint rule structurally cannot see: a
+      # dependency reaching the critical path through a shared chunk.
+      - name: Per-route JS budget
+        run: npm run budget
+
+      # The whole performance argument rests on this. The previous app shipped
+      # @polkadot/api and the Polymesh SDK to every visitor; here a visitor who
+      # never connects a wallet must never download any of it.
+      - name: Chain stack stays lazy
+        run: npm run assert:lazy
