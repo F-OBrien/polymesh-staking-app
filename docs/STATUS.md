@@ -3,7 +3,7 @@
 Working notes for picking this up cold. The plan is `REBUILD-DESIGN.md`; this
 file is only *where we are* and *what to watch out for*.
 
-**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 3 of 8
+**Branch:** `claude/polymesh-staking-rebuild-tetxaz` · **Last phase:** 4 of 8
 
 ---
 
@@ -16,35 +16,49 @@ file is only *where we are* and *what to watch out for*.
 | 1c | Ingestion pipeline, chain compat layer, two scheduled workflows |
 | 2 | Design system, app shell, client data layer, `/about` |
 | 3 | Chart kit: banded multi-series, frame + table toggle, legend, sparkline, `/kitchen-sink` |
+| 4 | `/network` — returns, stake, participation, decentralisation; URL-encoded era range; bundle brought under budget |
 
 218 unit tests. Every phase green on typecheck, lint, test, knip and build.
 
-## Next: Phase 4 — `/network`
+## Next: Phase 5 — `/operators`
 
-Charts C1–C10 from the design doc, plus the era-range control with URL state.
-Everything it needs already exists: `EraSeriesChart` is the composition to
-reuse, and `useEraSeries()` supplies range-resolved, stitched data.
+The sortable operator directory (the single most useful artefact on a staking
+site, and entirely absent from the old app), operator detail pages, and the
+global pin/selection model encoded in the URL.
 
-**Settle the bundle question here** (see below) — it is the one open item that
-gets worse the longer it is left.
+`cmdk` is already installed for the operator combobox. `useEraWindow` in
+`components/era-range-control.tsx` is the pattern to follow for URL state —
+add a `?ops=` param alongside it.
+
+Watch the bundle: the operator table renders a sparkline per row, which is why
+`Sparkline` is deliberately free of d3 (see below).
 
 ---
 
 ## Open items
 
-### 1. Chart pages exceed the JS budget
+### 1. Bundle — resolved for real routes, `/kitchen-sink` exempt
 
-`/kitchen-sink` measures **218 KB gzip against a 200 KB budget**. Home is
-unaffected (191 KB) because chart code is route-split, but `/network` will land
-where kitchen-sink is.
+| route | critical-path JS (gzip) |
+|---|---|
+| `/` | 193.9 KB |
+| `/about` | 185.4 KB |
+| `/network` | 199.2 KB |
+| `/kitchen-sink` | 221.5 KB — over, and deliberately so |
 
-Measured contributions: `d3-scale` + `d3-shape` **14.4 KB**, Radix Tabs
-**9.0 KB**. The framework floor is ~182 KB (`/about`, which has no application
-code at all).
+Three changes got `/network` from 215 KB to 199 KB:
 
-Not yet fixed because the right approach depends on Phase 4's layout. Most
-likely: lazy-load below-the-fold charts so only the first is on the critical
-path. Do not raise the budget again without measuring first.
+1. `next/dynamic` splits the chart kit into its own chunk (`LazyChart`), and an
+   IntersectionObserver defers mounting until scrolled near.
+2. **`Sparkline` was rewritten without d3.** It reused `valueScale`/`linePath`,
+   which quietly put d3-scale + d3-shape (14.4 KB) on the critical path of every
+   page with a stat tile — defeating the split entirely. Keep it
+   dependency-free; Phase 5 renders one per table row.
+3. The decentralisation section is code-split — it is below the fold and carries
+   its own Lorenz chart.
+
+`/kitchen-sink` is an internal `noindex` workbench that loads every primitive at
+once by design. It is not held to the budget, and should not be optimised.
 
 ### 2. `legacy/` still present
 
