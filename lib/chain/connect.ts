@@ -14,6 +14,8 @@ export interface ConnectOptions {
   endpoint: string;
   /** Attempts before giving up. Public endpoints refuse connections under load. */
   retries?: number;
+  /** Cap on a single attempt, so a silent socket cannot hang the job. */
+  readyTimeoutMs?: number;
 }
 
 export interface ChainConnection {
@@ -23,7 +25,11 @@ export interface ChainConnection {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function connect({ endpoint, retries = 4 }: ConnectOptions): Promise<ChainConnection> {
+export async function connect({
+  endpoint,
+  retries = 4,
+  readyTimeoutMs = 45_000,
+}: ConnectOptions): Promise<ChainConnection> {
   const { ApiPromise, WsProvider } = await import('@polkadot/api');
   type ProviderInterface = ConstructorParameters<typeof ApiPromise>[0] extends
     { provider?: infer P } | undefined
@@ -33,21 +39,29 @@ export async function connect({ endpoint, retries = 4 }: ConnectOptions): Promis
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    let provider: InstanceType<typeof WsProvider> | undefined;
+
     try {
-      // autoConnectMs: 0 disables the provider's own reconnect loop so a failed
-      // attempt surfaces here, where it can be counted and backed off, rather
+      // `autoConnectMs: 0` disables the provider's *own* retry loop, so a
+      // failure surfaces here where it can be counted and backed off rather
       // than retrying invisibly forever.
-      const provider = new WsProvider(endpoint, 0);
+      //
+      // It also disables connecting at all — the constructor only dials when
+      // `autoConnectMs > 0` — so the explicit `connect()` below is required,
+      // not belt-and-braces. Without it `ApiPromise.create` waits on a socket
+      // that was never opened and the process hangs with no output.
+      provider = new WsProvider(endpoint, 0);
+      await provider.connect();
 
       // ProviderInterface declares `ttl: number | null`; WsProvider implements
       // it as an optional property. The two are identical at runtime, but
       // `exactOptionalPropertyTypes` treats them as incompatible — an upstream
       // typing quirk, not a defect here.
-      const api = await ApiPromise.create({
-        provider: provider as ProviderInterface,
-        noInitWarn: true,
-      });
-      await api.isReady;
+      const api = await withTimeout(
+        ApiPromise.create({ provider: provider as ProviderInterface, noInitWarn: true }),
+        readyTimeoutMs,
+        `Timed out after ${readyTimeoutMs / 1000}s waiting for ${endpoint} to become ready`,
+      );
 
       return {
         api,
@@ -57,11 +71,16 @@ export async function connect({ endpoint, retries = 4 }: ConnectOptions): Promis
       };
     } catch (error) {
       lastError = error;
+      // Release the socket before retrying; otherwise each failed attempt
+      // leaks an open connection and the process will not exit on its own.
+      await provider?.disconnect().catch(() => undefined);
+
       if (attempt < retries) {
         const backoffMs = 2000 * 2 ** attempt;
         console.warn(
-          `Connection to ${endpoint} failed (attempt ${attempt + 1}/${retries + 1}); ` +
-            `retrying in ${backoffMs / 1000}s`,
+          `Connection to ${endpoint} failed (attempt ${attempt + 1}/${retries + 1}): ` +
+            `${error instanceof Error ? error.message : String(error)}. ` +
+            `Retrying in ${backoffMs / 1000}s`,
         );
         await sleep(backoffMs);
       }
@@ -71,6 +90,28 @@ export async function connect({ endpoint, retries = 4 }: ConnectOptions): Promis
   throw new Error(`Could not connect to ${endpoint} after ${retries + 1} attempts`, {
     cause: lastError,
   });
+}
+
+/**
+ * Fails a promise that never settles.
+ *
+ * A websocket can open and then go quiet — the chain never answers the metadata
+ * request — in which case `ApiPromise.create` waits indefinitely. An unbounded
+ * hang is the worst failure mode for a scheduled job: it burns the whole CI
+ * timeout and reports nothing useful.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**

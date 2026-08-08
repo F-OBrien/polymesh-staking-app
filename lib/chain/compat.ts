@@ -354,11 +354,44 @@ export function readMaxExposurePageSize(api: ApiLike): number | null {
  * file is keyed by DID, while everything in staking is keyed by stash address.
  *
  * The storage item was renamed between runtimes (`keyToIdentityIds` ->
- * `keyRecords`), and the newer one wraps the DID in an enum whose shape differs
- * between primary and secondary keys. Both are handled; an unresolvable account
- * returns null rather than throwing, because a validator with no registered
- * identity is normal and must not fail a run.
+ * `keyRecords`), and the newer one wraps the DID in an enum with a variant per
+ * key type. An unresolvable account returns null rather than throwing, because
+ * a validator with no registered identity is normal and must not fail a run.
+ *
+ * Every candidate is checked against `isDid` before being returned. That guard
+ * is not defensive padding — it caught a real bug: `SecondaryKey` was assumed
+ * to hold a `(did, permissions)` tuple, so indexing `[0]` sliced characters out
+ * of the DID string and produced `"226"`. A malformed value reaching the
+ * registry would have failed the whole ingest over a display name.
  */
+const DID_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+
+function isDid(value: unknown): value is string {
+  return typeof value === 'string' && DID_PATTERN.test(value);
+}
+
+/**
+ * Coerces a codec to a DID string.
+ *
+ * Accepts either the value itself or a tuple whose first element is the DID,
+ * since variants have differed on that point across runtimes.
+ */
+function toDid(candidate: unknown): string | null {
+  if (candidate == null) return null;
+
+  const direct = String(candidate);
+  if (isDid(direct)) return direct;
+
+  // polkadot-js tuples extend Array, so this distinguishes a real tuple from a
+  // plain H256 (a Uint8Array subclass, for which Array.isArray is false).
+  if (Array.isArray(candidate) && candidate.length > 0) {
+    const first = String(candidate[0]);
+    if (isDid(first)) return first;
+  }
+
+  return null;
+}
+
 export async function readIdentityForAccount(
   api: ApiLike,
   address: string,
@@ -370,14 +403,15 @@ export async function readIdentityForAccount(
     if (record.isNone) return null;
 
     const value = record.unwrap();
-    if (value.isPrimaryKey) return value.asPrimaryKey.toString();
-    if (value.isSecondaryKey) return value.asSecondaryKey[0].toString();
+    if (value.isPrimaryKey) return toDid(value.asPrimaryKey);
+    if (value.isSecondaryKey) return toDid(value.asSecondaryKey);
+    // `MultiSigSignerKey` and any future variant: no owning identity to report.
     return null;
   }
 
   if (identity?.keyToIdentityIds != null) {
     const did = await identity.keyToIdentityIds(address);
-    return did.isNone ? null : did.unwrap().toString();
+    return did.isNone ? null : toDid(did.unwrap());
   }
 
   return null;

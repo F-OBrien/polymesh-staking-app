@@ -50,7 +50,7 @@ import type {
 } from '../../lib/schemas/data';
 import { contentHash, DataStore } from './store';
 import { buildOperatorRegistry } from './operators';
-import { buildRollup } from './rollup';
+import { analyseCoverage, buildRollup } from './rollup';
 
 /** Concurrent era fetches. Low on purpose — see the module note. */
 const ERA_CONCURRENCY = 3;
@@ -338,6 +338,31 @@ function reconstructRecord(chunk: Chunk, index: number, tokenDecimals: number): 
   };
 }
 
+/**
+ * Contiguous era span actually present in the chunks on disk.
+ *
+ * Reads the chunk files rather than believing the manifest, so a corrupt or
+ * out-of-date cursor cannot strand history. Missing or unreadable chunks are
+ * skipped: a gap is exactly what this is meant to detect.
+ */
+async function readStoredCoverage(
+  store: DataStore,
+  refs: readonly ChunkRef[],
+): Promise<{ firstEra: number; lastEra: number } | null> {
+  const eras: number[] = [];
+
+  for (const ref of [...refs].sort((a, b) => a.from - b.from)) {
+    try {
+      const chunk = await store.readChunk(ref.from);
+      if (chunk) eras.push(...chunk.eras);
+    } catch {
+      // Unreadable chunk: treat as absent so the run refills it.
+    }
+  }
+
+  return analyseCoverage(eras).coverage;
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -363,9 +388,32 @@ async function main(): Promise<void> {
     // The active era is still accruing; only the era before it is final.
     const lastCompleteEra = activeEra.index - 1;
 
+    // Oldest era still held in state. Verified against mainnet: with
+    // activeEra 1746 and historyDepth 84, era 1663 has data and 1662 does not,
+    // so the window is `activeEra - historyDepth + 1` and is anchored on the
+    // ACTIVE era, not the last complete one. Getting this wrong by even one
+    // era produces empty records that look like a chain outage.
+    const oldestRetainedEra = Math.max(0, activeEra.index - historyDepth + 1);
+
+    // The resume point is recomputed from the chunks on disk rather than read
+    // from the manifest. The manifest is derived data, so trusting its cursor
+    // means a single bad write — from a crash, or from an older version of this
+    // script — strands every era after it, permanently and silently. Deriving
+    // from the chunks makes the pipeline self-healing: whatever the manifest
+    // claims, we resume from the end of the contiguous span we can actually
+    // see.
+    const storedCoverage = await readStoredCoverage(store, manifest?.chunks ?? []);
+    if (manifest && storedCoverage && manifest.lastCompleteEra !== storedCoverage.lastEra) {
+      console.warn(
+        `Manifest claims eras through ${manifest.lastCompleteEra}, but only ` +
+          `${storedCoverage.firstEra}-${storedCoverage.lastEra} is contiguous on disk. ` +
+          'Resuming from the data, not the manifest.',
+      );
+    }
+
     const firstWanted = options.full
-      ? Math.max(0, lastCompleteEra - historyDepth)
-      : (manifest?.lastCompleteEra ?? Math.max(0, lastCompleteEra - historyDepth)) + 1;
+      ? oldestRetainedEra
+      : Math.max(oldestRetainedEra, (storedCoverage?.lastEra ?? oldestRetainedEra - 1) + 1);
 
     if (firstWanted > lastCompleteEra) {
       console.log(
@@ -402,12 +450,30 @@ async function main(): Promise<void> {
       `Ingesting eras ${wanted[0]}-${wanted.at(-1)} (${wanted.length}) at concurrency ${ERA_CONCURRENCY}`,
     );
 
-    const records = await mapWithConcurrency(wanted, ERA_CONCURRENCY, async (era) => {
+    const fetched = await mapWithConcurrency(wanted, ERA_CONCURRENCY, async (era) => {
       const startSeconds = activeEraStartSeconds - (activeEra.index - era) * eraSeconds;
       const record = await fetchEra(api, era, Math.floor(startSeconds), totalIssuance);
+
+      // An era with neither points nor exposures has been pruned from state.
+      // That is expected right at the edge of the history window — and the edge
+      // can move mid-run, since a long ingest may straddle an era rollover.
+      // Writing the empty record would put a false gap in the series that looks
+      // like a chain outage, so it is dropped instead.
+      if (record.totalPoints <= 0n && record.operators.length === 0) {
+        console.warn(`  era ${era}: no data on chain (aged out of history) — skipping`);
+        return null;
+      }
+
       console.log(`  era ${era}: ${record.operators.length} operators`);
       return record;
     });
+
+    const records = fetched.filter((record): record is EraRecord => record !== null);
+
+    if (records.length === 0) {
+      console.log('No eras with data in the requested range. Nothing written.');
+      return;
+    }
 
     const tokenDecimals = api.registry.chainDecimals[0] as number;
 
@@ -431,17 +497,32 @@ async function main(): Promise<void> {
     }
 
     const chunks = [...refs.values()].sort((a, b) => a.from - b.from);
-    const firstEra = manifest?.firstEra ?? wanted[0]!;
 
     // --- operators registry ---
     const registry = await buildOperatorRegistry({
       api,
       store,
       seenAddresses: new Set(records.flatMap((r) => r.operators.map((o) => o.address))),
-      firstEra: wanted[0]!,
-      lastEra: lastCompleteEra,
+      firstEra: records[0]!.era,
+      lastEra: records.at(-1)!.era,
     });
     await store.writeOperators(registry);
+
+    // --- weekly rollup, rebuilt from every chunk on disk ---
+    // Runs BEFORE the manifest because it reports the era span actually stored,
+    // which is what the manifest's cursor must record.
+    const rollup = await buildRollup(store, chunks);
+
+    // The manifest's era span is the incremental cursor, so it must describe
+    // what we have *stored*, never what the chain currently offers. Recording
+    // the chain's `lastCompleteEra` after a bounded run (`--max-eras`, or a run
+    // that hit an error partway) made the next run believe it was up to date
+    // and skip every era in between — silently, and with no gap visible in the
+    // manifest to hint at it.
+    const coverage = rollup.coverage ?? {
+      firstEra: records[0]!.era,
+      lastEra: records.at(-1)!.era,
+    };
 
     // --- manifest ---
     await store.writeManifest({
@@ -454,19 +535,27 @@ async function main(): Promise<void> {
       },
       generatedAt: new Date().toISOString(),
       activeEra: activeEra.index,
-      firstEra,
-      lastCompleteEra,
+      firstEra: coverage.firstEra,
+      lastCompleteEra: coverage.lastEra,
       erasPerYear,
       chunkSize: CHUNK_SIZE,
       chunks,
     });
 
-    // --- weekly rollup, rebuilt from every chunk on disk ---
-    await buildRollup(store, chunks);
+    if (rollup.gaps.length > 0) {
+      console.warn(
+        `  Gaps after the contiguous span: ${rollup.gaps
+          .map((g) => (g.from === g.to ? `${g.from}` : `${g.from}-${g.to}`))
+          .join(', ')}. The cursor stops at ${coverage.lastEra}, so the next run refills them.`,
+      );
+    }
 
+    const behind = lastCompleteEra - coverage.lastEra;
     console.log(
-      `Done. ${wanted.length} era(s) ingested; ${chunks.length} chunk(s); ` +
-        `current era ${currentEra}, active ${activeEra.index}.`,
+      `Done. ${records.length} era(s) ingested; ${chunks.length} chunk(s); ` +
+        `contiguous ${coverage.firstEra}-${coverage.lastEra}` +
+        (behind > 0 ? `; ${behind} era(s) behind the chain — run again` : '') +
+        `. Current era ${currentEra}, active ${activeEra.index}.`,
     );
   } finally {
     await disconnect();

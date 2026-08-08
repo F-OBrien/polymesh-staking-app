@@ -39,10 +39,32 @@ interface EraRow {
  */
 export type RollupStore = Pick<DataStore, 'readChunk' | 'writeRollup'>;
 
+export interface RollupResult {
+  bytes: number;
+  /**
+   * The **contiguous** era span stored on disk, starting at the oldest era we
+   * hold, or null when there is none.
+   *
+   * The manifest's `firstEra`/`lastCompleteEra` are taken from this rather than
+   * from the chain's current era, because they are the incremental cursor:
+   * recording an era we have not actually stored makes the next run believe it
+   * is up to date and silently skip everything in between.
+   *
+   * Contiguity matters as much as the endpoints. A min/max span cannot see an
+   * interior gap, so a run that stored eras 1663-1668 and 1746 would report
+   * "1663-1746" and permanently strand the 77 eras between. Stopping at the
+   * first gap makes the next run re-fetch from there, so a partial or
+   * interrupted ingest heals itself instead of silently losing history.
+   */
+  coverage: { firstEra: number; lastEra: number } | null;
+  /** Eras missing inside the stored span, for reporting. */
+  gaps: { from: number; to: number }[];
+}
+
 export async function buildRollup(
   store: RollupStore,
   chunks: readonly ChunkRef[],
-): Promise<number> {
+): Promise<RollupResult> {
   const rows: EraRow[] = [];
 
   for (const ref of [...chunks].sort((a, b) => a.from - b.from)) {
@@ -92,5 +114,33 @@ export async function buildRollup(
     activeOperators: buckets.map((b) => Math.round(mean(b.map((r) => r.activeOperators)))),
   };
 
-  return store.writeRollup(rollup);
+  const bytes = await store.writeRollup(rollup);
+
+  return { bytes, ...analyseCoverage(rows.map((r) => r.era)) };
+}
+
+/**
+ * Finds the contiguous run from the oldest stored era, and any gaps after it.
+ * `eras` must be ascending; duplicates are tolerated.
+ */
+export function analyseCoverage(eras: readonly number[]): Pick<RollupResult, 'coverage' | 'gaps'> {
+  if (eras.length === 0) return { coverage: null, gaps: [] };
+
+  const unique = [...new Set(eras)].sort((a, b) => a - b);
+  const firstEra = unique[0]!;
+
+  let contiguousEnd = firstEra;
+  const gaps: { from: number; to: number }[] = [];
+
+  for (let i = 1; i < unique.length; i += 1) {
+    const previous = unique[i - 1]!;
+    const current = unique[i]!;
+    if (current === previous + 1) {
+      if (gaps.length === 0) contiguousEnd = current;
+    } else {
+      gaps.push({ from: previous + 1, to: current - 1 });
+    }
+  }
+
+  return { coverage: { firstEra, lastEra: contiguousEnd }, gaps };
 }
