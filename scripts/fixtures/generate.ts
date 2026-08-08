@@ -207,7 +207,12 @@ function buildOperators(rng: () => number, count: number, firstEra: number, last
 
     operators.push({
       address,
-      baseStake: logNormal(rng, 4_000_000, 0.8),
+      // sigma 0.35, not 0.8. APR is inversely proportional to stake for equal
+      // points, so a wide stake spread produces a p10-p90 APR band spanning
+      // 0-100% — which squashes every real line into the bottom of the plot and
+      // makes the fixture useless as a visual baseline. Real mainnet exposures
+      // are far more even (observed net APR ~19.8%).
+      baseStake: logNormal(rng, 4_000_000, 0.35),
       // Most operators cluster low; a few charge a lot.
       commission: rng() < 0.85 ? between(rng, 0, 0.15) : between(rng, 0.15, 0.6),
       reliability: between(rng, 0.82, 1.12),

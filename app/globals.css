@@ -142,3 +142,14 @@ svg text {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---- Chart view toggle -------------------------------------------------
+ * Radix stamps `data-state="active"`, which an inline style cannot respond
+ * to, so the selected state lives here. Background and weight carry it —
+ * never colour alone.
+ */
+[data-chart-view][data-state='active'] {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
