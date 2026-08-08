@@ -323,17 +323,27 @@ It has **no era-level aggregate entities** — no `erasRewardPoints`, no exposur
 - **Era aggregates must come from our own RPC snapshot pipeline** (§6.3).
 - **The indexer is still valuable** for the nominator view (§9.6): reward payment history per stash, bonding/unbonding events, and nomination changes over time — data that is *not* available from current chain state at all, since it is historical event data. Use it there, lazily, client-side.
 
-**Endpoints (Q5).** The authoritative list is <https://developers.polymesh.network/developer-resources/links/> — read it at Phase 0 and put the values in config, never inline. That page was egress-blocked from the build environment, so the following are *unverified starting points*, not facts:
+**Endpoints (Q5) — R1 resolved.** Confirmed against <https://developers.polymesh.network/developer-resources/links/>. Put these in `config/networks.ts`, never inline.
 
-| | Endpoint | Confidence |
+| Role | Mainnet | Testnet |
 |---|---|---|
-| Mainnet RPC (ws) | `wss://mainnet-rpc.polymesh.network/` | High — matches `constants/constants.ts` and the docs |
-| Testnet RPC (ws) | `wss://testnet-rpc.polymesh.live/` | High — same |
-| Mainnet indexer | `https://mainnet-graphql.polymesh.network/` | **Unverified** — from a secondary source |
-| Testnet indexer | *(listed on the links page)* | **Unverified** |
-| Archive node | *(none identified)* | See §6.5 |
+| RPC (WebSocket) | `wss://mainnet-rpc.polymesh.network/` | `wss://testnet-rpc.polymesh.live/` |
+| RPC (HTTP) | `https://mainnet-rpc.polymesh.network/http` | `https://testnet-rpc.polymesh.live/http` |
+| **SubQuery GraphQL** | `https://mainnet-graphql.polymesh.network/` | `https://testnet-graphql.polymesh.live/` |
+| REST API | `https://mainnet-restapi.polymesh.network/` | `https://testnet-restapi.polymesh.live/` |
+| Explorer (Subscan) | `https://polymesh.subscan.io/` | `https://polymesh-testnet.subscan.io/` |
+| **Archive node** | *not published* | *not published* |
 
-Rate limits are documented as existing but not quantified. The client must therefore treat the indexer as unreliable by design: **paginate at 100 results, retry with exponential backoff and jitter on 429, and degrade gracefully** — `/my-staking` shows position and current operators from chain state even when reward history fails to load. Never let an indexer failure blank the page. Measure the actual limit empirically in Phase 7 and record it in `docs/data-sources.md`.
+The mainnet RPC and indexer URLs match what `constants/constants.ts` already uses, and the earlier-guessed indexer URL was correct.
+
+Rate limits exist but are not quantified anywhere official. The client must therefore treat the indexer as unreliable by design: **paginate at 100 results, retry with exponential backoff and jitter on 429, and degrade gracefully** — `/my-staking` shows position and current operators from chain state even when reward history fails to load. Never let an indexer failure blank the page. Measure the real limit empirically in Phase 7 and record it in `docs/data-sources.md`.
+
+**No archive endpoint is published**, which is a meaningful signal for R2 — see §6.5.
+
+**Two optional sources worth knowing about.** Neither is on the critical path; both are nice-to-have enrichment:
+
+- **Network telemetry** — `https://stats.polymesh.network/`. Standard Substrate telemetry: node software version, uptime, peer count, block height, sync state, per node. This is the only source of *node-health* signal available anywhere; everything else in this document is on-chain economics. It would let an operator detail page answer "is this node actually well-run?" rather than only "did it earn points?" **Caveat:** telemetry is keyed by self-reported node name, not stash address, so the join to an operator is fuzzy and opt-in — nodes can disable telemetry entirely. Treat any match as best-effort, label it as self-reported, and never let it affect a ranking. Evaluate in Phase 5; drop it without ceremony if the join proves unreliable.
+- **REST API** — a friendlier wrapper over the same chain data. Not needed (the pipeline speaks to the node directly), but useful for one-off verification when debugging a metric.
 
 **Network configuration (Q6).** Mainnet only for v1. Testnet is reachable for local development through env vars (`POLYMESH_RPC_URL`, `POLYMESH_INDEXER_URL`, `POLYMESH_NETWORK`) consumed by both the pipeline and the build — never a UI network switcher, and never a hardcoded URL. Because `manifest.json` is keyed by `genesisHash`, adding a second network later is purely additive: a second data directory and a route prefix. The current app's passive "whatever network the wallet extension happens to be on" behaviour is removed — it was a silent correctness hazard, since wallet-driven network changes wiped the cache and re-fetched everything.
 
@@ -515,14 +525,16 @@ You flagged the real constraint here, and it is the reason this is a separate, l
 
 **The zero-risk path, which we take by default:** from the day the pipeline first runs, every era it ingests is ours permanently. History therefore *grows on its own* at no cost and with no archive dependency — a year from now we have a year of data regardless of what `historyDepth` says. Backfill is strictly additive on top of that, and the `provenance.source` field means backfilled eras are always distinguishable from natively-ingested ones (important: if a backfill turns out to be subtly wrong, we can drop exactly those eras).
 
-**Phase 0 must answer one question before any of this is scheduled:** is a public Polymesh archive endpoint available? Concrete test — take a block hash from an era well past `historyDepth` and run:
+**Phase 0 must answer one question before any of this is scheduled:** is a public Polymesh archive endpoint available? The official resources page publishes **no archive endpoint** (§6.2), and public Substrate RPCs are conventionally run pruned — so the working expectation is *no*, and the probe exists to confirm rather than discover. Concrete test — take a block hash from an era well past `historyDepth` and run:
 
 ```ts
 const at = await api.at(oldBlockHash);
 await at.query.staking.erasRewardPoints(oldEra);
 ```
 
-If the node is pruned this fails with a *"State already discarded"* / unknown-block error. Record the result in `docs/baseline.md`. If no public archive node exists, backfill requires either running one (non-trivial: full Polymesh state history) or falling back to Subscan — at which point the honest answer may be that natural accumulation is good enough, and that is a perfectly acceptable outcome.
+If the node is pruned this fails with a *"State already discarded"* / unknown-block error. Record the result in `docs/baseline.md`.
+
+If it fails — the likely outcome — backfill means either running an archive node ourselves (non-trivial: full Polymesh state history, and ongoing) or falling back to Subscan. **The honest answer is then that natural accumulation is good enough**, and that is a perfectly acceptable place to land. Do not run an archive node for this.
 
 **UI consequence, whichever way it goes:** the era-range control must never silently imply data exists where it does not. Ranges beyond available history are disabled with an explanatory tooltip, and charts state their actual coverage ("84 eras available — history accumulates daily from 2026-08-08").
 
@@ -591,18 +603,32 @@ Versions verified against the npm registry at time of writing. Pin majors; let m
 
 ## 7. Design system
 
-### 7.1 Brand
+### 7.1 Brand — official palette, measured
 
-Taken from `public/polymesh-logo.svg`: deep purple **`#4A125E`**, magenta **`#FF2E72`**. These anchor the identity. `#FF2E72` is too light for data marks on a white surface (contrast ≈ 2.3:1), so the data palette uses a darker step of the same hue.
+**R3 resolved.** The official kit specifies four named swatches plus a gradient:
 
-**On the official brand kit (Q2).** A kit exists at `polymesh.network/brand-kit` (plus the shared Drive folder), and it is thin and not built with accessibility in mind. Treat it as **a statement of hue intent, not a source of token values.** The rule for this project:
+| Name | Hex | vs light `#FCFBFC` | vs dark `#141019` | Verdict |
+|---|---|---|---|---|
+| **Poly Pink** | `#EC4673` | **3.58:1** | **5.09:1** | ✅ Works in both modes. **Categorical slot 1 and focus ring** |
+| **Poly Purple** | `#43195B` | **13.31:1** | 1.37:1 | Light-mode identity ink only — **unusable on dark** |
+| **Poly Fuchsia** | `#FA75F8` | 2.27:1 | **8.02:1** | Dark-mode accent only — too light for light mode |
+| **Poly Pink Light** | `#FAD1DC` | 1.34:1 | 13.61:1 | Light-mode surface tint, or dark-mode text. **Never a data colour** |
+| *gradient stops* | `#FF2E72` → `#4A125E` | 3.46:1 / 13.22:1 | 5.27:1 / 1.38:1 | The logo SVG's actual values |
 
-- **Logo, wordmark, and clear-space rules: follow the kit exactly.** Identity is theirs.
-- **UI and data colours: use §7.2–7.4, which are validated.** Where a brand value fails a contrast or CVD gate, the validated step wins, and the deviation is recorded in `docs/brand-deviations.md` with the measured number that forced it.
+Two observations worth recording.
 
-This is the normal relationship between a brand palette and a data palette. Brand colours are chosen to look right on a poster; data colours have to survive being eight thin lines next to each other, in dark mode, viewed by someone with deuteranopia. Those are different constraints, and pretending otherwise is how the current app ended up with 0.2-alpha lines on white.
+**The kit is internally inconsistent.** The named swatches (`#EC4673`, `#43195B`) and the gradient stops (`#FF2E72`, `#4A125E` — which are what `public/polymesh-logo.svg` actually contains) are near-but-not-equal pairs. Neither is wrong; they were evidently specified at different times. **We use the named swatches**, because they are what the kit presents as the palette, and because `#EC4673` happens to validate slightly better. The logo asset keeps its own gradient untouched.
 
-*Phase 0 task:* the brand kit was unreachable from the build environment (egress-blocked). Extract the exact hex values and any typographic rules from the kit and the Drive folder, record them in `docs/brand-deviations.md`, and reconcile against §7.2–7.4. If the kit's purple/magenta differ from the logo SVG values above, **the kit wins for identity surfaces** and the validated palette is re-derived from the kit's hues — re-run `validate_palette.js` and update §7.3 with the new results.
+**Purple and Fuchsia are a mode pair, though the kit never says so.** Poly Purple is superb on light (13.3:1) and invisible on dark (1.37:1); Poly Fuchsia is the exact inverse (2.27 / 8.02). That gives a clean, entirely on-brand light/dark accent pairing at no cost — used in §7.2.
+
+*Correction to an earlier draft of this document:* it claimed `#FF2E72` was unusable for data marks at ≈2.3:1. Measured, it is **3.46:1** and does clear the 3:1 bar. The reason we use `#EC4673` is that it is the official named swatch, not a contrast failure.
+
+**Relationship to the kit (Q2).** The kit is thin and not built with accessibility in mind, so:
+
+- **Logo, wordmark, and clear-space rules: follow it exactly.** Identity is theirs. Observe the stated don'ts — no shadows, no recolouring, no low-resolution use, no containers or rotation.
+- **UI and data colours: §7.2–7.4 govern**, and every brand value used there has been measured above. Where a brand colour cannot carry a role (Purple on dark, Fuchsia on light), the validated substitute wins and the reason is the measurement in this table.
+
+Brand colours are chosen to look right on a poster; data colours have to survive being eight thin lines beside each other, in dark mode, read by someone with deuteranopia. The good news here is that the two requirements collided far less than expected — Poly Pink carries slot 1 in both modes unmodified.
 
 ### 7.2 Surfaces and ink
 
@@ -617,8 +643,9 @@ This is the normal relationship between a brand palette and a data palette. Bran
 | Gridline (hairline) | `#E6E2EA` | `#2A2432` |
 | Baseline / axis | `#C4BFCC` | `#3A3344` |
 | Border (hairline ring) | `rgba(20,16,26,0.10)` | `rgba(255,255,255,0.10)` |
-| Brand accent (UI, not data) | `#4A125E` | `#C77CE8` |
-| Focus ring | `#FF2E72` | `#FF5C8F` |
+| Brand accent (UI, not data) | Poly Purple `#43195B` | Poly Fuchsia `#FA75F8` |
+| Brand surface tint | Poly Pink Light `#FAD1DC` | — |
+| Focus ring | Poly Pink `#EC4673` | Poly Pink `#EC4673` |
 
 Dark mode is a **selected** palette, not an inversion. Define light values on bare `:root`; redefine dark under **both** `@media (prefers-color-scheme: dark)` guarded with `:root:not([data-theme="light"])` **and** `:root[data-theme="dark"]`, so an explicit toggle wins in both directions.
 
@@ -628,7 +655,7 @@ Eight slots, assigned **in fixed order, never cycled**. Colour follows the **ent
 
 | Slot | Hue | Light | Dark |
 |---|---|---|---|
-| 1 | brand magenta | `#D6246A` | `#F0417C` |
+| 1 | **Poly Pink (brand)** | `#EC4673` | `#EC4673` |
 | 2 | blue | `#2A78D6` | `#4A93EB` |
 | 3 | amber | `#E08A00` | `#C98500` |
 | 4 | aqua | `#1BAF7A` | `#199E70` |
@@ -641,7 +668,8 @@ Eight slots, assigned **in fixed order, never cycled**. Colour follows the **ent
 
 - Light, 8 slots, adjacent pairs — **all checks pass.** Worst adjacent CVD ΔE **9.3** (protan, aqua↔amber); worst adjacent normal-vision ΔE **22.3**.
 - Dark, 8 slots, adjacent pairs — **all checks pass.** Worst adjacent CVD ΔE **8.4** (protan, aqua↔amber); worst adjacent normal-vision ΔE **15.4**; all 8 ≥ 3:1 contrast.
-- **All-pairs forms cap at 3 slots.** Slots 1–3 pass all-pairs in both modes (CVD ΔE 17.2 light / 10.3 dark). Slot 4 drops the light all-pairs CVD into the 6–8 warn band and fails it in dark (ΔE 4.0). **Scatter, bubble, and small-multiples-with-shared-legend therefore use at most 3 categorical hues**; beyond that, facet or fold to "Other".
+- **Slot 1 is mode-invariant.** Poly Pink `#EC4673` clears the lightness band and the 3:1 bar on *both* surfaces, so the brand colour is one hex everywhere — no dark-mode substitute needed.
+- **All-pairs forms cap at 3 slots.** Slots 1–3 pass all-pairs in both modes (CVD ΔE 11.8 light / 9.4 dark). Slot 4 drops the light all-pairs CVD into the 6–8 warn band and fails it in dark (ΔE 4.0). **Scatter, bubble, and small-multiples-with-shared-legend therefore use at most 3 categorical hues**; beyond that, facet or fold to "Other".
 - **Relief rule (light mode):** amber (2.61:1), aqua (2.73:1), and cyan (2.97:1) sit below 3:1 on the light surface. Every chart using them **must** ship visible direct labels or the table view. This is not optional.
 
 Re-run the validator if any hex changes.
@@ -660,7 +688,7 @@ Re-run the validator if any hex changes.
 | critical | `#D03B3B` | slashed, offline |
 
 - **"Other operators" cloud:** not a categorical slot. Muted ink at low alpha (`#8B8595` @ 12%), one colour for all of them.
-- **The user's own operators:** always slot 1 (`#D6246A`), plus a persistent pin icon. Never colour alone.
+- **The user's own operators:** always slot 1, Poly Pink `#EC4673`, plus a persistent pin icon. Never colour alone.
 
 ### 7.5 Typography
 
@@ -846,7 +874,7 @@ Glossary (era, points, exposure, commission, oversubscription, stash/controller,
 Target: **WCAG 2.2 AA**, verified, not assumed.
 
 - Semantic landmarks; skip-to-content link; one `<h1>` per page and a correct heading order.
-- Full keyboard operability. Visible focus ring (`#FF2E72`, 2px, 2px offset) on every interactive element, including chart marks.
+- Full keyboard operability. Visible focus ring (Poly Pink `#EC4673`, 2px, 2px offset) on every interactive element, including chart marks.
 - **Charts:** `role="img"` with a generated `aria-label` summarising the trend, plus a visually-hidden `<table>` of the underlying data. The `Chart | Table` toggle exposes the same table visibly.
 - **Chart keyboard navigation:** arrow keys move a focus cursor along the x-axis, announcing values via a live region.
 - Identity never colour-alone: legend + direct labels always; a texture channel (45°/135° line fill) available behind an accessibility setting, `print`, and `forced-colors`.
@@ -900,12 +928,11 @@ Each phase is a commit (or a small series). **A phase is not done until its acce
 
 1. **Baseline the current app** — Lighthouse (mobile + desktop) on every route; total wire bytes and wall-clock for a cold `/operator-charts` load; RPC request count; JS bundle size. Also measure R4: the real payload of a single `erasStakersPaged.entries(era)`. Write to `docs/baseline.md`.
 2. **Verify runtime facts** marked *verify*: `historyDepth`, `sessionsPerEra`, `epochDuration`, `expectedBlockTime`, era duration, active/waiting operator counts, total nominator count.
-3. **Resolve R1** — read <https://developers.polymesh.network/developer-resources/links/>, record the real mainnet/testnet RPC and indexer URLs into `config/networks.ts` and `docs/data-sources.md`.
-4. **Resolve R2** — run the archive probe in §6.5 against the public endpoint. Record the result in `docs/baseline.md`. This determines whether Phase 9 is feasible at all.
-5. **Resolve R3** — extract exact hexes and typographic rules from the brand kit and Drive folder into `docs/brand-deviations.md`. If the kit's hues differ from the logo SVG, re-derive the categorical palette and **re-run `validate_palette.js`**, updating §7.3 with the new numbers.
-6. **Capture fixtures** for three eras — one pre-v8 (clipped exposures), one post-v8 (paged), one current — into `fixtures/`. These are the test corpus for every ported metric.
+3. **Resolve R2** — run the archive probe in §6.5 against the mainnet endpoint. Record the result in `docs/baseline.md`. This is the sole gate on Phase 9. Expect it to fail; confirm rather than assume.
+4. **Transcribe the settled reference data** — endpoints from §6.2 into `config/networks.ts`, brand measurements from §7.1 into `docs/brand-deviations.md`. Both are already resolved in this document; this step just puts them where code reads them.
+5. **Capture fixtures** for three eras — one pre-v8 (clipped exposures), one post-v8 (paged), one current — into `fixtures/`. These are the test corpus for every ported metric.
 
-**Acceptance:** `docs/baseline.md` has real numbers including the archive probe result and the R4 measurement; `docs/data-sources.md` and `docs/brand-deviations.md` exist; fixtures committed; if the palette changed, validator output is pasted into §7.3.
+**Acceptance:** `docs/baseline.md` has real numbers including the archive probe result and the R4 measurement; `config/networks.ts` and `docs/brand-deviations.md` exist; fixtures committed for all three era shapes.
 
 ### Phase 1 — Data pipeline
 
@@ -972,10 +999,10 @@ All nine opening questions are **resolved**. These are settled inputs — build 
 | # | Question | Decision | Where it lands |
 |---|---|---|---|
 | Q1 | Brand typeface? | **None official.** Polymesh leans on Poppins; we deliberately do not. **Inter Variable + JetBrains Mono**, self-hosted, both OFL. Geist Sans/Mono is the one endorsed swap | §7.5 |
-| Q2 | Design-system package? | **No.** A thin, non-accessible brand kit exists. Follow it for logo and identity; §7.2–7.4 govern UI and data colour. Deviations recorded with the measurement that forced them | §7.1 |
+| Q2 | Design-system package? | **No**, but the kit's four swatches are now measured and folded in. Poly Pink `#EC4673` validates as categorical slot 1 in **both** modes; Poly Purple/Fuchsia form a light/dark accent pair | §7.1 |
 | Q3 | Host? | **GitHub Pages** for v1. Cloudflare Pages is genuinely free (unlimited bandwidth, `*.pages.dev`, no domain needed) and is the documented next step — nothing in the client depends on the host | §6.3 |
 | Q4 | Refresh cadence? | **Two jobs.** Hourly `ingest-era` that no-ops unless `activeEra` advanced; 30-minute `snapshot-latest` for live state only. Era data moves once per 24h, so a blanket 30-min full run was 48 wasted runs a day | §6.3 |
-| Q5 | Indexer endpoint and limits? | Authoritative list is the developer-resources links page; **read it in Phase 0** and put values in config. Unverified from this environment. Client treats the indexer as unreliable by design: paginate at 100, backoff on 429, degrade gracefully | §6.2 |
+| Q5 | Indexer endpoint and limits? | **Endpoints confirmed** (`https://mainnet-graphql.polymesh.network/`). Limits exist but are unpublished, so the client treats the indexer as unreliable by design: paginate at 100, backoff on 429, degrade gracefully | §6.2 |
 | Q6 | Testnet selectable? | **Mainnet only.** Testnet via env vars for local dev. No UI switcher — the current wallet-driven switching is removed as a correctness hazard | §6.2 |
 | Q7 | Base path? | **Keep `/polymesh-staking-app`**, read from config, never hardcoded | §6.3 |
 | Q8 | Signing in scope? | **Read-only.** Confirmed | §9.6 |
@@ -985,12 +1012,14 @@ All nine opening questions are **resolved**. These are settled inputs — build 
 
 These do not block anything; they are things to measure rather than decide.
 
-| # | Unknown | Resolved by |
-|---|---|---|
-| R1 | Exact indexer URLs and rate limits | Phase 0 (URLs) and Phase 7 (limits, empirically) |
-| R2 | Whether a public Polymesh archive endpoint exists | Phase 0 probe (§6.5) |
-| R3 | Exact brand-kit hex values and typographic rules | Phase 0 extraction; may trigger a palette re-derivation and validator re-run |
-| R4 | Real payload size of `erasStakersPaged.entries(era)` | Phase 0 baseline — sizes the pipeline's cold run |
+| # | Unknown | Status | Resolved by |
+|---|---|---|---|
+| R1 | Indexer URLs | ✅ **Closed** — confirmed in §6.2 | — |
+| R3 | Brand-kit hexes | ✅ **Closed** — measured in §7.1, palette updated | — |
+| R1b | Indexer rate limits | Open — unpublished | Phase 7, empirically |
+| R2 | Public archive endpoint | Open, expected negative — none published | Phase 0 probe (§6.5) |
+| R4 | Real payload of `erasStakersPaged.entries(era)` | Open | Phase 0 baseline — sizes the pipeline's cold run |
+| R5 | Whether telemetry can be joined to stash addresses | Open, best-effort | Phase 5 evaluation (§6.2) |
 
 ---
 
