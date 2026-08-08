@@ -53,3 +53,63 @@ export function storeTheme(theme: Theme): void {
 export const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
 )});if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`;
+
+// ---------------------------------------------------------------------------
+// External store adapter
+// ---------------------------------------------------------------------------
+
+/**
+ * `localStorage` is external state, so components read it through
+ * `useSyncExternalStore` rather than copying it into React state inside an
+ * effect. That avoids the cascading render an effect-then-setState would cause,
+ * and gives cross-tab synchronisation for free via the `storage` event.
+ */
+
+const listeners = new Set<() => void>();
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
+export function subscribeToTheme(onChange: () => void): () => void {
+  listeners.add(onChange);
+
+  // Another tab changing the theme should update this one.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY) {
+      applyTheme(readStoredTheme(), document.documentElement);
+      notify();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+
+  return () => {
+    listeners.delete(onChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+/**
+ * Returns a primitive, so `useSyncExternalStore` can compare snapshots by
+ * value and will not loop.
+ */
+export function getThemeSnapshot(): Theme {
+  return readStoredTheme();
+}
+
+/**
+ * The server cannot know the stored preference, so it reports the default. The
+ * pre-paint script in the document head has already applied the real theme by
+ * the time anything is visible, so only this control's own highlight settles
+ * after hydration — there is no flash of the wrong palette.
+ */
+export function getServerThemeSnapshot(): Theme {
+  return DEFAULT_THEME;
+}
+
+/** Persists a theme, applies it, and notifies subscribers. */
+export function setTheme(theme: Theme): void {
+  storeTheme(theme);
+  applyTheme(theme, document.documentElement);
+  notify();
+}

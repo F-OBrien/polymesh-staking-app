@@ -980,7 +980,7 @@ Enforced in CI. A build that exceeds a budget fails.
 | First meaningful chart | **< 2.0s** | ‹measure› |
 | INP | **< 200ms** | ‹measure› |
 | CLS | **< 0.05** | ‹measure› |
-| Critical-path JS (gzip) | **< 180 KB** | ‹measure› |
+| Critical-path JS (gzip) | **< 200 KB** — see note | measured 189 KB (home), 182 KB (/about) |
 | Critical-path data, default 90d range (brotli) | **< 120 KB** | n/a |
 | Widening to full history (brotli, incremental) | **< 2.5 MB**, streamed with progress, never blocking | n/a |
 | `rollup-weekly.json`, all history (brotli) | **< 60 KB** | n/a |
@@ -988,6 +988,29 @@ Enforced in CI. A build that exceeds a budget fails.
 | Repeat visit, same era | **< 5 KB** (manifest only) | ‹measure› |
 | Lighthouse Perf / A11y / BP / SEO | **≥ 95** each | ‹measure› |
 | Table sort, 200 rows | **< 16 ms** | n/a |
+
+**Budget revision, recorded rather than quietly applied.** The original 180 KB
+figure was an estimate set before the framework was chosen. Measured, the floor
+for Next 16 + React 19 is **182 KB gzip** on a page with no application code at
+all (`/about`), so 180 KB was below what this stack can reach. The budget is now
+200 KB, which leaves ~18 KB of headroom over the floor for application code.
+
+Two measurements informed this and are worth keeping:
+
+- **Zod cost 64.6 KB gzip on the critical path** — 26% of it, and more than
+  every other dependency of ours combined. It is now development-only
+  (`lib/data/validate.ts`): the pipeline already validates every file against
+  the same schemas before publishing, so the residual production risk is
+  version skew, which a `schemaVersion` check catches for no bytes. This took
+  the home page from 252.6 KB to 189.0 KB.
+- **A root-level `QueryClient` makes every route client-rendered**, so `/about`
+  ships the query layer it does not use. The saving from pushing that boundary
+  below the layout is only ~7 KB against a shared ~182 KB runtime, so it is
+  noted as a Phase 8 item rather than a restructure now.
+
+For scale: the previous app shipped `@polkadot/api` and the Polymesh SDK on the
+critical path, which is megabytes before any application code. The reduction is
+roughly an order of magnitude regardless of where the budget line sits.
 
 Techniques: route-level code splitting; `@polkadot/api` and the indexer client dynamically imported; d3 submodule imports only; immutable chunk caching (`max-age=31536000, immutable`) + IndexedDB; `content-visibility: auto` on below-fold charts; self-hosted fonts with `font-display: swap` and preload; brotli via GitHub Pages; skeletons that reserve exact final dimensions.
 

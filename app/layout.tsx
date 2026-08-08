@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { SITE } from '@/config/site';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import { Footer } from '@/components/footer';
+import { Nav } from '@/components/nav';
+import { Providers } from '@/components/providers';
 import './globals.css';
 
 /*
@@ -64,7 +67,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        {children}
+        <Providers>
+          {/* The shell renders immediately and is never gated behind a data
+              fetch. The previous app put two nested full-page spinners in front
+              of everything, so a slow RPC handshake meant a blank screen. */}
+          <Nav />
+          <div className="mx-auto min-h-[60vh] max-w-[1440px] px-4 py-8">{children}</div>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );
