@@ -267,6 +267,69 @@ export const OperatorRegistrySchema = z.record(Address, OperatorRecordSchema);
 export const UpstreamOperatorNamesSchema = z.record(z.string(), z.object({ name: z.string() }));
 
 // ---------------------------------------------------------------------------
+// slashes.json — offences, within whatever window the chain still holds
+// ---------------------------------------------------------------------------
+
+/**
+ * One operator slashed in one era.
+ *
+ * **The offence type is deliberately absent.** `validatorSlashInEra` records
+ * only the fraction and the amount; which offence caused it lives in the
+ * `offences` pallet's events, not in queryable state. Inferring a type from the
+ * fraction is tempting — 7% looks like unresponsiveness — but the fractions
+ * overlap, and a plausible-looking wrong label on a page about operator
+ * misconduct is worse than no label. Phase 7's indexer client can supply the
+ * real type; until then the column does not exist.
+ */
+export const SlashEventSchema = z.object({
+  era: EraIndex,
+  address: Address,
+  /** Proportion of exposure slashed, in [0,1]. A Perbill on chain. */
+  fraction: Ratio,
+  /** The operator's own loss, in POLYX. */
+  amount: PolyxAmount,
+});
+
+/**
+ * Per-era nominator slash totals.
+ *
+ * Kept separate from `events` because `nominatorSlashInEra` is keyed by
+ * (era, nominator) and carries no back-reference to the operator responsible.
+ * The count and total are therefore honest at era granularity and cannot be
+ * attributed per operator — presenting them inside an operator's row would
+ * imply an attribution the chain does not give us.
+ */
+export const NominatorSlashTotalSchema = z.object({
+  era: EraIndex,
+  count: z.number().int().nonnegative(),
+  amount: PolyxAmount,
+});
+
+export const SlashesSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    generatedAt: z.iso.datetime(),
+    /**
+     * The window actually scanned. Slash storage is pruned to the chain's
+     * history depth (~84 eras), so absence of an event outside this window is
+     * not evidence that none occurred — the UI must say so rather than render
+     * an empty table that reads as "never slashed".
+     */
+    firstEra: EraIndex,
+    lastEra: EraIndex,
+    /** Set when the window is limited by pruning rather than by our ingestion. */
+    prunedBefore: EraIndex.nullable(),
+    events: z.array(SlashEventSchema),
+    nominatorTotals: z.array(NominatorSlashTotalSchema),
+  })
+  .refine((s) => s.firstEra <= s.lastEra, {
+    message: '`firstEra` must not exceed `lastEra`',
+  })
+  .refine((s) => s.events.every((e) => e.era >= s.firstEra && e.era <= s.lastEra), {
+    message: 'every event must fall inside the scanned window',
+  });
+
+// ---------------------------------------------------------------------------
 // Weekly rollup — network metrics over all history
 // ---------------------------------------------------------------------------
 
@@ -309,3 +372,6 @@ export type OperatorStatus = z.infer<typeof OperatorStatusSchema>;
 export type OperatorRecord = z.infer<typeof OperatorRecordSchema>;
 export type OperatorRegistry = z.infer<typeof OperatorRegistrySchema>;
 export type Rollup = z.infer<typeof RollupSchema>;
+export type SlashEvent = z.infer<typeof SlashEventSchema>;
+export type NominatorSlashTotal = z.infer<typeof NominatorSlashTotalSchema>;
+export type Slashes = z.infer<typeof SlashesSchema>;

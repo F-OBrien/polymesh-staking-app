@@ -80,6 +80,22 @@ export function timeScale(eraStartSeconds: readonly number[], innerWidth: number
     .range([0, innerWidth]);
 }
 
+/**
+ * A linear x scale, for charts whose x axis is a quantity rather than a date.
+ *
+ * The penalty curves on `/slashing` are indexed by *number of simultaneous
+ * offenders*, which `timeScale` cannot express — feeding it fabricated
+ * timestamps would render date ticks over a count.
+ */
+export function numericScale(values: readonly number[], innerWidth: number): LinearScale {
+  const first = values[0] ?? 0;
+  const rawLast = values.at(-1) ?? first;
+  // As `timeScale`: a degenerate domain would map every point to one x.
+  const last = rawLast > first ? rawLast : first + 1;
+
+  return scaleLinear<number, number>().domain([first, last]).range([0, innerWidth]);
+}
+
 export interface ValueScaleOptions {
   /** Force the axis to include zero. Right for magnitudes, wrong for rates. */
   includeZero?: boolean;

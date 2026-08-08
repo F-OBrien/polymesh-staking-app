@@ -235,6 +235,78 @@ async function readPagedExposures(api: ApiLike, era: number): Promise<EraExposur
 // Chain head and era boundaries
 // ---------------------------------------------------------------------------
 
+export interface EraSlash {
+  address: string;
+  /** Proportion of exposure slashed, in [0,1]. */
+  fraction: number;
+  /** The operator's own loss, in base units. */
+  amount: bigint;
+}
+
+/**
+ * Operators slashed for offences committed in `era`.
+ *
+ * One `entries()` call per era rather than a lookup per (era, operator): the
+ * double map is prefixed by era, so this is a single range read regardless of
+ * how many operators the era had.
+ *
+ * **Pruned to history depth.** `validatorSlashInEra` is cleared along with the
+ * rest of an era's staking state, so an empty result for an old era means "we
+ * can no longer tell", not "nothing happened". Callers must carry that
+ * distinction through to the UI — `SlashesSchema.prunedBefore` exists for it.
+ *
+ * The map is absent on old runtimes, so a missing entry is not an error.
+ */
+export async function readEraSlashes(api: ApiLike, era: number): Promise<EraSlash[]> {
+  const store = api.query.staking?.validatorSlashInEra;
+  if (store == null) return [];
+
+  const entries = await store.entries(era);
+  const slashes: EraSlash[] = [];
+
+  for (const [key, value] of entries) {
+    if (!value?.isSome) continue;
+    // (Perbill, Balance) — the fraction of exposure, and the operator's own loss.
+    const [perbill, amount] = value.unwrap();
+    slashes.push({
+      address: String(key.args[1]),
+      fraction: Number(perbill.toString()) / 1_000_000_000,
+      amount: toBigInt(amount),
+    });
+  }
+
+  return slashes;
+}
+
+/**
+ * Nominator losses for offences committed in `era`, aggregated.
+ *
+ * Returned as a count and a total rather than a list because the storage is
+ * keyed by (era, nominator) with **no back-reference to the operator
+ * responsible**. Per-nominator rows would therefore be unattributable, and
+ * there can be thousands of them. The aggregate is the most that can be said
+ * honestly, and it is small.
+ */
+export async function readEraNominatorSlashes(
+  api: ApiLike,
+  era: number,
+): Promise<{ count: number; total: bigint }> {
+  const store = api.query.staking?.nominatorSlashInEra;
+  if (store == null) return { count: 0, total: 0n };
+
+  const entries = await store.entries(era);
+  let count = 0;
+  let total = 0n;
+
+  for (const [, value] of entries) {
+    if (!value?.isSome) continue;
+    count += 1;
+    total += toBigInt(value.unwrap());
+  }
+
+  return { count, total };
+}
+
 export interface ActiveEraInfo {
   index: number;
   /** Milliseconds since epoch, or null on a chain that has not set it. */

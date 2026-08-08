@@ -30,11 +30,13 @@ const BUDGET_BYTES = 200 * 1024;
  *
  * Keep this list short and justified. An exemption is a promise that the route
  * is not on a user's path, not a way to make a red number go away.
+ *
+ * Currently empty. `/kitchen-sink` was exempt while the measurement wrongly
+ * counted the `nomodule` polyfill bundle; once that was fixed it came in under
+ * budget like everything else, and an exemption nothing needs would only hide
+ * the next regression.
  */
-const EXEMPT: Record<string, string> = {
-  '/kitchen-sink/':
-    'internal workbench: renders every chart primitive eagerly by design, unlinked and noindex',
-};
+const EXEMPT: Record<string, string> = {};
 
 /** Turbopack emits the same page under several paths; collapse them to one. */
 const canonicalise = (route: string): string =>
@@ -49,15 +51,39 @@ async function* htmlFiles(dir: string): AsyncGenerator<string> {
 }
 
 /**
- * Every script URL the document pulls in.
+ * Every script URL a **modern** browser actually downloads for this document.
  *
  * Both the `<script src>` tags and the bare strings in the Turbopack bootstrap
  * array, since the latter are fetched just as eagerly despite not being tags.
+ *
+ * `nomodule` scripts are excluded, and that exclusion is the whole reason this
+ * function is more than one regex. Next emits a ~39 KB gzip core-js polyfill
+ * bundle tagged `noModule`, which every browser that supports ES modules skips
+ * entirely — every browser this site targets. Counting it inflated every route
+ * by the same 39 KB and made five routes look marginally over budget when none
+ * of them were. Measuring the wrong bytes is worse than not measuring: it
+ * sends you optimising things that were never on the wire.
+ *
+ * Excluded by URL rather than by skipping the tag, because the same file is
+ * also listed in the preload links and the bootstrap array.
  */
 function scriptRefs(html: string): Set<string> {
   const refs = new Set<string>();
+  const legacy = new Set<string>();
+
+  for (const tag of html.matchAll(/<script\b[^>]*>/gi)) {
+    const src = /src="(\/[^"]*?\.js)"/.exec(tag[0])?.[1];
+    if (src == null) continue;
+    // React renders the attribute as `noModule`; HTML attribute names are
+    // case-insensitive, so match either.
+    if (/\bnomodule\b/i.test(tag[0])) legacy.add(src);
+    else refs.add(src);
+  }
+
   for (const match of html.matchAll(/(?:src|href)="(\/[^"]*?\.js)"/g)) refs.add(match[1]!);
   for (const match of html.matchAll(/"(\/_next\/static\/[^"]*?\.js)"/g)) refs.add(match[1]!);
+
+  for (const src of legacy) refs.delete(src);
   return refs;
 }
 

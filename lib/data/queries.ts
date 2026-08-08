@@ -4,10 +4,17 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { DEFAULT_ERA_WINDOW } from '@/config/site';
 import { chunksForRange } from './chunking';
-import { fetchChunks, fetchLatest, fetchManifest, fetchOperators, fetchRollup } from './client';
+import {
+  fetchChunks,
+  fetchLatest,
+  fetchManifest,
+  fetchOperators,
+  fetchRollup,
+  fetchSlashes,
+} from './client';
 import { pruneCache } from './cache';
 import { stitchChunks, type StitchedSeries } from './series';
-import type { Latest, Manifest, OperatorRegistry, Rollup } from '@/lib/schemas/data';
+import type { Latest, Manifest, OperatorRegistry, Rollup, Slashes } from '@/lib/schemas/data';
 
 /**
  * Query hooks over the generated data.
@@ -27,6 +34,7 @@ export const queryKeys = {
   operators: ['operators'] as const,
   latest: ['latest'] as const,
   rollup: ['rollup'] as const,
+  slashes: ['slashes'] as const,
   chunks: (hashes: readonly string[]) => ['chunks', ...hashes] as const,
 };
 
@@ -70,6 +78,22 @@ export function useRollup(enabled = true): UseQueryResult<Rollup> {
   return useQuery({
     queryKey: queryKeys.rollup,
     queryFn: ({ signal }) => fetchRollup({ signal }),
+    staleTime: 60 * MINUTE,
+    enabled,
+  });
+}
+
+/**
+ * Offence history.
+ *
+ * An hour is generous for a file that can only change when an era completes,
+ * but slashes are the one thing a nominator wants to see promptly, and the file
+ * is a few kilobytes.
+ */
+export function useSlashes(enabled = true): UseQueryResult<Slashes> {
+  return useQuery({
+    queryKey: queryKeys.slashes,
+    queryFn: ({ signal }) => fetchSlashes({ signal }),
     staleTime: 60 * MINUTE,
     enabled,
   });

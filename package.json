@@ -23,7 +23,8 @@
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",
     "ingest:latest": "tsx scripts/ingest/latest.ts",
-    "ingest:backfill": "tsx scripts/ingest/backfill.ts"
+    "ingest:backfill": "tsx scripts/ingest/backfill.ts",
+    "ingest:slashes": "tsx scripts/ingest/slashes.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

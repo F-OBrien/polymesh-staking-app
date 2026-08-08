@@ -36,7 +36,13 @@ const EraSeriesChartImpl = dynamic(
   },
 );
 
+const XyLineChartImpl = dynamic(() => import('./xy-line-chart').then((m) => m.XyLineChart), {
+  ssr: false,
+  loading: () => null,
+});
+
 export type { EraSeriesChartProps } from './era-series-chart';
+export type { XyLineChartProps, XySeries } from './xy-line-chart';
 
 /**
  * Wraps a chart so it mounts only once scrolled near.
@@ -101,3 +107,6 @@ export function LazyChart({
  * from any page, so the kit never lands on the critical path.
  */
 export const LazyEraSeriesChart = EraSeriesChartImpl;
+
+/** As above, for the numeric-x chart used by the slashing penalty curves. */
+export const LazyXyLineChart = XyLineChartImpl;

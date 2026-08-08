@@ -23,11 +23,13 @@ import {
   ManifestSchema,
   OperatorRegistrySchema,
   RollupSchema,
+  SlashesSchema,
   type Chunk,
   type Latest,
   type Manifest,
   type OperatorRegistry,
   type Rollup,
+  type Slashes,
 } from '../../lib/schemas/data';
 import { chunkPath } from '../../lib/data/chunking';
 
@@ -35,6 +37,7 @@ export const MANIFEST_FILE = 'manifest.json';
 export const LATEST_FILE = 'latest.json';
 export const OPERATORS_FILE = 'operators.json';
 export const ROLLUP_FILE = 'rollup-weekly.json';
+export const SLASHES_FILE = 'slashes.json';
 
 export class DataStore {
   constructor(private readonly root: string) {}
@@ -109,6 +112,14 @@ export class DataStore {
 
   writeRollup(rollup: Rollup): Promise<number> {
     return this.writeJson(ROLLUP_FILE, RollupSchema, rollup);
+  }
+
+  readSlashes(): Promise<Slashes | null> {
+    return this.readJson(SLASHES_FILE, SlashesSchema);
+  }
+
+  writeSlashes(slashes: Slashes): Promise<number> {
+    return this.writeJson(SLASHES_FILE, SlashesSchema, slashes);
   }
 }
 

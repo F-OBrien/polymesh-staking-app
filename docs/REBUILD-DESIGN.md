@@ -946,7 +946,15 @@ Inputs: amount, operator (or "network average"), duration, compounding on/off. O
 
 ### 9.8 `/slashing`
 
-C21 timeline, a table of all offences (era, operator, type, amount, nominators affected), and per-era fine totals — the current `FineCurves` chart, promoted out of Overview and given context.
+Two halves: **what happened** (a table of offences, and totals for what operators and nominators lost), then **what a penalty would cost** (the two penalty curves against offender count).
+
+**Two corrections to this spec, made in Phase 6 after reading the source.**
+
+*`FineCurves` was never a timeline.* It plotted the two slashing **formulas** against the number of simultaneous offenders, computed from the active operator count — a risk model, not history, and the spec above conflated the two. It is kept, because the superlinearity it shows is the strongest argument for spreading nominations across independent operators, but it is now labelled as a model and sits under its own heading.
+
+*There is no `type` column, and there cannot be one yet.* `validatorSlashInEra` records the fraction and the amount only; the offence type lives in `offences` pallet events, not in queryable state. Inferring it from the fraction is tempting and wrong — the ranges overlap. Phase 7's indexer client can supply the real type.
+
+Offence data lives in its own `slashes.json` rather than in chunks: slashes are sparse events, chunks are dense per-era columns, and a mostly-null column per operator would cost far more than the file does. The chain prunes slash records to its history depth, so the pipeline **carries previously-seen events forward** and records `prunedBefore` — the page must distinguish "no offences" from "cannot see that far back", and does.
 
 ### 9.9 `/about`
 
@@ -986,7 +994,7 @@ that draws no charts eagerly. Measure the payload, not the graph.
 | First meaningful chart | **< 2.0s** | ‹measure› |
 | INP | **< 200ms** | ‹measure› |
 | CLS | **< 0.05** | ‹measure› |
-| Critical-path JS (gzip) | **< 200 KB** — see note | 185.6 KB floor · 194.2 (home) · 199.7 (`/network`) · **203.3 (`/operators`, over)** |
+| Critical-path JS (gzip) | **< 200 KB** — see note | **147.1 KB floor** · 155.7 (home) · 161.9 (`/network`) · 164.9 (`/operators`, worst) |
 | Critical-path data, default 90d range (brotli) | **< 120 KB** | n/a |
 | Widening to full history (brotli, incremental) | **< 2.5 MB**, streamed with progress, never blocking | n/a |
 | `rollup-weekly.json`, all history (brotli) | **< 60 KB** | n/a |
@@ -1001,17 +1009,22 @@ for Next 16 + React 19 is **182 KB gzip** on a page with no application code at
 all (`/about`), so 180 KB was below what this stack can reach. The budget is now
 200 KB, which leaves ~18 KB of headroom over the floor for application code.
 
-**Standing as of Phase 5: the floor has since drifted to 185.6 KB**, so the
-headroom is ~14 KB, and `/operators` — the densest page in the app — needs 17.7
-KB and misses by 3.3 KB. The number has **not** been moved a second time. A
-budget revised whenever it is inconvenient measures nothing, and the underlying
-question is real: a per-route total mostly measures the floor, which no page
-controls. Phase 8 resolves it one way or the other, with a measurement attached:
-either trim the floor (the query provider is mounted on static pages that never
-query) or restate the budget as *page code above the floor*, which is the thing
-actually worth constraining.
+**Standing as of Phase 6: the measured floor is 147.1 KB and every route
+passes**, the worst at 164.9 KB. No second revision was needed, and none should
+be made.
 
-Two measurements informed the original revision and are worth keeping:
+*Correction to the Phase 5 entry that stood here.* It reported a 185.6 KB floor
+and `/operators` 3.3 KB over, and raised an open question about whether the
+budget was reachable at all. Both figures were inflated by the same ~39 KB:
+`scripts/budget.ts` counted Next's core-js polyfill bundle, which ships as
+`<script noModule>` and is never fetched by a browser that supports ES modules.
+Because the error was identical on every route it was invisible in
+route-to-route comparisons and only distorted the absolute line — so it read as
+a structural problem with the budget rather than a bug in the ruler. There was
+no structural problem. The optimisations it prompted were still real: the d3 and
+`cmdk` chunks were genuinely on the wire and are genuinely gone.
+
+Three measurements are worth keeping:
 
 - **Zod cost 64.6 KB gzip on the critical path** — 26% of it, and more than
   every other dependency of ours combined. It is now development-only
@@ -1021,8 +1034,14 @@ Two measurements informed the original revision and are worth keeping:
   the home page from 252.6 KB to 189.0 KB.
 - **A root-level `QueryClient` makes every route client-rendered**, so `/about`
   ships the query layer it does not use. The saving from pushing that boundary
-  below the layout is only ~7 KB against a shared ~182 KB runtime, so it is
+  below the layout is only ~7 KB against a shared ~147 KB runtime, so it is
   noted as a Phase 8 item rather than a restructure now.
+- **Two libraries reached the critical path through a single small import**
+  and were split back off: d3-scale + d3-shape (17.1 KB) via a palette constant
+  imported from `banded-line-chart`, and `cmdk` (13.3 KB) via a statically
+  imported `OperatorPicker`. Both were invisible in `next build` output. This is
+  the failure mode `npm run budget` exists to catch, and it has caught it three
+  times — see `docs/STATUS.md`.
 
 For scale: the previous app shipped `@polkadot/api` and the Polymesh SDK on the
 critical path, which is megabytes before any application code. The reduction is

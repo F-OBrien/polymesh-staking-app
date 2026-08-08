@@ -45,7 +45,9 @@ export function YAxis({
   box: PlotBox;
   scale: LinearScale;
   format: (value: number) => string;
-  label?: string;
+  // Explicitly `| undefined`: callers pass a conditional label, and under
+  // exactOptionalPropertyTypes an absent property differs from an explicit one.
+  label?: string | undefined;
 }) {
   const ticks = scale.ticks(tickCount(box.innerHeight, 48));
 
@@ -68,9 +70,15 @@ export function YAxis({
       ))}
       {/* The unit sits horizontally above the axis rather than rotated beside
           it. Rotated text is harder to read, and at narrow left margins it
-          collided with the tick labels it was meant to describe. */}
+          collided with the tick labels it was meant to describe.
+
+          Anchored at the left edge of the margin, growing rightward — not
+          right-anchored at x=-8, which silently clipped anything wider than the
+          gutter: "commission" rendered as "mmission" and "operators" as
+          "erators". There is nothing to collide with at this height, since it
+          sits above the plot area and above the topmost tick. */}
       {label ? (
-        <text x={-8} y={-8} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+        <text x={-box.margin.left} y={-8} textAnchor="start" fontSize={10} fill="var(--text-muted)">
           {label}
         </text>
       ) : null}

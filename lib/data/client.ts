@@ -6,6 +6,7 @@ import type {
   Manifest,
   OperatorRegistry,
   Rollup,
+  Slashes,
 } from '@/lib/schemas/data';
 import { readCachedChunk, writeCachedChunk } from './cache';
 import { validateData, type DataFileKind } from './validate';
@@ -132,4 +133,15 @@ export function fetchOperators(options?: FetchOptions): Promise<OperatorRegistry
 /** Network-only weekly series, for ranges too long to load chunks for. */
 export function fetchRollup(options?: FetchOptions): Promise<Rollup> {
   return fetchJson('rollup-weekly.json', 'rollup', options);
+}
+
+/**
+ * Offence history.
+ *
+ * Rewritten wholesale by the pipeline rather than appended to, so it is not
+ * hard-cached: an era leaving the chain's retention window changes
+ * `prunedBefore` without changing any event.
+ */
+export function fetchSlashes(options?: FetchOptions): Promise<Slashes> {
+  return fetchJson('slashes.json', 'slashes', options);
 }

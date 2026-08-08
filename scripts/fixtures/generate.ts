@@ -29,10 +29,13 @@ import {
   ManifestSchema,
   OperatorRegistrySchema,
   RollupSchema,
+  SlashesSchema,
   type Chunk,
   type ChunkRef,
+  type NominatorSlashTotal,
   type OperatorRecord,
   type OperatorSeries,
+  type SlashEvent,
 } from '../../lib/schemas/data';
 import {
   erasPerYear,
@@ -429,6 +432,64 @@ function buildChunk(
   };
 }
 
+/**
+ * A handful of synthetic offences.
+ *
+ * Rare on purpose — Polymesh mainnet has seen very few — but never zero, or the
+ * `/slashing` page would only ever be exercised in its empty state and the
+ * table, the totals chart and the affected-operator links would go untested.
+ *
+ * Fractions are drawn from the two real penalty regimes rather than uniformly:
+ * unresponsiveness is capped at 7%, equivocation is quadratic and usually tiny,
+ * so a uniform draw would produce values the chain could never actually
+ * produce.
+ */
+function buildSlashes(
+  rng: () => number,
+  operators: readonly SyntheticOperator[],
+  firstEra: number,
+  lastEra: number,
+): { events: SlashEvent[]; nominatorTotals: NominatorSlashTotal[] } {
+  const events: SlashEvent[] = [];
+  const nominatorTotals: NominatorSlashTotal[] = [];
+  const span = lastEra - firstEra;
+
+  // Roughly one offence per fifty eras, floored at two so short fixture windows
+  // still exercise the page.
+  const count = Math.max(2, Math.round(span / 50));
+
+  const erasHit = new Set<number>();
+  for (let i = 0; i < count; i += 1) {
+    const era = Math.floor(between(rng, firstEra, lastEra));
+    const operator = operators[Math.floor(rng() * operators.length)]!;
+    if (era < operator.joinEra || era > operator.leaveEra) continue;
+
+    // 80% unresponsiveness, matching the real mix: equivocation is rare because
+    // it usually means a duplicated signing key rather than an outage.
+    const fraction = rng() < 0.8 ? between(rng, 0.001, 0.07) : between(rng, 0.0009, 0.01);
+
+    events.push({
+      era,
+      address: operator.address,
+      fraction: round(fraction, 9),
+      amount: round(operator.baseStake * 0.1 * fraction, 6),
+    });
+
+    if (!erasHit.has(era)) {
+      erasHit.add(era);
+      nominatorTotals.push({
+        era,
+        count: Math.floor(between(rng, 5, 90)),
+        amount: round(operator.baseStake * 0.9 * fraction, 6),
+      });
+    }
+  }
+
+  events.sort((a, b) => a.era - b.era || a.address.localeCompare(b.address));
+  nominatorTotals.sort((a, b) => a.era - b.era);
+  return { events, nominatorTotals };
+}
+
 function hashOf(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
 }
@@ -583,6 +644,22 @@ async function main(): Promise<void> {
   });
   await writeJson(join(outDir, 'rollup-weekly.json'), rollup);
 
+  // --- slashes.json ---
+  const { events, nominatorTotals } = buildSlashes(rng, operators, firstEra, lastCompleteEra);
+  const slashes = SlashesSchema.parse({
+    schemaVersion: 1,
+    generatedAt: new Date(anchor * 1000).toISOString(),
+    firstEra,
+    lastEra: lastCompleteEra,
+    // Mirrors mainnet: the chain only retains a history-depth window, so the
+    // page's "we cannot see before era N" state is exercised by the fixture
+    // rather than only appearing in production.
+    prunedBefore: Math.max(firstEra, lastCompleteEra - 83),
+    events,
+    nominatorTotals,
+  });
+  await writeJson(join(outDir, 'slashes.json'), slashes);
+
   const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
   console.log(
     [
@@ -590,6 +667,7 @@ async function main(): Promise<void> {
       `  eras       ${firstEra}-${lastCompleteEra} (${samples.length}), active ${activeEra}`,
       `  operators  ${operators.length}`,
       `  chunks     ${chunkRefs.length} (${kb(chunkBytes)} raw, ~${kb(chunkBytes / 6)} brotli est.)`,
+      `  slashes    ${events.length} event(s) across ${nominatorTotals.length} era(s)`,
       `  seed       ${options.seed} — rerun with the same seed for identical output`,
     ].join('\n'),
   );

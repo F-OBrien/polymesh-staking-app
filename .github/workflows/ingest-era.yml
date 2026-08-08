@@ -68,6 +68,16 @@ jobs:
           POLYMESH_NETWORK: mainnet
         run: npm run ingest:era ${{ inputs.full && '-- --full' || '' }}
 
+      # Runs alongside the era pipeline rather than on its own schedule: slash
+      # records are pruned to the chain's history depth, and the merge in
+      # `slash-merge.ts` only preserves an era if we observed it before it was
+      # dropped. Missing a run costs history that cannot be recovered without an
+      # archive node, so it is tied to the job that already runs hourly.
+      - name: Ingest slashes
+        env:
+          POLYMESH_NETWORK: mainnet
+        run: npm run ingest:slashes
+
       - name: Commit data
         working-directory: public/data
         run: |
