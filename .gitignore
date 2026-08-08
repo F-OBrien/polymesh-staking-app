@@ -31,3 +31,7 @@ blob-report/
 !.env.example
 tsconfig.tsbuildinfo
 .eslintcache
+
+# Yarn (the project uses npm; leftover from the previous app)
+.yarn/
+.pnp.*
