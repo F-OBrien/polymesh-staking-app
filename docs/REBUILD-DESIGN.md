@@ -380,7 +380,7 @@ Key properties:
 | Job | Schedule | Work | Writes |
 |---|---|---|---|
 | **`ingest-era`** | hourly | Read `activeEra`. If unchanged since the manifest, exit immediately (a few seconds, one RPC call). Otherwise ingest the newly completed era. | chunks, `manifest.json`, `operators.json` |
-| **`snapshot-latest`** | every 30 min | Read active-era live state: era progress, points so far, current exposures, oversubscription, validator set, issuance. | `latest.json` only |
+| **`snapshot-latest`** | every 15 min | Read active-era state: points so far, current exposures, oversubscription, validator set, issuance, election phase, and the era/epoch **anchors** the client derives progress from (§6.6a). | `latest.json` only |
 
 The hourly no-op is essentially free and bounds new-era staleness at one hour — irrelevant for data that moves daily. Do **not** try to schedule against the era boundary: GitHub Actions cron is best-effort and routinely delayed under load, so a self-checking hourly poll is more reliable than a clever schedule.
 
@@ -468,16 +468,41 @@ Columnar arrays, indexed by position in `eras`. `null` means "operator not in th
 }
 ```
 
-Resolve `name`/`website` in this order: (1) on-chain identity / DID registry, (2) `constants/didInfo` migrated into a seed file, (3) truncated address. Never hand-maintain the address list again.
+**Identity source — use the official registry.** The Polymesh Association maintains a DID-keyed operator name list at:
+
+```
+https://raw.githubusercontent.com/PolymeshAssociation/polymesh-operators/refs/heads/main/operatorNames.json
+```
+
+~42 entries, keyed by **DID** (not stash), annotated for departures (`"B89 - Removed"`), and used by the official Portal. Resolution chain: **stash → DID** (on-chain, `identity`) **→ name** (registry) **→ truncated address** (fallback).
+
+The *pipeline* fetches this each run and bakes the result into `operators.json`, so the client makes no extra request and we hold a snapshot if the upstream file ever moves. Fall back to the last good copy on fetch failure — never fail a run over a name.
+
+This retires both the hardcoded `operatorsNames` address map and the unused `didInfo` map (§2.7). Keep `didInfo`'s `website` values as a local supplement — the official registry carries names only — but never hand-maintain addresses again.
 
 **`data/latest.json`** — live-ish state, regenerated every run, `Cache-Control: public, max-age=60`.
 
 ```jsonc
 {
   "activeEra": 1403,
-  "eraStart": 1754481600,
-  "eraProgress": 0.42,
-  "estimatedEraEnd": 1754568000,
+  "generatedAt": "2026-08-08T09:30:00Z",
+  // Anchors only — the client derives progress and countdowns from these
+  // against its own clock (§6.6a). No `eraProgress` field: it would be stale
+  // the moment it was written.
+  "eraStatus": {
+    "currentEra": 1403,
+    "eraStart": 1754481600,
+    "eraStartSlot": "284419200",
+    "eraStartSessionIndex": 8412,
+    "currentSlot": "284433600",
+    "currentSessionIndex": 8415,
+    "epochIndex": 8415,
+    "genesisSlot": "265680000",
+    "sessionsPerEra": 4,
+    "epochDurationBlocks": 3600,
+    "expectedBlockTimeMs": 6000,
+    "electionPhase": "Off"          // Off | Signed | Unsigned | Emergency
+  },
   "totalIssuance": "1004200000000000",     // exact base units
   "totalStaked": "524310000000000",
   "stakingRatio": 0.5221,
@@ -572,6 +597,50 @@ App shell (static, instant)
 - **Derived metrics are memoised once** in a selector layer (`lib/selectors/*`), not recomputed per chart. Heavy aggregations (percentile bands, small-multiples grids) run in a Web Worker via Comlink and are cached by `(metric, eraRange)`.
 - **IndexedDB persistence** keyed by chunk hash. A returning visitor with no new era does zero data fetching beyond the manifest. Chunks already held are never refetched when the range widens — only the newly-needed ones are.
 - **Progressive rendering.** The shell, nav, and stat-tile skeletons paint immediately. Charts fill in as chunks land. Nothing is gated behind a full-page spinner ever again.
+
+### 6.6a Data freshness: live, snapshot, and derived
+
+Not everything is a static snapshot, and not everything needs to be. Four tiers, and the assignment matters more than it looks.
+
+| Tier | Mechanism | Cost | Used for |
+|---|---|---|---|
+| **1 — Immutable** | Era chunks, `max-age=31536000` | Zero after first load | All completed eras |
+| **2 — Snapshot** | `latest.json`, regenerated every 15 min | One small fetch | Current-era points, exposures, validator set, oversubscription, issuance, election phase |
+| **3 — Derived** | Computed in-browser from tier-2 anchors + local clock | **Zero network** | Era/epoch progress, countdowns, time-to-next-election |
+| **4 — Live** | Opt-in WSS subscription, lazily loaded | `@polkadot/api` | A narrow set, only when the user asks or connects a wallet |
+
+**Era progress is tier 3, not tier 4 — it needs no connection at all.** This is the key realisation. `latest.json` carries the *anchors* (era start slot, era start session index, current slot and its timestamp, epoch duration, sessions per era, expected block time) and the browser ticks its own clock against them. A countdown rendered locally is smoother and cheaper than one polled over a socket.
+
+The Polymesh Portal derives progress from **slots** (`babe.currentSlot` less the era's start slot, via `babe.genesisSlot` and `staking.erasStartSessionIndex`), which is exact. Wall-clock interpolation between 15-minute snapshots drifts only by block-time variance across that window — seconds on a 24-hour era, invisible on a progress ring. Turning on Live upgrades it to slot-exact. Anchors, not a precomputed `eraProgress` value, go in the file, so the intent is unmistakable.
+
+**Era points are the one genuinely live thing**, and worth noting: *the official Portal doesn't stream them either.* It reads `erasRewardPoints` once, for the previous era, to rank operators in the nomination modal. At 15-minute granularity on a 24-hour era that is ~1% resolution against a quantity that accrues roughly uniformly — so snapshot is the honest default, with Live available for anyone watching a block-by-block race.
+
+**Election phase is the one place 15 minutes is arguably coarse** — the window is short and sits at the era boundary. It ships in tier 2 with an explicit "as of HH:MM", and Live makes it exact. If it turns out people care, the Cloudflare Worker path (§6.3) makes one-minute snapshots trivial; do not solve this speculatively.
+
+**Tier 4 subscription set.** Narrow and specific — this is the Portal's proven set, not a guess:
+
+```
+staking.activeEra · staking.currentEra          era rollover
+session.currentIndex · babe.epochIndex          session position
+babe.currentSlot                                 slot-exact progress
+electionProviderMultiPhase.currentPhase          Off | Signed | Unsigned | Emergency
+staking.erasRewardPoints(activeEra)              points accruing now
+staking.nominators(stash)                        only when a wallet is connected
+system.events  (filtered — see below)            invalidation trigger
+```
+
+Live is **off by default**, behind an explicit toggle with a live-dot indicator. It never gates first paint: the page renders fully from tiers 1–3, and the socket upgrades values in place. Anyone who connects a wallet has already paid for `@polkadot/api`, so Live is free for them and can default on.
+
+**Staking-event filter.** For both live invalidation and the pipeline's change detection, watch exactly these — again, the Portal's list, which encodes real knowledge of the v8 pallet split:
+
+- `staking`: `Bonded`, `Unbonded`, `Withdrawn`, `Slashed`, `StakersElected`, `Rewarded`
+- `validators`: `Nominated`, `InvalidatedNominators` — note nomination moved to the `validators` pallet in v8
+- `offences`: `Offence`
+- `imOnline`: `SomeOffline`
+
+This replaces the current app's `OperatorsTokensNominated` pattern of refetching three full storage maps on any matching event.
+
+**Honesty rule.** Every tier-2 value renders with an "as of HH:MM" affordance; tier-3 values tick; tier-4 values carry a live dot. A user must never have to guess whether a number is current — which is precisely what the current app leaves them to do.
 
 ### 6.7 Framework decision
 
@@ -956,7 +1025,7 @@ Each phase is a commit (or a small series). **A phase is not done until its acce
 
 Build `scripts/ingest/`. Zod 4 schemas in `lib/schemas/`. Metric derivations in `lib/metrics/`, ported from the existing chart components and unit-tested against Phase 0 fixtures. Cold-ingest the full history depth. Emit `manifest.json`, chunks (with `provenance`), `operators.json`, `latest.json`. Wire **both** GitHub Actions workflows from §6.3 and the orphan `data` branch.
 
-**Acceptance:** full history ingested and schema-valid; a warm `ingest-era` run with no new era exits in under 10s having made one RPC call; a warm run *with* a new era fetches exactly that era; re-ingest is byte-identical; every era carries correct `provenance.specVersion` and `exposureShape`; ported metrics match the current app's output within floating-point tolerance on all three fixtures; total chunk payload < 120 KB brotli.
+**Acceptance:** full history ingested and schema-valid; operator names resolve stash → DID → registry with a working fallback to the last good copy; `latest.json` carries era/epoch anchors and no precomputed progress; a warm `ingest-era` run with no new era exits in under 10s having made one RPC call; a warm run *with* a new era fetches exactly that era; re-ingest is byte-identical; every era carries correct `provenance.specVersion` and `exposureShape`; ported metrics match the current app's output within floating-point tolerance on all three fixtures; total chunk payload < 120 KB brotli.
 
 ### Phase 2 — App shell and design system
 
@@ -974,7 +1043,7 @@ Next.js 15 App Router scaffold. Tailwind v4 with every token from §7. Light/dar
 
 `/` and `/network`. Charts C1–C10. Era-range control with URL state.
 
-**Acceptance:** home LCP < 1.5s on throttled 4G; home renders usefully from `latest.json` before chunks land; every chart has a working table view; all §11 budgets met on these routes.
+**Acceptance:** home LCP < 1.5s on throttled 4G; home renders usefully from `latest.json` before chunks land; **the era countdown ticks with zero network traffic** (tier 3, §6.6a) — verify with the network tab idle; every tier-2 value shows an "as of" affordance; every chart has a working table view; all §11 budgets met on these routes.
 
 ### Phase 5 — Operators
 
@@ -990,9 +1059,9 @@ Next.js 15 App Router scaffold. Tailwind v4 with every token from §7. Light/dar
 
 ### Phase 7 — My Staking
 
-Lazy wallet integration, indexer client, `/my-staking` (C23, C24), reward-history CSV export, oversubscription and commission-change warnings.
+Lazy wallet integration, indexer client, `/my-staking` (C23, C24), reward-history CSV export, oversubscription and commission-change warnings. **Also the tier-4 Live toggle** (§6.6a) — same lazy `@polkadot/api` load, the narrow subscription set, and the staking-event filter. Live defaults on for wallet-connected users (they have already paid for the bundle) and off otherwise.
 
-**Acceptance:** `@polkadot/api` appears in **no** bundle loaded before the user connects (assert in CI against the build manifest); the disconnected state is fully usable, including the manual-address fallback; indexer pagination handles > 100 results.
+**Acceptance:** `@polkadot/api` appears in **no** bundle loaded before the user connects *or* enables Live (assert in CI against the build manifest); the disconnected state is fully usable, including the manual-address fallback; indexer pagination handles > 100 results; enabling Live upgrades values in place without a re-render storm and never gates first paint; disabling it tears down every subscription (assert no open sockets).
 
 ### Phase 8 — Polish and launch
 
@@ -1075,5 +1144,5 @@ These do not block anything; they are things to measure rather than decide.
 - `hooks/stakingPalletHooks/useHistoricalEras.ts` — exported, never consumed
 - `pages/page2/` — scaffolding
 - `styles/Home.module.css` — superseded
-- `constants/constants.ts` `operatorsNames` — replaced by generated `operators.json`
-- `constants/constants.ts` `didInfo` — migrate content into the operator seed file, then delete
+- `constants/constants.ts` `operatorsNames` — replaced by `operators.json`, generated from the official DID-keyed registry (§6.4)
+- `constants/constants.ts` `didInfo` — keep only the `website` values as a local supplement (the registry carries names only); delete the names
