@@ -15,9 +15,10 @@ export default function SlashingPage() {
       <div className="max-w-[65ch]">
         <h1 className="text-3xl leading-9 font-semibold tracking-tight">Slashing</h1>
         <p className="mt-3" style={{ color: 'var(--text-secondary)' }}>
-          Slashing is the one way staking can lose money rather than merely fail to earn it. It is
-          rare on Polymesh — which makes it easy to ignore until it is not. This page shows what has
-          actually happened, and what a penalty would cost if it did.
+          Slashing is the one way staking can lose money rather than merely fail to earn it. On
+          Polymesh it applies to operators&rsquo; own stake, not to nominated tokens — and it has
+          been rare. This page shows what has actually happened, who it would fall on, and what a
+          penalty would cost if it did.
         </p>
       </div>
 

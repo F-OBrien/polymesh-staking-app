@@ -307,6 +307,30 @@ export async function readEraNominatorSlashes(
   return { count, total };
 }
 
+/**
+ * Who slashing currently applies to.
+ *
+ * **Polymesh-specific, and it changes what the risk actually is.** Substrate
+ * slashes nominators alongside the validator they backed; Polymesh gates that
+ * behind a runtime switch (`validators.slashingAllowedFor`), and mainnet is set
+ * to `Validator` — only the operator's own stake is at risk. The docs say so
+ * too: "Nominator tokens are not currently subject to slashing, but that could
+ * change in the future."
+ *
+ * Read rather than hardcoded precisely because of that last clause. It is
+ * governance-changeable, and a page that asserts nominators are safe would
+ * become wrong the day it flips.
+ */
+export type SlashingScope = 'None' | 'Validator' | 'ValidatorAndNominator';
+
+export async function readSlashingScope(api: ApiLike): Promise<SlashingScope | null> {
+  const store = api.query.validators?.slashingAllowedFor ?? api.query.staking?.slashingAllowedFor;
+  if (store == null) return null;
+
+  const raw = String(await store());
+  return raw === 'None' || raw === 'Validator' || raw === 'ValidatorAndNominator' ? raw : null;
+}
+
 export interface ActiveEraInfo {
   index: number;
   /** Milliseconds since epoch, or null on a chain that has not set it. */

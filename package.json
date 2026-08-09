@@ -23,6 +23,7 @@
     "probe:indexer": "tsx scripts/probe/indexer.ts",
     "probe:slashes": "tsx scripts/probe/slash-storage.ts",
     "probe:stash": "tsx scripts/probe/stash.ts",
+    "probe:slashing-switch": "tsx scripts/probe/slashing-switch.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",

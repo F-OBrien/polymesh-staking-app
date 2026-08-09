@@ -12,7 +12,7 @@ import {
   unresponsivenessPenalty,
 } from '@/lib/metrics/slashing';
 import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
-import type { SlashEvent } from '@/lib/schemas/data';
+import type { SlashEvent, SlashingScope } from '@/lib/schemas/data';
 
 /**
  * Offences, and the penalty model behind them.
@@ -112,16 +112,27 @@ export function SlashingView() {
             hint="their own stake only"
             loading={slashes.isLoading}
           />
-          <StatTile
-            label="Lost by nominators"
-            value={formatPolyx(totals.nominatorLoss, { compact: true })}
-            hint={
-              totals.nominators > 0
-                ? `${formatNumber(totals.nominators)} nomination${totals.nominators === 1 ? '' : 's'} affected`
-                : undefined
-            }
-            loading={slashes.isLoading}
-          />
+          {/* When nominator slashing is switched off, a "Lost by nominators: 0"
+              tile is noise dressed as data. Say why it is zero instead. */}
+          {slashes.data?.scope === 'Validator' ? (
+            <StatTile
+              label="Lost by nominators"
+              value="None"
+              hint="nominated tokens are not slashed on Polymesh"
+              loading={slashes.isLoading}
+            />
+          ) : (
+            <StatTile
+              label="Lost by nominators"
+              value={formatPolyx(totals.nominatorLoss, { compact: true })}
+              hint={
+                totals.nominators > 0
+                  ? `${formatNumber(totals.nominators)} nomination${totals.nominators === 1 ? '' : 's'} affected`
+                  : undefined
+              }
+              loading={slashes.isLoading}
+            />
+          )}
         </div>
 
         <div className="mt-6">
@@ -204,14 +215,7 @@ export function SlashingView() {
           </LazyChart>
         </div>
 
-        <p className="mt-4 mb-0 max-w-[68ch] text-sm" style={{ color: 'var(--text-muted)' }}>
-          A slash is proportional to exposure, so a nominator loses the same percentage as the
-          operator they backed — it is not diluted across the operator&rsquo;s other nominators.
-          Spreading a nomination across operators run by different people, in different places,
-          reduces the chance of being caught in a correlated failure; spreading it across several
-          nodes run by the same operator does not. <Link href="/operators/">Compare operators</Link>
-          .
-        </p>
+        <WhoIsAtRisk scope={slashes.data?.scope ?? null} />
       </section>
     </>
   );
@@ -250,6 +254,68 @@ export function SlashingView() {
       </p>
     );
   }
+}
+
+/**
+ * Who a slash actually costs.
+ *
+ * **Read from the chain, never assumed.** Substrate slashes nominators
+ * alongside the validator they backed, and this page originally said so —
+ * which is wrong for Polymesh, where `validators.slashingAllowedFor` gates it
+ * and mainnet is set to `Validator`. Telling nominators their stake is at risk
+ * when it is not is a serious thing to get wrong on a page about money, and
+ * the reverse would be worse.
+ *
+ * So the copy follows the switch, and says plainly that it is
+ * governance-changeable — the official docs' own phrasing is "not currently
+ * subject to slashing, but that could change in the future".
+ */
+function WhoIsAtRisk({ scope }: { scope: SlashingScope | null }) {
+  const shared = (
+    <>
+      {' '}
+      Spreading a nomination across operators run by different people, in different places, reduces
+      the chance of being caught in a correlated failure; spreading it across several nodes run by
+      the same operator does not. <Link href="/operators/">Compare operators</Link>.
+    </>
+  );
+
+  return (
+    <p className="mt-4 mb-0 max-w-[68ch] text-sm" style={{ color: 'var(--text-muted)' }}>
+      {scope === 'Validator' ? (
+        <>
+          <strong style={{ color: 'var(--text-primary)' }}>
+            On Polymesh, only an operator&rsquo;s own stake is slashed.
+          </strong>{' '}
+          Nominated tokens are not currently at risk — the network sets slashing to apply to
+          validators alone. That is a runtime setting rather than a property of the protocol, and
+          governance can change it, so it is read from the chain each time this page is generated
+          rather than assumed. If it ever changes, the figures above change with it.
+        </>
+      ) : scope === 'ValidatorAndNominator' ? (
+        <>
+          <strong style={{ color: 'var(--text-primary)' }}>
+            Nominated tokens are at risk alongside the operator&rsquo;s own.
+          </strong>{' '}
+          A slash is proportional to exposure, so a nominator loses the same percentage as the
+          operator they backed — it is not diluted across that operator&rsquo;s other nominators.
+        </>
+      ) : scope === 'None' ? (
+        <>
+          <strong style={{ color: 'var(--text-primary)' }}>Slashing is currently disabled.</strong>{' '}
+          No stake is at risk from an offence while the network is configured this way. This is a
+          runtime setting and governance can change it.
+        </>
+      ) : (
+        <>
+          We could not read the network&rsquo;s slashing setting, so we cannot say whether nominated
+          tokens are at risk. Treat the curves above as the protocol&rsquo;s maximum rather than as
+          what you would actually lose.
+        </>
+      )}
+      {shared}
+    </p>
+  );
 }
 
 /**

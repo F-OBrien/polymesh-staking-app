@@ -107,12 +107,19 @@ export function firstPenalisedOffenderCount(
 }
 
 /**
- * What a slash of `fraction` costs a nominator holding `bonded`.
+ * What a slash of `fraction` would cost a nominator holding `bonded`.
  *
- * Slashing is proportional to exposure, so a nominator loses the same
- * percentage as the operator regardless of how large the operator is. Nominators
- * consistently expect their loss to be diluted across the operator's other
- * backers; it is not.
+ * **Conditional on the network's slashing scope, which on Polymesh currently
+ * excludes nominators.** `validators.slashingAllowedFor` is set to `Validator`
+ * on mainnet, so nominated tokens are not slashed at all — the official docs
+ * put it as "not currently subject to slashing, but that could change in the
+ * future". Callers must check `Slashes.scope` before presenting this as a real
+ * loss; `/slashing` does.
+ *
+ * The arithmetic is what Substrate would apply if the switch were flipped:
+ * proportional to exposure, so a nominator loses the same percentage as the
+ * operator regardless of how large that operator is. Nominators consistently
+ * expect the loss to be diluted across the operator's other backers; it is not.
  */
 export function nominatorLoss(bonded: number, fraction: number): number {
   return bonded * Math.max(0, Math.min(1, fraction));

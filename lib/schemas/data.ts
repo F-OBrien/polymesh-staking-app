@@ -305,10 +305,23 @@ export const NominatorSlashTotalSchema = z.object({
   amount: PolyxAmount,
 });
 
+/**
+ * Who slashing applies to, read from `validators.slashingAllowedFor`.
+ *
+ * Polymesh gates nominator slashing behind a runtime switch, and mainnet has it
+ * set to `Validator` — only an operator's own stake is at risk. This is
+ * governance-changeable, so it is read per run rather than assumed; a page that
+ * told nominators they were safe would become wrong the day it flipped.
+ *
+ * `null` when the chain does not expose the switch at all.
+ */
+export const SlashingScopeSchema = z.enum(['None', 'Validator', 'ValidatorAndNominator']);
+
 export const SlashesSchema = z
   .object({
     schemaVersion: z.literal(1),
     generatedAt: z.iso.datetime(),
+    scope: SlashingScopeSchema.nullable(),
     /**
      * The window actually scanned. Slash storage is pruned to the chain's
      * history depth (~84 eras), so absence of an event outside this window is
@@ -374,4 +387,5 @@ export type OperatorRegistry = z.infer<typeof OperatorRegistrySchema>;
 export type Rollup = z.infer<typeof RollupSchema>;
 export type SlashEvent = z.infer<typeof SlashEventSchema>;
 export type NominatorSlashTotal = z.infer<typeof NominatorSlashTotalSchema>;
+export type SlashingScope = z.infer<typeof SlashingScopeSchema>;
 export type Slashes = z.infer<typeof SlashesSchema>;

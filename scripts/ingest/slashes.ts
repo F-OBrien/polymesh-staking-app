@@ -31,6 +31,7 @@ import {
   readEraNominatorSlashes,
   readEraSlashes,
   readHistoryDepth,
+  readSlashingScope,
 } from '../../lib/chain/compat';
 import { toPolyx } from '../../lib/metrics/staking';
 import type { NominatorSlashTotal, SlashEvent, Slashes } from '../../lib/schemas/data';
@@ -42,6 +43,35 @@ const ERA_CONCURRENCY = 3;
 
 const round = (value: number, dp = 6): number => Number(value.toFixed(dp));
 
+/**
+ * Reads the previous `slashes.json`, tolerating a shape it no longer matches.
+ *
+ * The store deliberately refuses to build on a file that fails its schema —
+ * right for chunks, which are appended to and must never be corrupted. This
+ * file is different: it is regenerated wholesale from chain state on every run,
+ * and the only thing the old copy contributes is events for eras the chain has
+ * since pruned.
+ *
+ * So a schema change here should cost a warning, not a failed run. Adding
+ * `scope` did exactly that and aborted the pipeline until the file was deleted
+ * by hand — not something to leave waiting for the next scheduled run.
+ *
+ * The trade is that a schema change loses pre-prune history. That is why it
+ * warns loudly rather than passing over it quietly.
+ */
+async function readStoredLeniently(store: DataStore): Promise<Slashes | null> {
+  try {
+    return await store.readSlashes();
+  } catch (error) {
+    console.warn(
+      `Existing slashes.json does not match the current schema, so previously ` +
+        `recorded events cannot be carried forward. Rebuilding from chain state ` +
+        `alone.\n  ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`,
+    );
+    return null;
+  }
+}
+
 async function main(): Promise<void> {
   const network = resolveNetwork();
   const endpoint = resolveRpcUrl(network);
@@ -51,10 +81,11 @@ async function main(): Promise<void> {
   const { api, disconnect } = await connect({ endpoint });
 
   try {
-    const [activeEra, historyDepth, stored] = await Promise.all([
+    const [activeEra, historyDepth, stored, scope] = await Promise.all([
       readActiveEra(api),
       readHistoryDepth(api),
-      store.readSlashes(),
+      readStoredLeniently(store),
+      readSlashingScope(api),
     ]);
 
     const tokenDecimals = api.registry.chainDecimals[0] ?? 6;
@@ -109,6 +140,7 @@ async function main(): Promise<void> {
     const slashes: Slashes = {
       schemaVersion: 1,
       generatedAt: new Date().toISOString(),
+      scope,
       firstEra,
       lastEra,
       prunedBefore: scannedFrom > 0 ? scannedFrom : null,
@@ -122,6 +154,7 @@ async function main(): Promise<void> {
     console.log(
       [
         `Wrote slashes.json (${(bytes / 1024).toFixed(1)} KB)`,
+        `  scope      slashing applies to: ${scope ?? 'unknown'}`,
         `  window     ${firstEra}-${lastEra}, chain retains from ${scannedFrom}`,
         `  events     ${events.length} (${scannedEvents.length} from chain, ${carried} carried forward)`,
         `  nominators ${nominatorTotals.length} era(s) with losses`,

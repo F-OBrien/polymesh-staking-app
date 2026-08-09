@@ -16,9 +16,11 @@
  * it usable as a visual-regression baseline.
  *
  *   npm run fixtures -- --eras 200 --operators 100 --seed 42
+ *
+ * Refuses to overwrite a real ingest unless passed `--force`.
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { CHUNK_SIZE } from '../../config/site';
@@ -87,6 +89,8 @@ interface Options {
   operators: number;
   seed: number;
   outDir: string;
+  /** Overwrite real ingested data. See `guardRealData`. */
+  force: boolean;
 }
 
 const TIMING: EraTimingConsts = {
@@ -118,6 +122,7 @@ function parseArgs(argv: readonly string[]): Options {
     operators: get('--operators', 100),
     seed: get('--seed', 42),
     outDir: join(process.cwd(), 'public', 'data'),
+    force: argv.includes('--force'),
   };
 }
 
@@ -504,6 +509,41 @@ async function writeJson(path: string, value: unknown): Promise<number> {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Refuses to overwrite real ingested data.
+ *
+ * This script starts by deleting its whole output directory, which is fine
+ * while that directory holds fixtures and destructive when it holds a mainnet
+ * ingest — an hour of RPC calls, gone to a reflexive `npm run fixtures`. I did
+ * exactly that, so the guard exists rather than the good intention.
+ *
+ * The manifest names the chain it came from, so telling the two apart is
+ * reliable: fixtures label themselves "(synthetic)".
+ */
+async function guardRealData(outDir: string, force: boolean): Promise<void> {
+  if (force) return;
+
+  let manifest: { chain?: { name?: string }; firstEra?: number; lastCompleteEra?: number };
+  try {
+    manifest = JSON.parse(await readFile(join(outDir, 'manifest.json'), 'utf8'));
+  } catch {
+    return; // Nothing there, or nothing readable — safe to write.
+  }
+
+  const name = manifest.chain?.name ?? '';
+  if (name.includes('synthetic')) return;
+
+  throw new Error(
+    [
+      `${outDir} holds real ingested data (${name}, eras ${manifest.firstEra}-${manifest.lastCompleteEra}).`,
+      'Generating fixtures would delete it, and re-ingesting is a long run against a public node.',
+      '',
+      '  Overwrite anyway:  npm run fixtures -- --force',
+      '  Keep it:           work against the real data, or move it aside first',
+    ].join('\n'),
+  );
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const rng = makeRng(options.seed);
@@ -523,6 +563,7 @@ async function main(): Promise<void> {
   }
 
   const outDir = options.outDir;
+  await guardRealData(outDir, options.force);
   await rm(outDir, { recursive: true, force: true });
   await mkdir(join(outDir, 'chunks'), { recursive: true });
 
@@ -649,6 +690,8 @@ async function main(): Promise<void> {
   const slashes = SlashesSchema.parse({
     schemaVersion: 1,
     generatedAt: new Date(anchor * 1000).toISOString(),
+    // Mirrors mainnet: nominator slashing is switched off on Polymesh.
+    scope: 'Validator',
     firstEra,
     lastEra: lastCompleteEra,
     // Mirrors mainnet: the chain only retains a history-depth window, so the
