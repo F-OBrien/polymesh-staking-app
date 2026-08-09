@@ -67,6 +67,18 @@ export function Decentralisation({
         that would let a small group act together, so it is worth watching even when returns look
         healthy.
       </p>
+      {/* Without this, the figures read as broken rather than as a finding.
+          Polymesh's election redistributes nominations to equalise backing, so
+          in practice every elected operator ends up with almost the same total
+          — measured on mainnet: own stake spans 50K to 5.3M POLYX, while total
+          backing spans only 6.34M to 6.57M. That produces a Gini near zero and
+          a Lorenz curve sitting on the diagonal, which looks like a bug until
+          you know it is the mechanism working. */}
+      <p className="mt-0 mb-4 max-w-[65ch] text-sm" style={{ color: 'var(--text-muted)' }}>
+        Expect these to look almost perfectly even. The election redistributes nominations to
+        equalise how much stake backs each elected operator, so the spread below reflects that
+        levelling rather than how much each operator or its nominators actually hold.
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
