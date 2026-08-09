@@ -1,81 +1,99 @@
-# Workflow for building and deploying a Next.js site to GitHub Pages
+# Builds the static export and deploys it to GitHub Pages.
 #
-# Compatible with Next.js 14 where `output: 'export'` in next.config.js outputs to the `out` folder
-#
-name: Deploy Next.js site to Pages
+# The important step is fetching `public/data`. Generated staking data lives on
+# the orphan `data` branch, written by the ingestion workflows, and is
+# gitignored on every source branch — so a plain checkout produces a source tree
+# that cannot build: `generateStaticParams()` for /operators/[address] returns
+# nothing, and Next 16 rejects that under `output: export`.
+name: Deploy to GitHub Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ['main']
-
-  # Allows you to run this workflow manually from the Actions tab
+  # Data changes must redeploy. `dataUrl()` resolves to the site's own origin by
+  # default, so GitHub Pages serves the copy of `public/data` baked into the
+  # last deployment — writing to the `data` branch changes nothing a visitor
+  # sees until the site is rebuilt.
+  #
+  # That includes the 15-minute snapshot, not just the daily era: `latest.json`
+  # is tier 2 in §6.6a and carries an "as of HH:MM" stamp, which would otherwise
+  # be pinned to deploy time and quietly make the freshness contract a lie.
+  #
+  # Four deploys an hour, well inside the Pages soft limit of ten builds, and
+  # each one rebuilds the whole site for one small JSON file. If that becomes a
+  # nuisance, the fix is `NEXT_PUBLIC_DATA_BASE_URL` — point the data root at
+  # R2 or any CDN and the snapshot stops needing a deploy at all.
+  workflow_run:
+    workflows: ['Ingest era', 'Snapshot latest']
+    types: [completed]
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow one concurrent deployment
 concurrency:
   group: 'pages'
   cancel-in-progress: true
 
 jobs:
-  # Build job
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Detect package manager
-        id: detect-package-manager
+      # `continue-on-error` covers the bootstrap case only: before the first
+      # ingestion run the branch does not exist yet. The step below turns that
+      # into fixtures plus a loud warning rather than a failed deploy.
+      - name: Checkout generated data
+        id: data
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: public/data
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Fall back to synthetic data
+        if: steps.data.outcome != 'success'
         run: |
-          if [ -f "${{ github.workspace }}/yarn.lock" ]; then
-            echo "manager=yarn" >> $GITHUB_ENV
-            echo "command=install" >> $GITHUB_ENV
-            echo "runner=yarn" >> $GITHUB_ENV
-          elif [ -f "${{ github.workspace }}/package.json" ]; then
-            echo "manager=npm" >> $GITHUB_ENV
-            echo "command=ci" >> $GITHUB_ENV
-            echo "runner=npx --no-install" >> $GITHUB_ENV
-          else
-            echo "Unable to determine package manager"
-            exit 1
-          fi
+          echo "::warning title=No data branch::Deploying with synthetic fixtures. \
+          Run the 'Ingest era' workflow to publish real data."
+          npm run fixtures
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      # A checkout leaves a .git directory behind; `output: export` copies
+      # public/ verbatim, so without this the deploy would publish the data
+      # branch's git metadata.
+      - name: Remove data checkout metadata
+        run: rm -rf public/data/.git
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Build
+        run: npm run build
 
-      - name: Restore cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
+      # Same two checks CI runs, against the artefact actually being deployed.
+      # A bundle regression that only shows up with real data — a hundred real
+      # operator pages rather than a hundred synthetic ones — would otherwise
+      # reach production unnoticed.
+      - name: Per-route JS budget
+        run: npm run budget
 
-      - name: Install dependencies
-        run: ${{ env.manager }} ${{ env.command }}
-
-      - name: Build and Export with Next.js
-        run: ${{ env.runner }} next build
+      - name: Chain stack stays lazy
+        run: npm run assert:lazy
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./out
 
-  # Deployment job
   deploy:
     environment:
       name: github-pages

@@ -41,6 +41,18 @@ jobs:
       - name: Dead code
         run: npm run knip
 
+      # `public/data` is gitignored — generated data lives on the `data` branch,
+      # not on a source branch. Without it `generateStaticParams()` for
+      # /operators/[address] yields nothing, and Next 16 treats an empty result
+      # under `output: export` as a fatal error.
+      #
+      # Synthetic rather than the real `data` branch on purpose: this job is a
+      # build check, it must pass on a pull request from a fork, and it must not
+      # start failing because an ingestion run happened to be mid-flight. The
+      # fixtures are deterministic and go through the same Zod schemas.
+      - name: Generate fixture data
+        run: npm run fixtures
+
       - name: Build
         run: npm run build
 

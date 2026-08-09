@@ -38,12 +38,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout data branch
+        # The branch may not exist yet on a first run; the next step creates it.
+        # This is a step-level key, not a checkout input — nested under `with:`
+        # the action ignores it and a first run fails instead of bootstrapping.
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
           ref: data
           path: public/data
-          # The branch may not exist yet on a first run; the next step creates it.
-          continue-on-error: true
 
       - name: Ensure data branch exists
         run: |

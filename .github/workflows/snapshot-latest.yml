@@ -32,11 +32,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout data branch
+        # A step-level key, not a checkout input. It was nested under `with:`,
+        # where the action simply ignores it — so a missing `data` branch failed
+        # the run instead of being tolerated.
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
           ref: data
           path: public/data
-          continue-on-error: true
 
       - uses: actions/setup-node@v4
         with:

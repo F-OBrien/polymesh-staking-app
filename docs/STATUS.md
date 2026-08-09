@@ -202,6 +202,41 @@ silently forever while the UI shows a skeleton. That is exactly the "spinner
 turning forever with no message" failure this rebuild exists to remove, and it
 was reproduced here before being fixed with a 12s timeout and `retry: false`.
 
+### 7. The build needs `public/data`, and that directory is gitignored
+
+Generated data lives on the orphan `data` branch. A source checkout therefore
+has no `public/data`, and **the build fails without it** — `generateStaticParams()`
+for `/operators/[address]` returns nothing, and Next 16 rejects an empty result
+under `output: export`.
+
+How each workflow gets data:
+
+| Workflow | Source of `public/data` |
+|---|---|
+| `ci` | `npm run fixtures` — synthetic, deterministic |
+| `pages` | checks out the `data` branch; falls back to fixtures with a warning |
+| `ingest-era`, `snapshot-latest` | check out the `data` branch, then push back to it |
+
+CI uses fixtures rather than the real branch on purpose: the job is a build
+check, it must pass on a fork PR that has no access to the branch, and it must
+not start failing because an ingestion run was mid-flight.
+
+Locally: **`npm run fixtures` once after cloning**, or the build fails with a
+message telling you exactly that.
+
+### 8. A data change requires a redeploy
+
+`dataUrl()` resolves to the site's own origin, so GitHub Pages serves the copy
+of `public/data` baked into the last deployment. Writing to the `data` branch
+changes nothing a visitor sees until the site is rebuilt — which is why `pages`
+triggers on `workflow_run` from **both** ingestion workflows, not just the daily
+era one. `latest.json` is tier 2 and carries an "as of HH:MM" stamp; without the
+15-minute trigger that stamp would be pinned to deploy time.
+
+The cost is a full rebuild for one small JSON file, four times an hour. If that
+becomes a nuisance, `NEXT_PUBLIC_DATA_BASE_URL` points the data root at a CDN
+and the snapshot stops needing a deploy at all.
+
 ---
 
 ## Things that will bite you

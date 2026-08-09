@@ -16,7 +16,28 @@ import { Skeleton } from '@/components/states';
  * An address absent from that file 404s. That is the honest outcome: with no
  * server there is nowhere to resolve it, and the detail component already
  * explains the case where an address exists but has no data in range.
+ *
+ * **A missing dataset fails the build, deliberately.** An earlier revision
+ * returned an empty list so a fresh clone would still build. That stopped
+ * working in Next 16, which rejects an empty `generateStaticParams()` under
+ * `output: export` — and the error it raises names neither the file nor the
+ * command that creates it, which cost a CI run to diagnose. Failing here with
+ * an actionable message is strictly better, and the silent version was never
+ * right anyway: a site built without data would deploy with every operator
+ * page missing.
  */
+
+const REGISTRY_PATH = join(process.cwd(), 'public', 'data', 'operators.json');
+
+const MISSING_DATA = `
+public/data/operators.json is missing or empty, so there are no operator pages to build.
+
+  Local development:  npm run fixtures
+  CI:                 the workflow generates fixtures before building
+  Deploy:             the "data" branch is checked out into public/data
+
+That directory is gitignored — generated data never lives on a source branch.
+`.trim();
 
 interface OperatorRecordShape {
   name?: string;
@@ -25,19 +46,20 @@ interface OperatorRecordShape {
 
 async function readRegistry(): Promise<Record<string, OperatorRecordShape>> {
   try {
-    const raw = await readFile(join(process.cwd(), 'public', 'data', 'operators.json'), 'utf8');
+    const raw = await readFile(REGISTRY_PATH, 'utf8');
     return JSON.parse(raw) as Record<string, OperatorRecordShape>;
   } catch {
-    // No dataset yet — a fresh clone before `npm run fixtures`, or a build in
-    // an environment without the data branch. Build the rest of the site
-    // rather than failing on a directory that will exist in CI.
     return {};
   }
 }
 
 export async function generateStaticParams(): Promise<{ address: string }[]> {
   const registry = await readRegistry();
-  return Object.keys(registry).map((address) => ({ address }));
+  const addresses = Object.keys(registry);
+
+  if (addresses.length === 0) throw new Error(MISSING_DATA);
+
+  return addresses.map((address) => ({ address }));
 }
 
 export async function generateMetadata({
