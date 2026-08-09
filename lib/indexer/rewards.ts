@@ -28,7 +28,16 @@ import {
  * early is how reconciliation totals end up off by a few micro-POLYX.
  */
 export interface RewardEvent {
-  era: number;
+  /**
+   * The era this reward was for, or `null` when it cannot be established.
+   *
+   * Null is the normal case, not an edge case. The indexer records a block, not
+   * an era, and the block→era mapping only exists for eras we still hold chunks
+   * for — about 84 of them, against reward histories that run for years. An
+   * earlier revision defaulted this to `0`, which exported as a confident "era
+   * 0" in a CSV people use for tax reporting.
+   */
+  era: number | null;
   blockNumber: number;
   /** Unix seconds. */
   datetime: number;
@@ -37,9 +46,9 @@ export interface RewardEvent {
 
 interface RawStakingEvent {
   id: string;
-  blockId: string;
+  createdBlockId: string;
   eventId: string;
-  amount: string | null;
+  amount: string | number | null;
   datetime: string;
   stashAccount: string | null;
   identityId: string | null;
@@ -53,21 +62,39 @@ interface StakingEventsResponse {
 }
 
 /**
- * Ordered oldest-first so a running total reads naturally, and filtered
- * server-side to `Rewarded` so we do not pull an account's whole staking
- * history to find its payouts.
+ * Every reward paid to a stash, oldest first.
+ *
+ * Three details here were wrong when this was written blind, and each was found
+ * by introspecting the live schema. They are worth spelling out because none of
+ * them fails loudly:
+ *
+ *  - **The block field is `createdBlockId`,** not `blockId`. That one at least
+ *    errors — the query 400s.
+ *  - **Ordering is by `DATETIME_ASC`, not `CREATED_BLOCK_ID_ASC`.** The block id
+ *    is a *String*, so ordering by it sorts lexicographically: block "10" sorts
+ *    before block "9", and a reward history would come back subtly shuffled with
+ *    no error at all. Datetime is the honest key here anyway, since the UI
+ *    buckets by day.
+ *  - **`eventId` must match both `Reward` and `Rewarded`.** Polymesh renamed the
+ *    event across a runtime upgrade and the enum carries both spellings.
+ *    Filtering on `Rewarded` alone returns only recent history and silently
+ *    reports a lifetime total that is missing its early years — the worst kind
+ *    of wrong, because it looks entirely plausible.
  */
 const REWARDS_QUERY = `
   query RewardsForStash($stash: String!, $first: Int!, $offset: Int!) {
     stakingEvents(
-      filter: { stashAccount: { equalTo: $stash }, eventId: { equalTo: Rewarded } }
-      orderBy: [BLOCK_ID_ASC]
+      filter: {
+        stashAccount: { equalTo: $stash }
+        eventId: { in: [Reward, Rewarded] }
+      }
+      orderBy: [DATETIME_ASC]
       first: $first
       offset: $offset
     ) {
       nodes {
         id
-        blockId
+        createdBlockId
         eventId
         amount
         datetime
@@ -126,22 +153,46 @@ export async function fetchRewards(
  */
 export function toRewardEvent(
   node: {
-    blockId: string;
-    amount: string | null;
+    createdBlockId: string;
+    amount: string | number | null;
     datetime: string;
   },
   eraForBlock?: ((blockNumber: number) => number) | undefined,
 ): RewardEvent {
-  const blockNumber = Number.parseInt(node.blockId, 10);
+  const blockNumber = Number.parseInt(node.createdBlockId, 10);
   const safeBlock = Number.isFinite(blockNumber) ? blockNumber : 0;
   const parsed = Date.parse(node.datetime);
 
   return {
-    era: eraForBlock?.(safeBlock) ?? 0,
+    era: eraForBlock?.(safeBlock) ?? null,
     blockNumber: safeBlock,
     datetime: Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0,
-    amount: /^\d+$/.test(node.amount ?? '') ? (node.amount as string) : '0',
+    amount: toBaseUnits(node.amount),
   };
+}
+
+/**
+ * Normalises an indexer `amount` to an exact base-unit string.
+ *
+ * The schema types this as `BigFloat`, not an integer — it arrives as a string
+ * like `"1234567"`, sometimes with a `.0` tail, and in principle as a number.
+ * The original code demanded `/^\d+$/` and turned anything else into zero,
+ * which would have silently reported a lifetime total of 0 POLYX rather than
+ * failing.
+ *
+ * Everything downstream sums in `bigint`, so the string must be exact and
+ * integral. A fractional part is discarded rather than rounded: base units are
+ * indivisible, so a fraction can only be an artefact of the float encoding, and
+ * rounding up could invent a unit that was never paid.
+ */
+export function toBaseUnits(amount: string | number | null | undefined): string {
+  if (amount == null) return '0';
+
+  const text = typeof amount === 'number' ? amount.toFixed(0) : amount.trim();
+  // Scientific notation would lose precision through Number; reject it rather
+  // than report a wrong figure. Not observed on mainnet, but cheap to guard.
+  const match = /^(\d+)(?:\.\d+)?$/.exec(text);
+  return match?.[1] ?? '0';
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +309,10 @@ export function rewardsToCsv(events: readonly RewardEvent[], tokenDecimals: numb
   const lines = events.map((event) =>
     [
       event.datetime > 0 ? new Date(event.datetime * 1000).toISOString() : '',
-      String(event.era),
+      // Blank rather than 0 when the era is unknown: this file gets reconciled
+      // against block explorers and filed for reporting, so an invented era
+      // index is worse than an empty cell.
+      event.era == null ? '' : String(event.era),
       String(event.blockNumber),
       (Number(event.amount) / divisor).toFixed(tokenDecimals),
       event.amount,

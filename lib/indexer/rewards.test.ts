@@ -7,6 +7,7 @@ import {
   rewardsByDay,
   rewardsToCsv,
   summariseRewards,
+  toBaseUnits,
   toRewardEvent,
   type RewardEvent,
 } from './rewards';
@@ -163,7 +164,7 @@ describe('toRewardEvent', () => {
   it('parses a well-formed row', () => {
     const result = toRewardEvent({
       blockNumber: 0,
-      blockId: '12345',
+      createdBlockId: '12345',
       amount: '5000000',
       datetime: '2026-08-08T12:00:00.000Z',
     } as never);
@@ -174,31 +175,76 @@ describe('toRewardEvent', () => {
 
   it('maps a block to an era when a mapper is supplied', () => {
     const result = toRewardEvent(
-      { blockId: '900', amount: '1', datetime: '2026-01-01T00:00:00Z' },
+      { createdBlockId: '900', amount: '1', datetime: '2026-01-01T00:00:00Z' },
       (block) => Math.floor(block / 100),
     );
     expect(result.era).toBe(9);
   });
 
   it('survives a null amount rather than blanking the whole history', () => {
-    const result = toRewardEvent({ blockId: '1', amount: null, datetime: '2026-01-01T00:00:00Z' });
-    expect(result.amount).toBe('0');
-  });
-
-  it('rejects a non-integer amount, which would break the bigint sum', () => {
     const result = toRewardEvent({
-      blockId: '1',
-      amount: '12.5',
+      createdBlockId: '1',
+      amount: null,
       datetime: '2026-01-01T00:00:00Z',
     });
     expect(result.amount).toBe('0');
-    expect(() => BigInt(result.amount)).not.toThrow();
+  });
+
+  it('leaves the era null when nothing can map the block to one', () => {
+    // The normal case: reward histories run for years, chunks cover ~84 eras.
+    // This defaulted to 0, which exported as a confident "era 0" in the CSV.
+    const result = toRewardEvent({
+      createdBlockId: '900',
+      amount: '1',
+      datetime: '2026-01-01T00:00:00Z',
+    });
+    expect(result.era).toBeNull();
   });
 
   it('survives an unparseable block or date', () => {
-    const result = toRewardEvent({ blockId: 'abc', amount: '1', datetime: 'not a date' });
+    const result = toRewardEvent({ createdBlockId: 'abc', amount: '1', datetime: 'not a date' });
     expect(result.blockNumber).toBe(0);
     expect(result.datetime).toBe(0);
+  });
+});
+
+describe('toBaseUnits', () => {
+  it('accepts the integral string mainnet actually returns', () => {
+    expect(toBaseUnits('541487326')).toBe('541487326');
+  });
+
+  it('accepts a BigFloat with a fractional tail, keeping the integer part', () => {
+    // `amount` is typed BigFloat in the schema, not an integer. The original
+    // code demanded /^\d+$/ and turned anything else into zero — which would
+    // have reported a lifetime total of 0 POLYX rather than failing.
+    expect(toBaseUnits('541487326.0')).toBe('541487326');
+    expect(toBaseUnits('541487326.9')).toBe('541487326');
+  });
+
+  it('accepts a JSON number', () => {
+    expect(toBaseUnits(5000000)).toBe('5000000');
+  });
+
+  it('truncates rather than rounds, since base units are indivisible', () => {
+    // Rounding up would invent a unit that was never paid.
+    expect(toBaseUnits('99.99')).toBe('99');
+  });
+
+  it('returns zero for null, empty and nonsense', () => {
+    expect(toBaseUnits(null)).toBe('0');
+    expect(toBaseUnits(undefined)).toBe('0');
+    expect(toBaseUnits('')).toBe('0');
+    expect(toBaseUnits('not a number')).toBe('0');
+  });
+
+  it('refuses scientific notation rather than losing precision', () => {
+    expect(toBaseUnits('5.4e8')).toBe('0');
+  });
+
+  it('always yields something BigInt can parse', () => {
+    for (const input of [null, '', 'x', '1.5', 12, '9007199254740993']) {
+      expect(() => BigInt(toBaseUnits(input as never))).not.toThrow();
+    }
   });
 });
 
@@ -210,7 +256,7 @@ describe('fetchRewards', () => {
           nodes: [
             {
               id: 'a',
-              blockId: String(offset + 1),
+              createdBlockId: String(offset + 1),
               eventId: 'Rewarded',
               amount: '1000000',
               datetime: '2026-01-01T00:00:00Z',
@@ -344,6 +390,11 @@ describe('rewardsToCsv', () => {
     expect(row).toContain('1.234567');
     expect(row).toContain('1234567');
     expect(row).toContain(',42,99,');
+  });
+
+  it('leaves the era cell blank when the era is unknown', () => {
+    const csv = rewardsToCsv([event({ era: null })], 6);
+    expect(csv.split('\n')[1]!.split(',')[1]).toBe('');
   });
 
   it('emits a header even with no rows', () => {

@@ -20,6 +20,8 @@
     "knip": "knip",
     "budget": "tsx scripts/budget.ts",
     "assert:lazy": "tsx scripts/assert-lazy.ts",
+    "probe:indexer": "tsx scripts/probe/indexer.ts",
+    "probe:slashes": "tsx scripts/probe/slash-storage.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",
