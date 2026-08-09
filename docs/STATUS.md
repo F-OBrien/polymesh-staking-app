@@ -21,8 +21,61 @@ file is only *where we are* and *what to watch out for*.
 | 6 | `/compare`, `/calculator`, `/slashing`; slash ingestion + `slashes.json`; penalty-curve maths; numeric-x chart |
 | 7 | `/my-staking`; indexer client; lazy wallet + refcounted chain connection; tier-4 Live; `npm run assert:lazy` |
 
-368 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
+376 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
 and the lazy-load assertion.
+
+**After Phase 7, on a machine with chain egress:** the reward query, stash
+decoding and slashing policy were all corrected against real mainnet, and
+`@polymeshassociation/polymesh-types` was adopted (types only). See the two
+sections below — that work found more real bugs than any phase.
+
+## Start here if you are picking this up cold
+
+Read this section, then §"Next: Phase 8". Everything else is reference.
+
+**Where the work happens:** branch `claude/polymesh-staking-rebuild-tetxaz`.
+Never push to another branch without asking. Do not open a PR unless asked.
+
+**Before anything else:** `npm ci`, then `npm run fixtures` if `public/data` is
+empty. The build *fails* without that directory — see open item 7. If it
+already holds real ingested data, `fixtures` will refuse rather than delete it.
+
+**The gate is** `npm run check && npm run knip && npm run build && npm run budget && npm run assert:lazy`.
+All of it must pass before a commit. `budget` and `assert:lazy` read the built
+output, so they need `npm run build` first.
+
+**This machine has chain egress; the previous sandbox did not.** That matters
+enormously — see §"Phase 7 against real mainnet". Four probes exist for
+re-validating against the live chain, and every one of them has already found a
+bug that review did not:
+
+| Probe | Checks |
+|---|---|
+| `npm run probe:indexer` | the reward GraphQL query against the live schema |
+| `npm run probe:stash` | `readStashPosition` decoding, incl. the controller indirection |
+| `npm run probe:slashes` | that slash storage exists and is genuinely empty |
+| `npm run probe:slashing-switch` | `validators.slashingAllowedFor` |
+
+**Local data state:** `public/data` holds a real mainnet ingest, eras 1664–1746,
+86 operators, plus `latest.json` and `slashes.json` (`scope: Validator`, zero
+offences). It is gitignored. The `data` branch on GitHub is **still empty** —
+nothing is deployed yet. Populating it is either the `Ingest era` workflow once
+this is merged to `main`, or a deliberate push of `public/data` to that branch.
+That decision is the user's; it has not been made.
+
+### The single most useful lesson from this session
+
+**Nothing written against a chain without running it against that chain was
+correct.** Three of four items flagged "unverified" in Phase 7 turned out to be
+wrong, two of them silently — a lexicographic sort on a String block id, and a
+renamed event enum that dropped 30% of reward history while still looking
+plausible. Then `/slashing` was found to be stating the opposite of Polymesh's
+actual slashing policy.
+
+If you write chain-facing code here, run it against mainnet before believing
+it. Add a probe if one does not exist.
+
+---
 
 ## Next: Phase 8 — polish and launch
 
@@ -40,13 +93,63 @@ Every page now exists. What remains is the work that makes it shippable:
 - **Rewrite `README.md`**, and record a before/after comparison in
   `docs/baseline.md`.
 
+### Requested by the user, not yet built — do this before the polish work
+
+**Two charts from the legacy site that the user relied on regularly.** In their
+words:
+
+> from the legacy site two charts I regularly used were the live node points per
+> era and total Polyx assigned to nodes. The first confirmed they were still
+> producing blocks as the point updated every block by subscription and the
+> second allowed me to see the estimated returns for the next era. The Polymesh
+> portal showed the returns for the last era so combining this information we
+> have both recent and forward looking estimations that were live/semi live.
+
+Read that as one need, not two: **is my operator working right now, and what am
+I likely to earn next.** The current `/operators` table answers neither — it
+shows a *historical mean* return over the selected era range, not this era's
+implied return from current exposure.
+
+The data already exists; this is mostly assembly:
+
+| Piece | Source |
+|---|---|
+| Points this era, per operator | `latest.json` `operators[].points` (tier 2, 15 min) |
+| Same, live per block | tier 4 already subscribes to `staking.erasRewardPoints(activeEra)` — see `lib/chain/live.ts`, it is in `LiveState.eraPoints` |
+| Stake per operator, this era | `latest.json` `operators[].totalStake` |
+| Era reward to divide up | `curveInflation` / `stakingReturns` in `lib/metrics/staking.ts`, or the previous era's `validatorReward` from the last chunk |
+
+Suggested shape, **but confirm the framing with the user first** — it is their
+workflow: a "This era" section pairing points-accruing-now against
+estimated-return-from-current-stake, with the existing `LiveToggle`. That gives
+recent and forward-looking side by side, which is what they described
+assembling manually from two sites.
+
+`components/live-toggle.tsx` and `lib/data/use-live.ts` are ready to use.
+Live must stay opt-in and must never gate first paint (§6.6a).
+
+**Read the v7.4→v8.0 changelog before building it.** Not yet read, and today's
+record suggests not guessing:
+<https://developers.polymesh.network/development/changelogs/v7.4-to-v8.0/staking-and-validators.md>
+Also unexamined, and likely relevant to how Polymesh actually pays out:
+`validators.validatorCommissionCap`, `validators.currentPayoutEra` and
+`validators.pendingPayouts` — spotted on the pallet, never read.
+
+Reference docs the user pointed at:
+<https://developers.polymesh.network/polyx/staking.md> ·
+<https://developers.polymesh.network/polyx/tokenomics.md>
+
 ### Carried into Phase 8 from earlier phases
 
 - **`/slashing` has no offence-type column**, because `validatorSlashInEra`
   does not record one (see the note in `lib/schemas/data.ts`). The indexer
   client now exists, so the real type can come from `offences` events. Do not
   infer it from the fraction — the ranges overlap.
-- **Unverified against a real wallet or chain.** See item 5.
+- **Two things remain unverified against reality:** the wallet extension
+  handshake, and whether the tier-4 subscription names match the current
+  runtime. Both need a browser with a wallet installed — ten minutes of
+  `npm run dev`. Given that every other unverified item turned out to be wrong,
+  do this before launch.
 
 ## Phase 7 against real mainnet — what the first run found
 
@@ -322,6 +425,32 @@ historical probes must keep their loose access.
 
 ---
 
+## Polymesh is not vanilla Substrate — verified facts
+
+Each of these was confirmed against mainnet (spec `8000020`) this session, and
+several contradict what a reasonable person would assume from Substrate.
+
+- **Nominators are not slashed.** `validators.slashingAllowedFor` reads
+  `Validator`. It is a governance switch, so it is read per run into
+  `slashes.json.scope` and never hardcoded. The docs' phrasing is "not
+  currently subject to slashing, but that could change in the future". Getting
+  this wrong is what open item 10 is about.
+- **Nomination lives on the `validators` pallet**, not `staking` — v8 moved it.
+  The tier-4 event filter already accounts for this; watching `staking.Nominated`
+  would fail silently.
+- **The election equalises exposure.** Own stake spans 50K–5.3M POLYX while
+  *total backing* spans only 6.34M–6.57M across 86 operators. This makes Gini
+  ≈ 0.008 and the Lorenz curve sit on the diagonal — correct, not a bug, and
+  `components/decentralisation.tsx` now says so.
+- **`staking.payee` is an `Option<RewardDestination>`**, not a bare enum.
+- **The indexer's `EventIdEnum` carries both `Reward` and `Rewarded`.** Query
+  both or lose the older ~30% of any reward history.
+- **Era is exactly 24h**: `sessionsPerEra` 6 × `epochDuration` 2400 ×
+  `expectedBlockTime` 6000ms. Derived, never assumed.
+- **Zero slashes in the retained window**, and the storage genuinely exists —
+  the empty result is real, not a misread map.
+- **`waiting` validators is 0**; the set is permissioned, 86 active of max 100.
+
 ## Things that will bite you
 
 Each of these cost real debugging time. They are all fixed; the notes are so
@@ -369,15 +498,37 @@ they are not re-introduced.
 
 ```bash
 npm ci
-npm run fixtures     # synthetic dataset — no chain access needed
+npm run fixtures     # synthetic dataset — refuses to overwrite a real ingest
 npm run dev
 
+# The full gate. All of it must pass before a commit.
 npm run check        # typecheck + lint + test
+npm run knip
 npm run build
+npm run budget       # per-route JS, gzipped, against the 200 KB budget
+npm run assert:lazy  # the chain stack must not load before a user connects
 
-# Needs a real RPC endpoint; will not run in a sandbox without egress:
+# Need a real RPC endpoint. Will not run without chain egress:
 npm run ingest:era -- --full
 npm run ingest:latest
+npm run ingest:slashes
+
+# Re-validate chain-facing code against mainnet. Each has already caught a bug.
+npm run probe:indexer
+npm run probe:stash
+npm run probe:slashes
+npm run probe:slashing-switch
+```
+
+`budget` and `assert:lazy` read `out/`, so run `npm run build` first.
+
+To preview the static export, serve it under the base path — the app is built
+for `/polymesh-staking-app`, so serving `out/` at the root 404s:
+
+```bash
+mkdir -p /tmp/site && ln -sfn "$PWD/out" /tmp/site/polymesh-staking-app
+npx serve /tmp/site -l 4180
+# → http://localhost:4180/polymesh-staking-app/
 ```
 
 Real mainnet data compresses about twice as well as the synthetic fixtures
