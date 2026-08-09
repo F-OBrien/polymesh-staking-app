@@ -48,29 +48,64 @@ Every page now exists. What remains is the work that makes it shippable:
   infer it from the fraction — the ranges overlap.
 - **Unverified against a real wallet or chain.** See item 5.
 
-## The one big caveat on Phase 7
+## Phase 7 against real mainnet — what the first run found
 
-**Nothing in `/my-staking` has ever talked to a real chain, indexer or wallet
-extension.** The sandbox has no outbound chain egress and no browser extension,
-so what is verified is: the pure logic (68 tests over the indexer client,
-connection lifecycle, live subscriptions and address handling), the bundle
-behaviour, and every failure path — which was exercised for real, because from
-here every endpoint is unreachable.
+Phase 7 was written with no chain egress, so four things were flagged unproven.
+Three have now been run against mainnet (spec version `8000020`). **Every one of
+them was wrong**, which is worth remembering the next time something looks
+obviously correct on paper.
 
-What is *not* verified is the happy path. Specifically, treat these as
-unproven until someone runs them against mainnet:
+### 1. The reward query — three bugs, two of them silent · **fixed**
 
-1. The GraphQL query shape in `lib/indexer/rewards.ts` — field names,
-   `orderBy: [BLOCK_ID_ASC]`, and the `Rewarded` enum filter.
-2. `readStashPosition` decoding, particularly the `bonded → ledger` controller
-   indirection and the `RewardDestination` variants.
-3. The extension handshake in `lib/chain/wallet.ts`.
-4. Whether the tier-4 subscription names match the current runtime — the
-   `validators` pallet split is handled, but only from the design doc's
-   reading of the Portal.
+- `blockId` does not exist; the field is `createdBlockId`. This one 400s.
+- Ordering by `CREATED_BLOCK_ID_ASC` sorts **lexicographically** — that column
+  is a String, so block "10" precedes block "9" and history comes back shuffled
+  with no error. Now `DATETIME_ASC`.
+- `eventId` matched only `Rewarded`. The enum carries **both** `Reward` and
+  `Rewarded`; Polymesh renamed the event across a runtime upgrade. Measured on
+  one operator stash: **626 `Rewarded`, 273 `Reward`** — filtering on the new
+  name alone silently drops 30% of a lifetime total, all of it the oldest
+  history.
+- `amount` is `BigFloat`, not an integer string. The old guard turned anything
+  non-integral into `'0'`.
 
-Every one of these degrades to a visible, specific error rather than a wrong
-number, which is the property that made it acceptable to ship unverified.
+Verified: 899 events over 9 pages for one stash, timestamps exactly 86400s
+apart. Pagination past the 100-row cap is now proven on real data.
+
+Re-run with **`npm run probe:indexer`** after any runtime upgrade — a renamed
+enum member breaks history retrieval without breaking the query.
+
+### 2. `readStashPosition` — mostly right, one real bug · **fixed**
+
+The controller indirection works: a nominator came back with 1,598,506 total /
+1,548,506 active, one chunk unlocking at era 1756, and a nomination from era
+1741. So `bonded → ledger`, `unlocking`, `active`, `submittedIn` and `targets`
+all decode correctly.
+
+`RewardDestination` did not. See item 9 below — this is the types-package issue.
+
+Re-run with **`npm run probe:stash`**.
+
+### 3. Slash storage · **verified, and genuinely empty**
+
+`validatorSlashInEra` and `nominatorSlashInEra` both exist and are queryable,
+and there are **zero entries across all eras** — Polymesh has had no slashes in
+the retained window. That distinction mattered: `readEraSlashes` returns `[]`
+when the storage item is absent, so "no offences" and "we are reading the wrong
+map" would have looked identical. **`npm run probe:slashes`** tells them apart
+by asking for every key in the map at once.
+
+### 4. Still unproven
+
+- **The extension handshake** in `lib/chain/wallet.ts` — needs a browser with a
+  wallet installed.
+- **The tier-4 subscription names.** The `validators` pallet split is handled,
+  but only from the design doc's reading of the Portal.
+
+Both degrade to a visible, specific error rather than a wrong number.
+
+Run `npm run budget` after any change that touches an import graph, not just at
+the end of a phase — three separate regressions have come in that way.
 
 Run `npm run budget` after any change that touches an import graph, not just at
 the end of a phase — three separate regressions have come in that way.
@@ -236,6 +271,31 @@ era one. `latest.json` is tier 2 and carries an "as of HH:MM" stamp; without the
 The cost is a full rebuild for one small JSON file, four times an hour. If that
 becomes a nuisance, `NEXT_PUBLIC_DATA_BASE_URL` points the data root at a CDN
 and the snapshot stops needing a deploy at all.
+
+### 9. Register `@polymeshassociation/polymesh-types` — Phase 8
+
+**We are decoding Polymesh storage with no type augmentation**, which is why
+`lib/chain/compat.ts` is a quarantined `any` zone. That was framed as a
+concession to *historical* shape changes, and it is — but the first mainnet run
+showed it also costs correctness on *current* state.
+
+The evidence: `readPayee` branched on `payee.isAccount`, the standard
+polkadot-js enum accessor. Without the Polymesh types registered those
+accessors are never generated — `isAccount`, `asAccount` and `type` are all
+`undefined` — so the branch silently never fired and an `Account` reward
+destination rendered in the UI as the raw JSON `{"account":"2GD3…"}`. It is now
+read through `toJSON()`, which is stable either way, but the accessor branch is
+kept first so it improves automatically once the types are registered.
+
+Registering [`@polymeshassociation/polymesh-types`](https://www.npmjs.com/package/@polymeshassociation/polymesh-types)
+would give proper enum accessors and typed storage across `stash.ts`, `live.ts`
+and much of `compat.ts`. Worth doing in Phase 8, with two things to check:
+
+- **Bundle cost.** It has to be part of the *lazy* chain chunk, not the
+  critical path. `npm run assert:lazy` will catch a mistake here.
+- **Historical eras.** The types describe the current runtime, so the v6/v7
+  fallbacks in `compat.ts` still need their loose access. Expect the `any`
+  surface to shrink rather than vanish, and keep it documented.
 
 ---
 

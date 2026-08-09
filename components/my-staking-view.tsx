@@ -210,12 +210,8 @@ export function MyStakingView() {
             />
             <StatTile
               label="Rewards paid to"
-              value={position.data?.rewardDestination ?? '—'}
-              hint={
-                position.data?.rewardDestination === 'Staked'
-                  ? 'compounding automatically'
-                  : 'not compounding'
-              }
+              value={describePayee(position.data?.rewardDestination).value}
+              hint={describePayee(position.data?.rewardDestination).hint}
             />
           </div>
         )}
@@ -673,6 +669,32 @@ function NominationsTable({
       </table>
     </div>
   );
+}
+
+/**
+ * Renders a reward destination.
+ *
+ * `readPayee` returns either a variant name (`Staked`, `Stash`, `Controller`)
+ * or, for the `Account` variant, a full 48-character address — which is the
+ * useful answer but overflows a stat tile, so it is truncated here and the
+ * whole thing carried in the hint.
+ *
+ * Only `Staked` compounds, and that is the distinction a user acts on, so it is
+ * stated in words rather than left to be inferred from the variant name.
+ */
+function describePayee(destination: string | null | undefined): { value: string; hint: string } {
+  if (destination == null) return { value: '—', hint: 'not known' };
+  if (destination === 'Staked') {
+    return { value: 'Staked', hint: 'added to the bond — compounding' };
+  }
+  // Anything that is not a known unit variant is an address.
+  if (destination !== 'Stash' && destination !== 'Controller') {
+    return {
+      value: truncateAddress(destination),
+      hint: 'paid to another account — not compounding',
+    };
+  }
+  return { value: destination, hint: 'paid out free — not compounding' };
 }
 
 /** What would make a nominator want to move. */
