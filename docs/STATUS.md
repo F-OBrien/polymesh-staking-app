@@ -272,30 +272,53 @@ The cost is a full rebuild for one small JSON file, four times an hour. If that
 becomes a nuisance, `NEXT_PUBLIC_DATA_BASE_URL` points the data root at a CDN
 and the snapshot stops needing a deploy at all.
 
-### 9. Register `@polymeshassociation/polymesh-types` — Phase 8
+### 9. `@polymeshassociation/polymesh-types` — adopted, types only
 
-**We are decoding Polymesh storage with no type augmentation**, which is why
-`lib/chain/compat.ts` is a quarantined `any` zone. That was framed as a
-concession to *historical* shape changes, and it is — but the first mainnet run
-showed it also costs correctness on *current* state.
+`types/polymesh-chain.d.ts` pulls in the Polymesh augmentations, so
+`api.query.staking.payee` is now `Option<PalletStakingRewardDestination>`
+rather than a bare `Codec`.
 
-The evidence: `readPayee` branched on `payee.isAccount`, the standard
-polkadot-js enum accessor. Without the Polymesh types registered those
-accessors are never generated — `isAccount`, `asAccount` and `type` are all
-`undefined` — so the branch silently never fired and an `Account` reward
-destination rendered in the UI as the raw JSON `{"account":"2GD3…"}`. It is now
-read through `toJSON()`, which is stable either way, but the accessor branch is
-kept first so it improves automatically once the types are registered.
+**It is a devDependency and must stay one.** The augmentation lives in a
+`.d.ts`, not a `.ts`: the package ships real (if nearly empty) `.js` files, so a
+side-effect import from ordinary source would emit a runtime import into the
+chain chunk that is supposed to stay unreachable until a user connects.
+Declared in a `.d.ts`, TypeScript reads it and no bundler ever sees it —
+verified, `/my-staking` is unchanged at 168.6 KB and `assert:lazy` still passes.
 
-Registering [`@polymeshassociation/polymesh-types`](https://www.npmjs.com/package/@polymeshassociation/polymesh-types)
-would give proper enum accessors and typed storage across `stash.ts`, `live.ts`
-and much of `compat.ts`. Worth doing in Phase 8, with two things to check:
+We do **not** use its `typesBundle`. That exists for chains whose metadata does
+not describe its own types; Polymesh's current runtime carries metadata v14+ and
+every read here decodes correctly without it, verified against mainnet. Adding
+it would put runtime code in the browser to solve a problem we do not have.
 
-- **Bundle cost.** It has to be part of the *lazy* chain chunk, not the
-  critical path. `npm run assert:lazy` will catch a mistake here.
-- **Historical eras.** The types describe the current runtime, so the v6/v7
-  fallbacks in `compat.ts` still need their loose access. Expect the `any`
-  surface to shrink rather than vanish, and keep it documented.
+#### Getting it to actually work
+
+Installing it is not enough. `polymesh-types` depends on `@polkadot/*` at an
+**exact** version (16.5.2), so against our `^16.5.6` npm nests a second full
+copy — and a `declare module '@polkadot/api-base/types/storage'` in the nested
+copy augments a different file than the one our code resolves. The interfaces
+never merge and every storage read stays `Codec`, silently.
+
+The fix is the `overrides` block in `package.json` forcing one `@polkadot/*`
+version across the tree, plus pinning our own `@polkadot/api` to match, since
+npm rejects an override that conflicts with a direct dependency. **If storage
+reads ever go back to `Codec`, check for a nested `@polkadot` copy first.**
+
+#### It immediately found a real bug
+
+`readPayee` branched on `payee.isAccount`. That is an accessor on the *inner*
+enum, but `staking.payee` returns an `Option` — on the wrapper it is simply
+`undefined`, so the branch never fired and an account destination rendered as
+raw JSON in the UI. I originally diagnosed this as "the accessors do not exist
+without augmentation", which was wrong: they exist, I was reading them one level
+too high. The compiler pointed straight at it.
+
+#### Still to do
+
+`compat.ts` remains an `any` zone and its `eslint-disable` stays. The
+augmentation describes the **current** runtime, and that file exists precisely
+to read v6/v7 shapes that are not in it. The `any` surface can now shrink —
+`stash.ts` and `live.ts` are the candidates — but it will not vanish, and the
+historical probes must keep their loose access.
 
 ---
 

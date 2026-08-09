@@ -68,6 +68,17 @@ const config = [
       'no-console': 'off',
     },
   },
+  {
+    // Declaration files emit nothing. The import ban above exists to keep
+    // megabytes off the critical path, and a `.d.ts` cannot put anything in a
+    // bundle — it is how `types/polymesh-chain.d.ts` pulls in the Polymesh type
+    // augmentations without any runtime cost. Narrow on purpose: the ban still
+    // applies to every real source file.
+    files: ['**/*.d.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
 ];
 
 export default config;
