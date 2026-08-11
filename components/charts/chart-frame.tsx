@@ -15,10 +15,15 @@ import { ErrorState, Skeleton } from '@/components/states';
 /**
  * The plot height a chart should draw at, given the height it asked for.
  *
- * Non-null only inside an expanded frame. Charts read this rather than being
- * handed a height prop twice, because `children` are rendered *at their
- * position in the tree* — inside the provider below — even though they are
- * constructed by the chart component outside it.
+ * Non-null only inside an expanded frame.
+ *
+ * **Call this from a component rendered as a `child` of `ChartFrame`, never
+ * from the component that renders the frame.** The provider wraps `children`,
+ * so a hook call in the parent sits *above* it and gets the collapsed height
+ * back with no error — the chart then grows wider on expand and stays exactly
+ * as short as before, which is usually the axis that needed the room. Three of
+ * the four charts in the kit had this bug; each now has a `…Plot` component
+ * whose only reason to exist is to be on the right side of this boundary.
  */
 const ExpandedHeightContext = createContext<number | null>(null);
 

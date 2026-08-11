@@ -78,6 +78,92 @@ export function TimeBarChart({
   error,
   empty,
 }: TimeBarChartProps) {
+  const table = (
+    <table
+      className="w-full border-collapse text-sm"
+      style={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      <caption className="sr-only">{title}, as a table</caption>
+      <thead>
+        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+          <th scope="col" className="p-2 text-left font-medium">
+            Date
+          </th>
+          <th scope="col" className="p-2 text-right font-medium">
+            {yLabel ?? 'Value'}
+          </th>
+          {companion ? (
+            <th scope="col" className="p-2 text-right font-medium">
+              {companion.label}
+            </th>
+          ) : null}
+        </tr>
+      </thead>
+      <tbody>
+        {times.map((time, i) => (
+          <tr key={time} style={{ borderTop: '1px solid var(--border)' }}>
+            <th scope="row" className="p-2 text-left font-normal">
+              {formatEraDate(time, { withYear: true })}
+            </th>
+            <td className="p-2 text-right">{format(values[i] ?? null)}</td>
+            {companion ? (
+              <td className="p-2 text-right">
+                {(companion.format ?? format)(companion.values[i] ?? null)}
+              </td>
+            ) : null}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  return (
+    <ChartFrame
+      title={title}
+      subtitle={subtitle}
+      coverage={coverage}
+      actions={actions}
+      height={requestedHeight}
+      loading={loading}
+      error={error}
+      empty={empty}
+      table={table}
+    >
+      <TimeBarPlot
+        times={times}
+        values={values}
+        title={title}
+        yLabel={yLabel}
+        format={format}
+        tickFormat={tickFormat}
+        companion={companion}
+        requestedHeight={requestedHeight}
+      />
+    </ChartFrame>
+  );
+}
+
+/**
+ * The plot itself, as a child of the frame rather than a sibling of it.
+ *
+ * The nesting is load-bearing: `useChartHeight` reads a context the frame
+ * provides *around its children*, so calling it in the component that renders
+ * `<ChartFrame>` sits above the provider and quietly returns the collapsed
+ * height. Expanding then made this chart wider and no taller.
+ */
+function TimeBarPlot({
+  times,
+  values,
+  title,
+  yLabel,
+  format,
+  tickFormat,
+  companion,
+  requestedHeight,
+}: Pick<
+  TimeBarChartProps,
+  'times' | 'values' | 'title' | 'yLabel' | 'format' | 'tickFormat' | 'companion'
+> & { requestedHeight: number }) {
   const titleId = useId();
   const [containerRef, measuredWidth] = useMeasuredWidth<HTMLDivElement>();
   const [focus, setFocus] = useState<number | null>(null);
@@ -182,157 +268,106 @@ export function TimeBarChart({
     return linePath(points);
   }, [companion, companionY, xs]);
 
-  const table = (
-    <table
-      className="w-full border-collapse text-sm"
-      style={{ fontVariantNumeric: 'tabular-nums' }}
-    >
-      <caption className="sr-only">{title}, as a table</caption>
-      <thead>
-        <tr style={{ borderBottom: '1px solid var(--border)' }}>
-          <th scope="col" className="p-2 text-left font-medium">
-            Date
-          </th>
-          <th scope="col" className="p-2 text-right font-medium">
-            {yLabel ?? 'Value'}
-          </th>
-          {companion ? (
-            <th scope="col" className="p-2 text-right font-medium">
-              {companion.label}
-            </th>
-          ) : null}
-        </tr>
-      </thead>
-      <tbody>
-        {times.map((time, i) => (
-          <tr key={time} style={{ borderTop: '1px solid var(--border)' }}>
-            <th scope="row" className="p-2 text-left font-normal">
-              {formatEraDate(time, { withYear: true })}
-            </th>
-            <td className="p-2 text-right">{format(values[i] ?? null)}</td>
-            {companion ? (
-              <td className="p-2 text-right">
-                {(companion.format ?? format)(companion.values[i] ?? null)}
-              </td>
-            ) : null}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-
   const focused = focus != null ? focus : null;
 
   return (
-    <ChartFrame
-      title={title}
-      subtitle={subtitle}
-      coverage={coverage}
-      actions={actions}
-      height={requestedHeight}
-      loading={loading}
-      error={error}
-      empty={empty}
-      table={table}
-    >
-      <div ref={containerRef} className="w-full">
-        {width > 0 ? (
-          <>
+    <div ref={containerRef} className="w-full">
+      {width > 0 ? (
+        <>
+          <svg
+            width={width}
+            height={barsHeight}
+            role="img"
+            aria-labelledby={titleId}
+            className="block overflow-visible"
+            onMouseLeave={() => setFocus(null)}
+          >
+            <title id={titleId}>{`${title}. ${times.length} periods.`}</title>
+
+            <g transform={`translate(${barsBox.margin.left}, ${barsBox.margin.top})`}>
+              <Grid box={barsBox} yScale={y} />
+              <YAxis
+                box={barsBox}
+                scale={y}
+                format={tickFormat ?? ((v) => format(v))}
+                label={yLabel}
+              />
+
+              {values.map((value, i) => {
+                if (value == null) return null;
+                const top = y(value);
+                const zero = y(0);
+                const cx = xs[i] ?? 0;
+                return (
+                  <rect
+                    key={times[i]}
+                    x={cx - barWidth / 2}
+                    y={Math.min(top, zero)}
+                    width={barWidth}
+                    height={Math.max(1, Math.abs(zero - top))}
+                    rx={Math.min(2, barWidth / 3)}
+                    fill="var(--series-1)"
+                    opacity={focused == null || focused === i ? 1 : 0.35}
+                    onMouseEnter={() => setFocus(i)}
+                  />
+                );
+              })}
+            </g>
+
+            {!companion ? (
+              <g transform={`translate(${barsBox.margin.left}, ${barsBox.margin.top})`}>
+                <XAxis box={barsBox} scale={x} />
+              </g>
+            ) : null}
+          </svg>
+
+          {companion && companionY ? (
             <svg
               width={width}
-              height={barsHeight}
-              role="img"
-              aria-labelledby={titleId}
+              height={companionHeight}
+              role="presentation"
               className="block overflow-visible"
-              onMouseLeave={() => setFocus(null)}
             >
-              <title id={titleId}>{`${title}. ${times.length} periods.`}</title>
-
-              <g transform={`translate(${barsBox.margin.left}, ${barsBox.margin.top})`}>
-                <Grid box={barsBox} yScale={y} />
+              <g transform={`translate(${companionBox.margin.left}, ${companionBox.margin.top})`}>
                 <YAxis
-                  box={barsBox}
-                  scale={y}
-                  format={tickFormat ?? ((v) => format(v))}
-                  label={yLabel}
+                  box={companionBox}
+                  scale={companionY}
+                  format={(v) => (companion.format ?? format)(v)}
+                  label={companion.label}
                 />
-
-                {values.map((value, i) => {
-                  if (value == null) return null;
-                  const top = y(value);
-                  const zero = y(0);
-                  const cx = xs[i] ?? 0;
-                  return (
-                    <rect
-                      key={times[i]}
-                      x={cx - barWidth / 2}
-                      y={Math.min(top, zero)}
-                      width={barWidth}
-                      height={Math.max(1, Math.abs(zero - top))}
-                      rx={Math.min(2, barWidth / 3)}
-                      fill="var(--series-1)"
-                      opacity={focused == null || focused === i ? 1 : 0.35}
-                      onMouseEnter={() => setFocus(i)}
-                    />
-                  );
-                })}
+                <path
+                  d={companionPath}
+                  fill="none"
+                  stroke="var(--series-2)"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                />
+                <XAxis box={companionBox} scale={x} />
               </g>
-
-              {!companion ? (
-                <g transform={`translate(${barsBox.margin.left}, ${barsBox.margin.top})`}>
-                  <XAxis box={barsBox} scale={x} />
-                </g>
-              ) : null}
             </svg>
+          ) : null}
 
-            {companion && companionY ? (
-              <svg
-                width={width}
-                height={companionHeight}
-                role="presentation"
-                className="block overflow-visible"
-              >
-                <g transform={`translate(${companionBox.margin.left}, ${companionBox.margin.top})`}>
-                  <YAxis
-                    box={companionBox}
-                    scale={companionY}
-                    format={(v) => (companion.format ?? format)(v)}
-                    label={companion.label}
-                  />
-                  <path
-                    d={companionPath}
-                    fill="none"
-                    stroke="var(--series-2)"
-                    strokeWidth={2}
-                    strokeLinejoin="round"
-                  />
-                  <XAxis box={companionBox} scale={x} />
-                </g>
-              </svg>
-            ) : null}
-
-            {/* Read out the focused bar, since the bars carry no labels. */}
-            <p
-              className="mt-1 mb-0 text-xs"
-              style={{ color: 'var(--text-secondary)', minHeight: '1.25rem' }}
-              aria-live="polite"
-            >
-              {focused != null && times[focused] != null
-                ? `${formatEraDate(times[focused]!, { withYear: true })}: ${format(values[focused] ?? null)}${
-                    companion
-                      ? ` · ${companion.label} ${(companion.format ?? format)(
-                          companion.values[focused] ?? null,
-                        )}`
-                      : ''
-                  }`
-                : ''}
-            </p>
-          </>
-        ) : (
-          // Reserves height before the container is measured, so nothing shifts.
-          <div style={{ height }} />
-        )}
-      </div>
-    </ChartFrame>
+          {/* Read out the focused bar, since the bars carry no labels. */}
+          <p
+            className="mt-1 mb-0 text-xs"
+            style={{ color: 'var(--text-secondary)', minHeight: '1.25rem' }}
+            aria-live="polite"
+          >
+            {focused != null && times[focused] != null
+              ? `${formatEraDate(times[focused]!, { withYear: true })}: ${format(values[focused] ?? null)}${
+                  companion
+                    ? ` · ${companion.label} ${(companion.format ?? format)(
+                        companion.values[focused] ?? null,
+                      )}`
+                    : ''
+                }`
+              : ''}
+          </p>
+        </>
+      ) : (
+        // Reserves height before the container is measured, so nothing shifts.
+        <div style={{ height }} />
+      )}
+    </div>
   );
 }

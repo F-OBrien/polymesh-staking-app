@@ -14,7 +14,7 @@ import {
 import { SERIES_TOKENS } from '@/lib/charts/palette';
 import { useMeasuredWidth } from '@/lib/charts/use-measure';
 import { Grid, YAxis } from './axes';
-import { ChartFrame } from './chart-frame';
+import { ChartFrame, useChartHeight } from './chart-frame';
 import { Legend, type LegendItem } from './legend';
 
 /**
@@ -78,51 +78,17 @@ export function XyLineChart({
   tickFormat,
   formatX = String,
   markers,
-  height = 300,
+  height: requestedHeight = 300,
   loading = false,
   error,
 }: XyLineChartProps) {
-  const titleId = useId();
+  // Width is measured here rather than in the plot because the frame needs it:
+  // the legend is only shown when the plot is too narrow to direct-label. The
+  // ref is attached to an element the plot renders, which works because the
+  // element is created here.
   const [containerRef, measuredWidth] = useMeasuredWidth<HTMLDivElement>();
-
   const width = measuredWidth ?? 0;
-  const margin = responsiveMargin(width);
-  const box = plotBox(width, height, margin);
   const showDirectLabels = width >= DIRECT_LABEL_MIN_WIDTH;
-
-  const xScale = useMemo(() => numericScale(x, box.innerWidth), [x, box.innerWidth]);
-  const yScale = useMemo(
-    () =>
-      valueScale(
-        series.map((s) => s.values),
-        box.innerHeight,
-        { includeZero: true },
-      ),
-    [series, box.innerHeight],
-  );
-
-  const xs = useMemo(() => x.map((value) => xScale(value)), [x, xScale]);
-
-  // `linePath` works in pixel space, so values must go through the scale first.
-  // Passing raw ratios drew every curve as a flat line within a pixel of the
-  // top of the plot — and the direct labels, which did scale, still landed in
-  // the right places, so it looked like a data problem rather than a bug here.
-  const paths = useMemo(
-    () =>
-      series.map((s) =>
-        linePath(s.values.map((value, i) => ({ x: xs[i] ?? 0, y: yScale(value) }))),
-      ),
-    [series, xs, yScale],
-  );
-
-  // Placed at each curve's final value, then nudged apart — two curves that
-  // both saturate at 100% would otherwise print their labels on top of one
-  // another, which is how the previous app's charts became unreadable.
-  const labels = useMemo(() => {
-    if (!showDirectLabels) return [];
-    const desired = series.map((s) => yScale(s.values.at(-1) ?? 0));
-    return spreadLabels(desired, 14, { top: 0, bottom: box.innerHeight });
-  }, [series, showDirectLabels, yScale, box.innerHeight]);
 
   const legend: LegendItem[] = series.map((s) => ({ id: s.id, label: s.label }));
 
@@ -131,7 +97,9 @@ export function XyLineChart({
       title={title}
       subtitle={subtitle}
       coverage={coverage}
-      height={height}
+      // The frame's own height is the *collapsed* one: it sizes the skeleton
+      // and the placeholder left behind while the modal is open.
+      height={requestedHeight}
       loading={loading}
       error={error}
       legend={showDirectLabels ? undefined : <Legend items={legend} />}
@@ -170,125 +138,216 @@ export function XyLineChart({
         </table>
       }
     >
-      <div ref={containerRef} className="w-full">
-        {width > 0 ? (
-          <svg
-            width={width}
-            height={height}
-            role="img"
-            aria-labelledby={titleId}
-            className="block overflow-visible"
-          >
-            <title id={titleId}>
-              {`${title}. ${series
-                .map((s) => `${s.label} rises to ${format(Math.max(...s.values))}`)
-                .join('. ')}.`}
-            </title>
+      <XyLinePlot
+        containerRef={containerRef}
+        width={width}
+        showDirectLabels={showDirectLabels}
+        x={x}
+        series={series}
+        title={title}
+        xLabel={xLabel}
+        yLabel={yLabel}
+        format={format}
+        tickFormat={tickFormat}
+        formatX={formatX}
+        markers={markers}
+        requestedHeight={requestedHeight}
+      />
+    </ChartFrame>
+  );
+}
 
-            <g transform={`translate(${margin.left}, ${margin.top})`}>
-              <Grid box={box} yScale={yScale} />
-              <YAxis box={box} scale={yScale} format={tickFormat ?? format} label={yLabel} />
+/**
+ * The plot itself, as a child of the frame rather than a sibling of it.
+ *
+ * The nesting is load-bearing: `useChartHeight` reads a context the frame
+ * provides *around its children*, so calling it in the component that renders
+ * `<ChartFrame>` sits above the provider and quietly returns the collapsed
+ * height. Expanding the reward curve then made it wider and no taller.
+ */
+function XyLinePlot({
+  containerRef,
+  width,
+  showDirectLabels,
+  x,
+  series,
+  title,
+  xLabel,
+  yLabel,
+  format,
+  tickFormat,
+  formatX,
+  markers,
+  requestedHeight,
+}: Pick<
+  XyLineChartProps,
+  'x' | 'series' | 'title' | 'xLabel' | 'yLabel' | 'format' | 'tickFormat' | 'markers'
+> & {
+  containerRef: React.Ref<HTMLDivElement>;
+  width: number;
+  showDirectLabels: boolean;
+  formatX: (value: number) => string;
+  requestedHeight: number;
+}) {
+  const titleId = useId();
+  const height = useChartHeight(requestedHeight);
 
-              {/* A quantity axis, so ticks are counts and the label names the
+  const margin = responsiveMargin(width);
+  const box = plotBox(width, height, margin);
+
+  const xScale = useMemo(() => numericScale(x, box.innerWidth), [x, box.innerWidth]);
+  const yScale = useMemo(
+    () =>
+      valueScale(
+        series.map((s) => s.values),
+        box.innerHeight,
+        { includeZero: true },
+      ),
+    [series, box.innerHeight],
+  );
+
+  const xs = useMemo(() => x.map((value) => xScale(value)), [x, xScale]);
+
+  // `linePath` works in pixel space, so values must go through the scale first.
+  // Passing raw ratios drew every curve as a flat line within a pixel of the
+  // top of the plot — and the direct labels, which did scale, still landed in
+  // the right places, so it looked like a data problem rather than a bug here.
+  const paths = useMemo(
+    () =>
+      series.map((s) =>
+        linePath(s.values.map((value, i) => ({ x: xs[i] ?? 0, y: yScale(value) }))),
+      ),
+    [series, xs, yScale],
+  );
+
+  // Placed at each curve's final value, then nudged apart — two curves that
+  // both saturate at 100% would otherwise print their labels on top of one
+  // another, which is how the previous app's charts became unreadable.
+  const labels = useMemo(() => {
+    if (!showDirectLabels) return [];
+    const desired = series.map((s) => yScale(s.values.at(-1) ?? 0));
+    return spreadLabels(desired, 14, { top: 0, bottom: box.innerHeight });
+  }, [series, showDirectLabels, yScale, box.innerHeight]);
+
+  return (
+    <div ref={containerRef} className="w-full">
+      {width > 0 ? (
+        <svg
+          width={width}
+          height={height}
+          role="img"
+          aria-labelledby={titleId}
+          className="block overflow-visible"
+        >
+          <title id={titleId}>
+            {`${title}. ${series
+              .map((s) => `${s.label} rises to ${format(Math.max(...s.values))}`)
+              .join('. ')}.`}
+          </title>
+
+          <g transform={`translate(${margin.left}, ${margin.top})`}>
+            <Grid box={box} yScale={yScale} />
+            <YAxis box={box} scale={yScale} format={tickFormat ?? format} label={yLabel} />
+
+            {/* A quantity axis, so ticks are counts and the label names the
                   unit — `XAxis` formats dates and would be wrong here. */}
-              <g aria-hidden="true" transform={`translate(0, ${box.innerHeight})`}>
-                <line
-                  x1={0}
-                  x2={box.innerWidth}
-                  y1={0}
-                  y2={0}
-                  stroke="var(--axis)"
-                  strokeWidth={1}
-                  shapeRendering="crispEdges"
-                />
-                {xScale.ticks(tickCount(box.innerWidth, 90)).map((tick) => (
-                  <text
-                    key={tick}
-                    x={xScale(tick)}
-                    y={16}
-                    textAnchor="middle"
-                    fontSize={11}
-                    fill="var(--text-muted)"
-                  >
-                    {formatX(tick)}
-                  </text>
-                ))}
+            <g aria-hidden="true" transform={`translate(0, ${box.innerHeight})`}>
+              <line
+                x1={0}
+                x2={box.innerWidth}
+                y1={0}
+                y2={0}
+                stroke="var(--axis)"
+                strokeWidth={1}
+                shapeRendering="crispEdges"
+              />
+              {xScale.ticks(tickCount(box.innerWidth, 90)).map((tick) => (
                 <text
-                  x={box.innerWidth / 2}
-                  y={32}
+                  key={tick}
+                  x={xScale(tick)}
+                  y={16}
                   textAnchor="middle"
-                  fontSize={10}
+                  fontSize={11}
                   fill="var(--text-muted)"
                 >
-                  {xLabel}
-                </text>
-              </g>
-
-              {/* Drawn under the curves, so a marker never obscures the data
-                  it is annotating. */}
-              {markers?.map((marker) => {
-                const mx = xScale(marker.x);
-                if (!Number.isFinite(mx)) return null;
-                const colour = marker.colour ?? 'var(--text-muted)';
-                // Flip the label inside the plot near the right edge, or it is
-                // clipped by the chart's own bounds.
-                const flip = mx > box.innerWidth - 90;
-                return (
-                  <g key={`${marker.x}-${marker.label}`} aria-hidden="true">
-                    <line
-                      x1={mx}
-                      x2={mx}
-                      y1={0}
-                      y2={box.innerHeight}
-                      stroke={colour}
-                      strokeWidth={1}
-                      strokeDasharray="3 3"
-                    />
-                    <text
-                      x={flip ? mx - 6 : mx + 6}
-                      y={10}
-                      textAnchor={flip ? 'end' : 'start'}
-                      fontSize={10}
-                      fill={colour}
-                    >
-                      {marker.label}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {paths.map((d, i) => (
-                <path
-                  key={series[i]!.id}
-                  d={d}
-                  fill="none"
-                  stroke={SERIES_TOKENS[i % SERIES_TOKENS.length]}
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              ))}
-
-              {labels.map(({ index, y }) => (
-                <text
-                  key={series[index]!.id}
-                  x={box.innerWidth + 8}
-                  y={y}
-                  dominantBaseline="middle"
-                  fontSize={11}
-                  fill={SERIES_TOKENS[index % SERIES_TOKENS.length]}
-                >
-                  {series[index]!.label}
+                  {formatX(tick)}
                 </text>
               ))}
+              <text
+                x={box.innerWidth / 2}
+                y={32}
+                textAnchor="middle"
+                fontSize={10}
+                fill="var(--text-muted)"
+              >
+                {xLabel}
+              </text>
             </g>
-          </svg>
-        ) : (
-          // Reserves height on the first paint, before the container is
-          // measured, so the frame does not resize under the reader.
-          <div style={{ height }} />
-        )}
-      </div>
-    </ChartFrame>
+
+            {/* Drawn under the curves, so a marker never obscures the data
+                  it is annotating. */}
+            {markers?.map((marker) => {
+              const mx = xScale(marker.x);
+              if (!Number.isFinite(mx)) return null;
+              const colour = marker.colour ?? 'var(--text-muted)';
+              // Flip the label inside the plot near the right edge, or it is
+              // clipped by the chart's own bounds.
+              const flip = mx > box.innerWidth - 90;
+              return (
+                <g key={`${marker.x}-${marker.label}`} aria-hidden="true">
+                  <line
+                    x1={mx}
+                    x2={mx}
+                    y1={0}
+                    y2={box.innerHeight}
+                    stroke={colour}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                  <text
+                    x={flip ? mx - 6 : mx + 6}
+                    y={10}
+                    textAnchor={flip ? 'end' : 'start'}
+                    fontSize={10}
+                    fill={colour}
+                  >
+                    {marker.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {paths.map((d, i) => (
+              <path
+                key={series[i]!.id}
+                d={d}
+                fill="none"
+                stroke={SERIES_TOKENS[i % SERIES_TOKENS.length]}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ))}
+
+            {labels.map(({ index, y }) => (
+              <text
+                key={series[index]!.id}
+                x={box.innerWidth + 8}
+                y={y}
+                dominantBaseline="middle"
+                fontSize={11}
+                fill={SERIES_TOKENS[index % SERIES_TOKENS.length]}
+              >
+                {series[index]!.label}
+              </text>
+            ))}
+          </g>
+        </svg>
+      ) : (
+        // Reserves height on the first paint, before the container is
+        // measured, so the frame does not resize under the reader.
+        <div style={{ height }} />
+      )}
+    </div>
   );
 }
