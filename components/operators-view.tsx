@@ -9,6 +9,7 @@ import { deriveOperatorApr } from '@/lib/metrics/derive';
 import { rankOperators } from '@/lib/data/series';
 import { buildLabeller } from '@/lib/data/operator-label';
 import { OperatorsTable } from '@/components/operators-table';
+import { ProductionChart } from '@/components/production-chart';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { HeadingWithTip } from '@/components/info-tip';
 import { LiveToggle } from '@/components/live-toggle';
@@ -226,6 +227,22 @@ export function OperatorsView() {
             />
           </LazyChart>
         </div>
+      </section>
+
+      <section aria-labelledby="production-heading" className="mt-12">
+        <HeadingWithTip as="h2" id="production-heading" className="mb-4" title="Block production">
+          Every validator is offered roughly the same number of slots regardless of stake, so what
+          separates them is how many of those slots they actually fill. The differences are small,
+          and most of what looks like a difference is luck — the shaded band is how much.
+        </HeadingWithTip>
+
+        <ProductionChart
+          series={series}
+          nameOf={nameOf}
+          selected={selected}
+          loading={isLoading}
+          error={chartError}
+        />
       </section>
     </>
   );

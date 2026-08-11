@@ -46,9 +46,18 @@ const TimeBarChartImpl = dynamic(() => import('./time-bar-chart').then((m) => m.
   loading: () => null,
 });
 
+const DeviationChartImpl = dynamic(
+  () => import('./deviation-chart').then((m) => m.DeviationChart),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
+
 export type { EraSeriesChartProps } from './era-series-chart';
 export type { XyLineChartProps, XySeries } from './xy-line-chart';
 export type { TimeBarChartProps } from './time-bar-chart';
+export type { DeviationChartProps, DeviationItem } from './deviation-chart';
 
 /**
  * Wraps a chart so it mounts only once scrolled near.
@@ -119,3 +128,6 @@ export const LazyXyLineChart = XyLineChartImpl;
 
 /** Bars over a time axis, with an optional companion panel. Code-split. */
 export const LazyTimeBarChart = TimeBarChartImpl;
+
+/** A field of categories diverging from a baseline, over a tolerance band. */
+export const LazyDeviationChart = DeviationChartImpl;
