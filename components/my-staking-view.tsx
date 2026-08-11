@@ -31,7 +31,11 @@ import {
   summariseRewards,
   type RewardPeriod,
 } from '@/lib/indexer/rewards';
-import { LazyChart, LazyTimeBarChart } from '@/components/charts/lazy-chart';
+import { LazyChart, LazyEraSeriesChart, LazyTimeBarChart } from '@/components/charts/lazy-chart';
+import { MAX_NAMED_SERIES } from '@/lib/charts/palette';
+import { deriveOperatorApr } from '@/lib/metrics/derive';
+import type { NamedSeries } from '@/components/charts/banded-line-chart';
+import { ProductionChart } from '@/components/production-chart';
 import { LiveToggle } from '@/components/live-toggle';
 import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
@@ -240,6 +244,24 @@ export function MyStakingView() {
    * the last election is not in this era's exposure at all.
    */
   const labelOf = useMemo(() => buildLabeller(registry.data), [registry.data]);
+
+  /**
+   * C24: this address's own operators, as APR series for the banded chart.
+   *
+   * Capped at the palette size for the same reason `/operators` caps pins — a
+   * ninth series would reuse a colour already on screen, which reads as "these
+   * two are the same". A nominator with more than eight targets sees the first
+   * eight and the table covers the rest; the note under the chart says so.
+   */
+  const myAprSeries = useMemo<NamedSeries[]>(() => {
+    if (!series) return [];
+    return nominations.slice(0, MAX_NAMED_SERIES).flatMap((address) => {
+      const columns = series.operators[address];
+      if (!columns) return [];
+      const { net } = deriveOperatorApr(columns, series.network, manifest.data?.erasPerYear ?? 365);
+      return [{ id: address, label: labelOf(address), values: net }];
+    });
+  }, [series, nominations, labelOf, manifest.data?.erasPerYear]);
   const allocation = useStakeAllocation(stash, activeEra, nominations);
   const currentTargets = allocation.data?.current.targets;
   const assignedByOperator = useMemo(() => {
@@ -619,6 +641,74 @@ export function MyStakingView() {
               toPolyx={toPolyx}
               loading={allocation.isLoading}
             />
+
+            {/*
+              C24. The same banded chart as /operators, with this address's own
+              picks as the named series — the table says what they charge and
+              what they hold today, and this says whether they have been worth
+              backing. Against the whole field's 10th-90th percentile band, so
+              "is 20.1% good?" has an answer on the same axes.
+
+              Everything it needs is already in memory: the era series is
+              fetched for the page anyway and the nominations come from the
+              position read. No additional request.
+            */}
+            {myAprSeries.length > 0 ? (
+              <div className="mt-4">
+                <LazyChart height={300} label="My operators' return">
+                  <LazyEraSeriesChart
+                    title="How my operators have performed"
+                    subtitle="Return after commission, against the whole field. Read it for outages and trend, not for ranking — see below for that."
+                    series={series}
+                    operators={myAprSeries}
+                    band={
+                      series
+                        ? {
+                            lo: series.network.aprP10,
+                            mid: series.network.aprP50,
+                            hi: series.network.aprP90,
+                          }
+                        : undefined
+                    }
+                    reference={
+                      series
+                        ? { values: series.network.avgApr, label: 'Network average' }
+                        : undefined
+                    }
+                    format={(v) => formatPercent(v, { decimals: 2 })}
+                    tickFormat={(v) => formatPercent(v, { decimals: 0 })}
+                    yLabel="APR"
+                    height={300}
+                    note={
+                      `A single era's return is mostly slot luck — the field's per-era spread is ` +
+                      `about 8%, which is what chance alone gives — so a line crossing another for ` +
+                      `a few eras means nothing. A sustained dip is an outage and does mean ` +
+                      `something.` +
+                      (myAprSeries.length < nominations.length
+                        ? ` ${nominations.length - myAprSeries.length} of ${nominations.length} nominated operators are not drawn: the palette holds eight, or they have no history in this range.`
+                        : '')
+                    }
+                  />
+                </LazyChart>
+              </div>
+            ) : null}
+
+            {/*
+              And the ranking the chart above cannot give.
+
+              Accumulated over the range, block production separates operators
+              in a way per-era APR cannot — see `lib/metrics/production.ts`.
+              Showing the whole field with this address's own picks coloured is
+              the direct answer to "are my picks any good?": their position in
+              the field, against the band of what chance explains.
+            */}
+            <div className="mt-4">
+              <ProductionChart
+                series={series}
+                nameOf={labelOf}
+                selected={nominations.slice(0, MAX_NAMED_SERIES)}
+              />
+            </div>
           </>
         )}
       </section>

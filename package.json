@@ -30,6 +30,7 @@
     "probe:allocation": "tsx scripts/probe/allocation.ts",
     "probe:exposure-scan": "tsx scripts/probe/exposure-scan.ts",
     "probe:session": "tsx scripts/probe/session.ts",
+    "probe:nominators": "tsx scripts/probe/nominators.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",
