@@ -32,6 +32,17 @@ const Decentralisation = dynamic(
 );
 
 /**
+ * Anchor target for a chart the trend strip links to.
+ *
+ * `:target` rather than a scroll-and-highlight script: jumping the viewport is
+ * disorienting if the destination does not identify itself, and one CSS
+ * selector does it with no JavaScript and no state to unwind.
+ */
+const CHART_ANCHOR =
+  'scroll-mt-6 rounded-[var(--radius-lg)] target:outline-2 target:outline-offset-4 ' +
+  'target:outline-[var(--focus-ring)]';
+
+/**
  * Network analytics.
  *
  * Organised by the question each section answers rather than by data shape —
@@ -191,31 +202,33 @@ export function NetworkAnalytics() {
         </div>
 
         <div className="mt-4 flex flex-col gap-4">
-          <LazyChart height={320} label="Average return">
-            <LazyEraSeriesChart
-              title="Average return over time"
-              subtitle="Stake-weighted, after commission — what the network actually paid."
-              series={series}
-              operators={[]}
-              band={
-                series
-                  ? {
-                      lo: series.network.aprP10,
-                      mid: series.network.aprP50,
-                      hi: series.network.aprP90,
-                    }
-                  : undefined
-              }
-              reference={
-                series ? { values: series.network.avgApr, label: 'Network average' } : undefined
-              }
-              format={percent}
-              tickFormat={percentTick}
-              yLabel="APR"
-              loading={isLoading}
-              error={chartError}
-            />
-          </LazyChart>
+          <div id="chart-apr" className={CHART_ANCHOR}>
+            <LazyChart height={320} label="Average return">
+              <LazyEraSeriesChart
+                title="Average return over time"
+                subtitle="Stake-weighted, after commission — what the network actually paid."
+                series={series}
+                operators={[]}
+                band={
+                  series
+                    ? {
+                        lo: series.network.aprP10,
+                        mid: series.network.aprP50,
+                        hi: series.network.aprP90,
+                      }
+                    : undefined
+                }
+                reference={
+                  series ? { values: series.network.avgApr, label: 'Network average' } : undefined
+                }
+                format={percent}
+                tickFormat={percentTick}
+                yLabel="APR"
+                loading={isLoading}
+                error={chartError}
+              />
+            </LazyChart>
+          </div>
 
           <LazyChart height={260} label="Rewards paid">
             <LazyEraSeriesChart
@@ -257,22 +270,26 @@ export function NetworkAnalytics() {
           targets.
         </p>
 
-        <LazyChart height={280} label="Total staked">
-          <LazyEraSeriesChart
-            title="Total staked over time"
-            subtitle="Is the network attracting or losing stake?"
-            series={series}
-            operators={
-              series ? [{ id: 'staked', label: 'Staked', values: series.network.totalStaked }] : []
-            }
-            format={polyx}
-            tickFormat={(v) => formatPolyx(v, { compact: true })}
-            yLabel="POLYX"
-            height={280}
-            loading={isLoading}
-            error={chartError}
-          />
-        </LazyChart>
+        <div id="chart-staked" className={CHART_ANCHOR}>
+          <LazyChart height={280} label="Total staked">
+            <LazyEraSeriesChart
+              title="Total staked over time"
+              subtitle="Is the network attracting or losing stake?"
+              series={series}
+              operators={
+                series
+                  ? [{ id: 'staked', label: 'Staked', values: series.network.totalStaked }]
+                  : []
+              }
+              format={polyx}
+              tickFormat={(v) => formatPolyx(v, { compact: true })}
+              yLabel="POLYX"
+              height={280}
+              loading={isLoading}
+              error={chartError}
+            />
+          </LazyChart>
+        </div>
       </section>
 
       {/* ---- Participation ---- */}
@@ -320,68 +337,134 @@ export function NetworkAnalytics() {
         </div>
 
         <div className="mt-4 flex flex-col gap-4">
-          <LazyChart height={260} label="Reward points">
-            <LazyEraSeriesChart
-              title="Reward points each era"
-              subtitle="A steady line means block production is healthy; dips mean nodes were offline."
-              series={series}
-              operators={
-                series
-                  ? [{ id: 'points', label: 'Points', values: series.network.totalPoints }]
-                  : []
-              }
-              format={count}
-              tickFormat={(v) => formatNumber(v, { compact: true })}
-              yLabel="points"
-              includeZero
-              height={260}
-              loading={isLoading}
-              error={chartError}
-            />
-          </LazyChart>
+          <div id="chart-points" className={CHART_ANCHOR}>
+            <LazyChart height={260} label="Reward points">
+              <LazyEraSeriesChart
+                title="Reward points each era"
+                subtitle="A steady line means block production is healthy; dips mean nodes were offline."
+                series={series}
+                operators={
+                  series
+                    ? [{ id: 'points', label: 'Points', values: series.network.totalPoints }]
+                    : []
+                }
+                format={count}
+                tickFormat={(v) => formatNumber(v, { compact: true })}
+                yLabel="points"
+                includeZero
+                height={260}
+                loading={isLoading}
+                error={chartError}
+              />
+            </LazyChart>
+          </div>
 
-          <LazyChart height={240} label="Validator set size">
-            <LazyEraSeriesChart
-              title="Operators in the active set"
-              subtitle="Is the validator set growing, shrinking, or churning?"
-              series={series}
-              operators={
-                series
-                  ? [{ id: 'active', label: 'Active', values: series.network.activeOperators }]
-                  : []
-              }
-              format={count}
-              tickFormat={(v) => formatNumber(v)}
-              yLabel="operators"
-              includeZero
-              height={240}
-              loading={isLoading}
-              error={chartError}
-            />
-          </LazyChart>
+          <div id="chart-operators" className={CHART_ANCHOR}>
+            <LazyChart height={240} label="Validator set size">
+              <LazyEraSeriesChart
+                title="Operators in the active set"
+                subtitle="Is the validator set growing, shrinking, or churning?"
+                series={series}
+                operators={
+                  series
+                    ? [{ id: 'active', label: 'Active', values: series.network.activeOperators }]
+                    : []
+                }
+                format={count}
+                tickFormat={(v) => formatNumber(v)}
+                yLabel="operators"
+                includeZero
+                height={240}
+                loading={isLoading}
+                error={chartError}
+              />
+            </LazyChart>
+          </div>
         </div>
       </section>
 
       <Decentralisation latest={latest.data} loading={latest.isLoading} />
 
-      {/* A compact trend strip, so the page ends with the shape of everything
-          rather than trailing off after the last full chart. */}
-      <section aria-label="Trends at a glance" className="mt-12">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+      {/*
+        The trend strip, as navigation rather than as four more charts.
+
+        Every series here already has a full chart with axes further up this
+        same page, so the sparklines were saying nothing new — and at 80px wide
+        with no scale they could not be read anyway. Making each one a link to
+        the chart it summarises turns dead duplication into the page's contents
+        list, and answers "can I see this bigger?" with the chart that was
+        already built rather than a second copy of it.
+
+        Plain anchors: they work without JavaScript, they are keyboard
+        reachable for free, and `:target` lets the destination announce itself.
+      */}
+      <section aria-labelledby="trends-heading" className="mt-12">
+        <h2 id="trends-heading" className="mb-1 text-[22px] leading-7 font-semibold tracking-tight">
+          Trends at a glance
+        </h2>
+        <p className="mt-0 mb-4 max-w-[65ch]" style={{ color: 'var(--text-secondary)' }}>
+          The shape of each series over the selected range, with its latest value. Follow one to its
+          full chart above, with axes and a table.
+        </p>
+
+        <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-4">
           {(
             [
-              ['Average APR', series?.network.avgApr, 'var(--series-1)'],
-              ['Total staked', series?.network.totalStaked, 'var(--series-2)'],
-              ['Reward points', series?.network.totalPoints, 'var(--series-4)'],
-              ['Active operators', series?.network.activeOperators, 'var(--series-5)'],
+              ['Average APR', '#chart-apr', series?.network.avgApr, 'var(--series-1)', percent],
+              [
+                'Total staked',
+                '#chart-staked',
+                series?.network.totalStaked,
+                'var(--series-2)',
+                polyx,
+              ],
+              [
+                'Reward points',
+                '#chart-points',
+                series?.network.totalPoints,
+                'var(--series-4)',
+                count,
+              ],
+              [
+                'Active operators',
+                '#chart-operators',
+                series?.network.activeOperators,
+                'var(--series-5)',
+                count,
+              ],
             ] as const
-          ).map(([label, values, colour]) => (
-            <div key={label} className="flex items-center gap-2">
-              <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-              <Sparkline values={values ?? []} colour={colour} />
-            </div>
+          ).map(([label, href, values, colour, formatValue]) => (
+            <li key={label}>
+              <a
+                href={href}
+                className="group flex flex-col gap-1 rounded-[var(--radius-md)] border p-3 no-underline transition-colors"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+              >
+                <span className="flex items-baseline justify-between gap-2 text-sm">
+                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                  <span
+                    aria-hidden="true"
+                    className="transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    →
+                  </span>
+                </span>
+                <span className="flex items-end justify-between gap-3">
+                  {/* The value the sparkline ends at. A trend with no number
+                      attached is a shape, not a reading. */}
+                  <span
+                    className="text-lg font-semibold"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {formatValue(values?.at(-1) ?? null)}
+                  </span>
+                  <Sparkline values={values ?? []} colour={colour} />
+                </span>
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
     </>
   );
