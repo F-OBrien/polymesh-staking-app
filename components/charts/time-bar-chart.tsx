@@ -26,6 +26,12 @@ import { ChartFrame, useChartHeight } from './chart-frame';
  * as bars would imply each period contained the whole running sum.
  */
 
+/** Half the zero tick's line box, so it is not clipped by the plot's edge. */
+const BASELINE_LABEL_ROOM = 14;
+
+/** Enough for the companion's y-axis label, which is drawn above its plot. */
+const COMPANION_LABEL_ROOM = 20;
+
 export interface TimeBarChartProps {
   /** Unix seconds, one per bar, ascending. */
   times: readonly number[];
@@ -78,7 +84,7 @@ export function TimeBarChart({
 
   // The companion takes the lower third: it is context for the bars, not a
   // peer, and a running total needs less room to read than a set of events.
-  const companionHeight = companion ? Math.round(height * 0.34) : 0;
+  const companionHeight = companion ? Math.round(height * 0.34) + COMPANION_LABEL_ROOM : 0;
   const barsHeight = height - companionHeight;
 
   const margin = responsiveMargin(width);
@@ -87,9 +93,23 @@ export function TimeBarChart({
     // No right gutter: nothing is direct-labelled here, and the bars should
     // use the full width.
     right: 16,
-    bottom: companion ? 4 : margin.bottom,
+    /**
+     * Room for the zero tick even when the x axis lives on the panel below.
+     *
+     * This was 4px, which is less than half the height of the "0" label —
+     * `YAxis` centres each tick on its value, so the bottom half of that label
+     * fell outside the plot and the bars drew straight over it. The companion
+     * panel's own axis label then collided with it from below.
+     */
+    bottom: companion ? BASELINE_LABEL_ROOM : margin.bottom,
   });
-  const companionBox = plotBox(width, companionHeight, { ...margin, right: 16 });
+  const companionBox = plotBox(width, companionHeight, {
+    ...margin,
+    right: 16,
+    // Its y-axis label is drawn 8px above the plot, so the panel needs a top
+    // margin big enough to hold it clear of the bars above.
+    top: COMPANION_LABEL_ROOM,
+  });
 
   const x = useMemo(() => timeScale(times, barsBox.innerWidth), [times, barsBox.innerWidth]);
   const y = useMemo(

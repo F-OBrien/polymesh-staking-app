@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * A small ⓘ that reveals an explanation on hover, focus or tap.
@@ -44,6 +45,13 @@ export function InfoTip({
    * The measurement happens in the *event handler* rather than an effect. Doing
    * it in an effect means a second render every time the panel opens, which is
    * what `react-hooks/set-state-in-effect` is there to catch.
+   *
+   * The panel is also **portalled to `document.body`**, which fixed position
+   * alone does not achieve. Most of these sit inside the operators table's
+   * sticky `<th>`, and `position: sticky` with a `z-index` creates a stacking
+   * context: the panel's `z-50` then only competes *within* that one cell, so
+   * every later header cell painted over its top edge and clipped the first
+   * line of text. A portal takes it out of that context entirely.
    */
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   const open = at != null;
@@ -121,30 +129,37 @@ export function InfoTip({
         <span aria-hidden="true">i</span>
       </button>
 
-      {at ? (
-        <span
-          id={id}
-          role="tooltip"
-          className="fixed z-50 block rounded-[10px] border p-3 text-[13px] leading-[18px] font-normal shadow-md"
-          style={{
-            top: at.top,
-            left: at.left,
-            width: 'min(340px, calc(100vw - 24px))',
-            borderColor: 'var(--border)',
-            background: 'var(--surface-2)',
-            color: 'var(--text-secondary)',
-            // Both inherited from wherever this is anchored. Table headers set
-            // `nowrap`, which made the prose run off the side of the panel, and
-            // headings set their own tracking and weight.
-            whiteSpace: 'normal',
-            textAlign: 'left',
-            fontWeight: 400,
-            letterSpacing: 'normal',
-          }}
-        >
-          {children}
-        </span>
-      ) : null}
+      {at
+        ? createPortal(
+            <span
+              id={id}
+              role="tooltip"
+              className="fixed z-50 block rounded-[10px] border p-3 text-[13px] leading-[18px] font-normal shadow-md"
+              style={{
+                top: at.top,
+                left: at.left,
+                width: 'min(340px, calc(100vw - 24px))',
+                borderColor: 'var(--border)',
+                background: 'var(--surface-2)',
+                color: 'var(--text-secondary)',
+                // Both inherited from wherever this is anchored. Table headers
+                // set `nowrap`, which made the prose run off the side of the
+                // panel, and headings set their own tracking and weight.
+                whiteSpace: 'normal',
+                textAlign: 'left',
+                fontWeight: 400,
+                letterSpacing: 'normal',
+              }}
+              // The panel is out of the wrapper's DOM subtree now, so it needs
+              // its own hover handling or moving the pointer into it closes it.
+              onMouseEnter={show}
+              onMouseLeave={hide}
+            >
+              {children}
+            </span>,
+            document.body,
+          )
+        : null}
     </span>
   );
 }
