@@ -26,6 +26,9 @@ import { ChartFrame, useChartHeight } from './chart-frame';
  * as bars would imply each period contained the whole running sum.
  */
 
+/** A day, for the degenerate single-bucket case where no gap can be measured. */
+const DEFAULT_STEP_SECONDS = 86_400;
+
 /** Half the zero tick's line box, so it is not clipped by the plot's edge. */
 const BASELINE_LABEL_ROOM = 14;
 
@@ -111,7 +114,39 @@ export function TimeBarChart({
     top: COMPANION_LABEL_ROOM,
   });
 
-  const x = useMemo(() => timeScale(times, barsBox.innerWidth), [times, barsBox.innerWidth]);
+  /**
+   * The bucket width in seconds, from the *median* gap.
+   *
+   * Median rather than mean because a reward history commonly has one enormous
+   * gap — an account that stopped staking for a year — and a mean would size
+   * every bar for that outlier.
+   */
+  const stepSeconds = useMemo(() => {
+    if (times.length < 2) return DEFAULT_STEP_SECONDS;
+    const gaps = times
+      .slice(1)
+      .map((t, i) => t - (times[i] ?? 0))
+      .filter((g) => g > 0)
+      .sort((a, b) => a - b);
+    return gaps[Math.floor(gaps.length / 2)] ?? DEFAULT_STEP_SECONDS;
+  }, [times]);
+
+  /**
+   * Half a bucket of padding at each end.
+   *
+   * A time scale maps the first and last values to the very edges of the plot,
+   * which is right for a line — its endpoints are points — and wrong for bars,
+   * which are *bands*. Centred on the edge, the first and last bars had half
+   * their width outside the plot area and were visibly sliced in two. Widening
+   * the domain by half a bucket gives every bar a full slot, and leaves the
+   * same half-gap margin at each end that sits between any two bars.
+   */
+  const x = useMemo(() => {
+    const first = times[0] ?? 0;
+    const last = times.at(-1) ?? first;
+    const half = stepSeconds / 2;
+    return timeScale([first - half, last + half], barsBox.innerWidth);
+  }, [times, stepSeconds, barsBox.innerWidth]);
   const y = useMemo(
     () => valueScale([values], barsBox.innerHeight, { includeZero: true, min: 0 }),
     [values, barsBox.innerHeight],
@@ -127,22 +162,17 @@ export function TimeBarChart({
   const xs = useMemo(() => times.map((t) => x(new Date(t * 1000))), [times, x]);
 
   /**
-   * Bar width from the *median* gap, not the mean.
+   * Bar width from the bucket's own width in pixels.
    *
-   * A reward history commonly has one enormous gap — an account that stopped
-   * staking for a year — and a mean gap would size every bar for that outlier,
-   * rendering the dense region as invisible hairlines.
+   * Derived from the same step the domain padding uses, so the gap between two
+   * bars and the gap at each end of the plot stay consistent. Capped at 40px so
+   * a two-bucket history does not render as two enormous slabs.
    */
   const barWidth = useMemo(() => {
-    if (xs.length < 2) return Math.min(24, barsBox.innerWidth / 2);
-    const gaps = xs
-      .slice(1)
-      .map((v, i) => v - (xs[i] ?? 0))
-      .filter((g) => g > 0)
-      .sort((a, b) => a - b);
-    const median = gaps[Math.floor(gaps.length / 2)] ?? 8;
-    return Math.max(1, Math.min(median * 0.7, 40));
-  }, [xs, barsBox.innerWidth]);
+    const first = times[0] ?? 0;
+    const slot = Math.abs(x(new Date((first + stepSeconds) * 1000)) - x(new Date(first * 1000)));
+    return Math.max(1, Math.min(slot * 0.72, 40));
+  }, [times, stepSeconds, x]);
 
   const companionPath = useMemo(() => {
     if (!companion || !companionY) return '';
