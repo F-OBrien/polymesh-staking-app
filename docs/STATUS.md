@@ -364,48 +364,73 @@ and because there has never been a slash. Judged one at a time:
 | C17 stake by operator | **dropped** | Same reason: 86 near-identical bars, spanning 3.9% |
 | C21 slashing timeline | **dropped for now** | Zero offences have ever occurred. A timeline of nothing. Revisit if one does |
 | C6 rewards as a bar | **left as a line** | Semantically a bar, but 90+ daily bars read as a solid block. A deviation, recorded |
-| C18 points by operator | **worth building** | Points *do* vary, and an expected-value reference line makes under-performance obvious |
-| C24 my operators | **worth building** | C11 with the reader's own operators pinned — cheap, and it is their page |
-| C15 cumulative deviation | **marginal** | Shows *persistent* over/under-performance that a standard deviation does not. Detail page only |
+| C18 points by operator | **built, redesigned** | The specced form is a leaderboard of luck — see below. Rebuilt as production against expected, over the range, with the noise band drawn |
+| C24 my operators | **built, plus a second chart** | The specced banded chart shows outages and trend but cannot rank; the production chart, with the reader's picks coloured, can |
+| C15 cumulative deviation | **superseded** | It exists to show *persistent* over/under-performance, which the production chart now does with an explicit significance test |
 | C19 consistency beeswarm | **marginal** | Distribution shape is real information, but box plots are hard to read and Steadiness covers most of it |
 | C20 nominator histogram | **deferred** | Needs `data/eras/{era}.json`, which is not generated. High cost for medium value |
 
 **Not in the catalogue, and arguably better than several things in it.** These
 come from what this session actually learned about the chain:
 
-- **Performance against expected.** Because stake is equalised, the real
-  differentiator is whether an operator earns more points than its stake share
-  implies. Expressed as a ratio around 1.0 it separates the field far more
-  legibly than APRs clustered between 17% and 24%.
-- **Earned versus the network average, on `/my-staking`.** "You received X; an
-  average operator would have paid Y." A counterfactual is more use to a
-  nominator than another absolute.
-- **Commission distribution across the field.** A histogram of what operators
-  charge. Cheap — the data is already in every row — and it frames whether a
-  given commission is normal or not.
+- **Performance against expected — built**, as `components/production-chart.tsx`
+  on `/operators` and `/my-staking`. It replaced C18 rather than joining it.
+- **Earned versus the network average — built**, as the choice verdict on
+  `/my-staking`, but *forward*-looking. The retrospective version cannot be
+  built honestly: reward events carry no validator (introspected, `StakingEvent`
+  has `stashAccount`/`amount`/`identityId` and nothing else), and the
+  counterfactual also needs per-era exposure, which is an archive read per era.
+- **Commission distribution — built**, as `components/commission-spread.tsx`,
+  and as a tally rather than the proposed histogram: mainnet has four distinct
+  commissions and 68 of 86 operators charge exactly 10%, so bins would imply a
+  continuum that does not exist.
 
-### Chart catalogue — 12 built, 3 in the wrong form, 9 absent
+### What measuring the chain did to the chart plan
+
+Three charts were changed or dropped because the data said the question they
+asked has no answer here. Recorded because the reasoning is not recoverable
+from the code alone:
+
+- **One era's reward points are pure slot luck.** A third of the way into era
+  1750 the field's spread was 12.5% against the 13.4% a lottery predicts; over
+  a *complete* era, 8.1% against 7.9%. Sorting that produces a leaderboard of
+  coin flips. Accumulated over 86 eras, ±1.38% of spread remains, of which
+  ±0.85% is luck and ±1.09% is real — small, but 21 of 90 operators sit beyond
+  two standard errors.
+- **Per-era APR is the same problem.** Measured cross-sectional spread 8.1% an
+  era, which is the points noise passed through. C11 and C24 are therefore
+  charts of *outages and trend*, and their copy now says so instead of inviting
+  a ranking.
+- **Commission is the bigger lever, by an order of magnitude.** Production
+  separates the field by ~1.1% relative; commission spans 7% to 10%, worth
+  ~0.22 points of APR each. A nominator optimising performance is working on
+  the smaller term.
+
+### Chart catalogue — after the triage above
 
 | # | Chart | Page | State |
 |---|---|---|---|
-| C2 | Staking ratio vs the 70% ideal — gauge | Home, Network | **absent** — a stat tile and a sentence stand in |
-| C3 | Reward & inflation curve | Network, Calculator | **absent** — `curveInflation` exists, nothing draws it |
-| C6 | Rewards per era | Network | wrong form — a line, specced as a bar |
-| C10 | Top-N stake share, stacked area | Network | **absent** |
-| C15 | Cumulative deviation from average | Operators, Detail | **absent** — three legacy charts were to fold into this |
-| C17 | Current-era stake by operator | Operators | **absent** |
-| C18 | Current-era points by operator | Operators | **absent** |
+| C2 | Staking ratio vs the 70% ideal — gauge | Home, Network | **dropped** — C3 says it all, with the cap marked |
+| C3 | Reward & inflation curve | Network, Calculator | **built** |
+| C6 | Rewards per era | Network | left as a line, deliberately — 90 daily bars read as a solid block |
+| C10 | Top-N stake share, stacked area | Network | **dropped** — the election equalises exposure, Gini 0.008 |
+| C15 | Cumulative deviation from average | Operators, Detail | **superseded** by the production chart, which tests significance |
+| C17 | Current-era stake by operator | Operators | **dropped** — 86 near-identical bars spanning 3.9% |
+| C18 | Current-era points by operator | Operators | **built, redesigned** — production against expected, over the range |
 | C19 | Operator consistency, box/beeswarm | Detail | **absent** |
 | C20 | Nominator distribution histogram | Detail | **absent** |
-| C21 | Slashing timeline | Slashing | partial — a table and the penalty curves, no timeline |
-| C22 | Reward projection | Calculator | **absent — the page has no chart at all** |
-| C23 | My rewards over time | My Staking | wrong form — an axis-less `Sparkline` |
-| C24 | My operators' performance | My Staking | **absent** |
+| C21 | Slashing timeline | Slashing | **dropped for now** — zero offences have ever occurred |
+| C22 | Reward projection | Calculator | **built**, as an accumulation curve with a widening band |
+| C23 | My rewards over time | My Staking | **built** — bars with day/week/month/year grouping, plus a cumulative panel |
+| C24 | My operators' performance | My Staking | **built**, plus the production chart for the ranking it cannot give |
 
-**The common blocker is that no bar-chart primitive exists.** `components/charts/`
-has axes, a banded line, an xy line, a sparkline, a legend and a table — nothing
-that draws a bar. C6, C17, C18, C22 and C23 all need one, so building it first
-unblocks five of the thirteen.
+**The chart kit now has five primitives.** Axes, a banded line, an xy line, a
+sparkline, `TimeBarChart` (bars over time, optional companion panel) and
+`DeviationChart` (a field of categories diverging from a baseline over a
+per-category tolerance band). The last two were the blocker for everything
+above.
+
+Only C19 and C20 remain unbuilt, both judged marginal or deferred above.
 
 ### Features specced and never built
 

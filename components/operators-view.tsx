@@ -10,6 +10,7 @@ import { rankOperators } from '@/lib/data/series';
 import { buildLabeller } from '@/lib/data/operator-label';
 import { OperatorsTable } from '@/components/operators-table';
 import { ProductionChart } from '@/components/production-chart';
+import { CommissionSpread } from '@/components/commission-spread';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { HeadingWithTip } from '@/components/info-tip';
 import { LiveToggle } from '@/components/live-toggle';
@@ -139,6 +140,11 @@ export function OperatorsView() {
         </p>
         <EraRangeControl manifest={manifest.data} />
       </div>
+
+      {/* Framing for the table's commission column. It is the larger of the
+          two levers a nominator has, and the column alone cannot say whether a
+          given figure is normal. */}
+      <CommissionSpread />
 
       <section aria-labelledby="directory-heading" className="mt-6">
         <h2 id="directory-heading" className="sr-only">
