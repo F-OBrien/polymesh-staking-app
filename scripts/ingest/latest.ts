@@ -140,6 +140,7 @@ async function main(): Promise<void> {
         electionPhase,
       },
       totalIssuance: totalIssuance.toString(),
+      fixedYearlyReward: fixedYearlyReward.toString(),
       totalStaked: totalStaked.toString(),
       stakingRatio: round(stakingRatio, 6),
       inflation: round(inflation, 6),

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useLatest, useManifest } from '@/lib/data/queries';
 import { useEraClock } from '@/lib/data/use-era-clock';
-import { REWARD_CURVE } from '@/lib/metrics/staking';
 import {
   formatBaseUnits,
   formatDuration,
@@ -50,16 +49,30 @@ export function NetworkPulse() {
   const decimals = manifest.data?.chain.tokenDecimals ?? 6;
   const asOf = data ? <AsOf label={formatRelativeTime(data.generatedAt)} /> : null;
 
-  // Below the ideal ratio, rewards run above their long-run level; above it,
-  // below. Saying which side we are on is the difference between a number and
-  // an insight.
+  /**
+   * Which side of the *cap* we are on — not the curve's "ideal".
+   *
+   * This used to read "below the 70% target — returns run high", quoting the
+   * reward curve's `xIdeal`. That is a Substrate concept and it is the wrong
+   * threshold for Polymesh: a fixed 140,000,000 POLYX annual reward caps
+   * inflation at ~10.7% of issuance, which binds at about 50% staked. The
+   * curve's 70% ideal is therefore never reached, and describing the network
+   * as heading toward it implies a smooth taper that will not happen — past
+   * the cap the pot stops growing and the return falls in step with any
+   * further staking. See `components/reward-curve.tsx`.
+   */
   const ratio = data?.stakingRatio;
+  const cap =
+    data && BigInt(data.totalIssuance) > 0n
+      ? Number(BigInt(data.fixedYearlyReward)) / Number(BigInt(data.totalIssuance))
+      : null;
+  const capped = data != null && cap != null && data.inflation >= cap - 1e-9;
   const ratioHint =
     ratio == null
       ? undefined
-      : ratio < REWARD_CURVE.xIdeal
-        ? `below the ${formatPercent(REWARD_CURVE.xIdeal, { decimals: 0 })} target — returns run high`
-        : `above the ${formatPercent(REWARD_CURVE.xIdeal, { decimals: 0 })} target — returns run low`;
+      : capped
+        ? 'inflation is at its ceiling — more staking now lowers the return'
+        : 'inflation still rises with staking, so the return tapers only gently';
 
   return (
     <>

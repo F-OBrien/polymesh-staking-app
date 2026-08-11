@@ -203,6 +203,7 @@ describe('buildOperatorRows', () => {
       electionPhase: 'Off',
     },
     totalIssuance: '2000000000',
+    fixedYearlyReward: '200000000',
     totalStaked: '1000000000',
     stakingRatio: 0.5,
     inflation: 0.1,

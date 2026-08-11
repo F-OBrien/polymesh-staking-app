@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { StatTile } from '@/components/stat-tile';
 import { EraStatus } from '@/components/era-status';
+import { RewardCurve, RewardCurveReading } from '@/components/reward-curve';
 import { HeadingWithTip } from '@/components/info-tip';
 import { AsOf, ErrorState } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
@@ -237,6 +238,14 @@ export function NetworkAnalytics() {
           </LazyChart>
         </div>
       </section>
+
+          {/* C3. The mechanism behind every APR elsewhere on the site, and
+              the correction to the "70% target" framing — on Polymesh the
+              fixed reward cap binds long before the curve's ideal. */}
+          <div className="mt-4">
+            <RewardCurve />
+            <RewardCurveReading />
+          </div>
 
       {/* ---- Stake ---- */}
       <section aria-labelledby="stake-heading" className="mt-12">

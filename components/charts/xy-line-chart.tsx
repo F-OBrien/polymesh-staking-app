@@ -44,12 +44,23 @@ export interface XyLineChartProps {
   series: readonly XySeries[];
   title: string;
   subtitle?: string | undefined;
+  /** What the data covers. Normative — a chart must never imply more. */
+  coverage?: string | undefined;
   xLabel: string;
   yLabel?: string | undefined;
   format: (value: number) => string;
   tickFormat?: ((value: number) => string) | undefined;
   /** Formats an x value for ticks and the table's first column. */
   formatX?: ((value: number) => string) | undefined;
+  /**
+   * Vertical annotations at particular x values.
+   *
+   * A curve of "what the return would be at each staking ratio" is only half
+   * an answer without "and here is where we actually are". These carry the
+   * other half — the current position, and any threshold where the shape of
+   * the curve changes.
+   */
+  markers?: readonly { x: number; label: string; colour?: string }[] | undefined;
   height?: number;
   loading?: boolean | undefined;
   error?: Error | null | undefined;
@@ -60,11 +71,13 @@ export function XyLineChart({
   series,
   title,
   subtitle,
+  coverage,
   xLabel,
   yLabel,
   format,
   tickFormat,
   formatX = String,
+  markers,
   height = 300,
   loading = false,
   error,
@@ -117,6 +130,7 @@ export function XyLineChart({
     <ChartFrame
       title={title}
       subtitle={subtitle}
+      coverage={coverage}
       height={height}
       loading={loading}
       error={error}
@@ -209,6 +223,39 @@ export function XyLineChart({
                   {xLabel}
                 </text>
               </g>
+
+              {/* Drawn under the curves, so a marker never obscures the data
+                  it is annotating. */}
+              {markers?.map((marker) => {
+                const mx = xScale(marker.x);
+                if (!Number.isFinite(mx)) return null;
+                const colour = marker.colour ?? 'var(--text-muted)';
+                // Flip the label inside the plot near the right edge, or it is
+                // clipped by the chart's own bounds.
+                const flip = mx > box.innerWidth - 90;
+                return (
+                  <g key={`${marker.x}-${marker.label}`} aria-hidden="true">
+                    <line
+                      x1={mx}
+                      x2={mx}
+                      y1={0}
+                      y2={box.innerHeight}
+                      stroke={colour}
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                    />
+                    <text
+                      x={flip ? mx - 6 : mx + 6}
+                      y={10}
+                      textAnchor={flip ? 'end' : 'start'}
+                      fontSize={10}
+                      fill={colour}
+                    >
+                      {marker.label}
+                    </text>
+                  </g>
+                );
+              })}
 
               {paths.map((d, i) => (
                 <path

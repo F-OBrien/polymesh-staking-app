@@ -236,6 +236,17 @@ export const LatestSchema = z.object({
   eraStatus: EraStatusSchema,
   totalIssuance: BaseUnits,
   totalStaked: BaseUnits,
+  /**
+   * The chain's fixed annual reward ceiling, in base units.
+   *
+   * Carried because the reward curve cannot be drawn honestly without it, and
+   * it cannot be inferred from `inflation`: below the ceiling the curve and the
+   * capped value agree exactly, so the cap is invisible in the output until it
+   * binds. Polymesh's 140,000,000 POLYX ceiling starts binding at about 50%
+   * staked, well below the curve's 70% "ideal" — which is therefore never
+   * reached, and is the wrong threshold to describe the network against.
+   */
+  fixedYearlyReward: BaseUnits,
   stakingRatio: Ratio,
   inflation: Ratio,
   impliedApr: Ratio,
