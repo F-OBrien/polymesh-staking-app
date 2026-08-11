@@ -8,6 +8,7 @@ import { EraRangeControl, useResolvedRange } from '@/components/era-range-contro
 import { buildOperatorRows } from '@/lib/data/operator-rows';
 import { assumptions, project } from '@/lib/metrics/projection';
 import { mean, stdDev } from '@/lib/metrics/stats';
+import { ProjectionChart } from '@/components/projection-chart';
 import { StatTile } from '@/components/stat-tile';
 import { ErrorState } from '@/components/states';
 import { OperatorPicker } from '@/components/operator-picker';
@@ -314,6 +315,20 @@ export function CalculatorView() {
               loading={isLoading}
             />
           </div>
+
+          {/* C22, redesigned. The spec's "bar with a sensitivity range" would
+              restate the tiles above in more space; the accumulation curve
+              shows the shape, and the band widening with the horizon is the
+              honest statement that a far-out projection is a weaker claim. */}
+          <ProjectionChart
+            amount={Number.isFinite(amount) ? amount : 0}
+            apr={basis.apr ?? 0}
+            aprStdDev={basis.stdDev}
+            days={days}
+            erasPerYear={erasPerYear}
+            compound={compound}
+            basisLabel={basis.label}
+          />
 
           {isError ? (
             <p className="m-0 text-sm" style={{ color: 'var(--status-critical)' }}>

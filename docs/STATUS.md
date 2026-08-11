@@ -345,6 +345,42 @@ Audited against §8.3 and §9 of the design doc by reading the code, not the
 phase log. Phases were marked done when the *page* existed; several of their
 charts never landed.
 
+### Chart triage — build on merit, not to complete the catalogue
+
+The catalogue was written before anyone had measured Polymesh. Several of its
+charts turn out to say nothing *here*, because the election equalises exposure
+and because there has never been a slash. Judged one at a time:
+
+| # | Verdict | Why |
+|---|---|---|
+| C3 | **built** | Explains every APR on the site, and corrected a wrong claim |
+| C23 | **built** | Was an axis-less sparkline; now daily bars + cumulative |
+| C22 | **built, redesigned** | The specced bar-with-whiskers restates the tiles; an accumulation curve with a widening band does not |
+| C2 gauge | **dropped** | C3 says everything a gauge would, with the cap marked. A gauge is low data-ink and would repeat it |
+| C10 top-N stake share | **dropped** | The election equalises exposure — Gini 0.008 — so this is eight identical bands |
+| C17 stake by operator | **dropped** | Same reason: 86 near-identical bars, spanning 3.9% |
+| C21 slashing timeline | **dropped for now** | Zero offences have ever occurred. A timeline of nothing. Revisit if one does |
+| C6 rewards as a bar | **left as a line** | Semantically a bar, but 90+ daily bars read as a solid block. A deviation, recorded |
+| C18 points by operator | **worth building** | Points *do* vary, and an expected-value reference line makes under-performance obvious |
+| C24 my operators | **worth building** | C11 with the reader's own operators pinned — cheap, and it is their page |
+| C15 cumulative deviation | **marginal** | Shows *persistent* over/under-performance that a standard deviation does not. Detail page only |
+| C19 consistency beeswarm | **marginal** | Distribution shape is real information, but box plots are hard to read and Steadiness covers most of it |
+| C20 nominator histogram | **deferred** | Needs `data/eras/{era}.json`, which is not generated. High cost for medium value |
+
+**Not in the catalogue, and arguably better than several things in it.** These
+come from what this session actually learned about the chain:
+
+- **Performance against expected.** Because stake is equalised, the real
+  differentiator is whether an operator earns more points than its stake share
+  implies. Expressed as a ratio around 1.0 it separates the field far more
+  legibly than APRs clustered between 17% and 24%.
+- **Earned versus the network average, on `/my-staking`.** "You received X; an
+  average operator would have paid Y." A counterfactual is more use to a
+  nominator than another absolute.
+- **Commission distribution across the field.** A histogram of what operators
+  charge. Cheap — the data is already in every row — and it frames whether a
+  given commission is normal or not.
+
 ### Chart catalogue — 12 built, 3 in the wrong form, 9 absent
 
 | # | Chart | Page | State |
