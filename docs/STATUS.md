@@ -247,6 +247,30 @@ at 16, so it is bounded). The page gains an "Assigned this era" tile, an
 "Assigned this era" column per nomination, and notes that fire only when there
 is something to explain.
 
+**A second, worse bug — found by the user, proven on the same stash.**
+Nominations can be changed at any time; exposure is fixed at the election. Change
+them mid-era and the stake stays with the operator just dropped, who is no longer
+in `staking.nominators(stash).targets`. The first implementation iterated the
+nomination list, so it could not see that stake at all — and did not merely omit
+it, it stated the opposite: *"Payouts landing now are for era 1749, when none of
+this stake was assigned — so expect nothing from them."*
+
+Live on mainnet, that stash held **2,019,000 POLYX assigned in era 1749 to an
+operator it no longer nominates**. It was earning, and would be paid.
+
+Fixed by searching the whole era's exposure instead: `erasStakersPaged.entries(era)`
+with no validator argument cannot miss anything. Measured against the
+per-nomination reads it replaces — **1 RPC call vs 16, ~425ms vs ~356ms, 74 KB,
+2,034 edges across 86 operators**. Fewer round trips and no way to be wrong. The
+design doc calls this the heaviest query available (§2.1), but that warning is
+about the previous app issuing it 85 times on every page load; twice, on demand,
+for one address, is a different thing. `npm run probe:exposure-scan`.
+
+The result is the **union** of nominated and exposed, so both differences are
+visible: nominated-but-not-backed, and backed-but-no-longer-nominated. The latter
+gets its own table row and its own note. There is also no `targets.length === 0`
+shortcut any more — a chilled stash still has exposure and still earns.
+
 **One real bug found doing it: a tier mismatch.** The allocation read was keyed
 on `latest.json`'s `activeEra`, which lags the chain by up to fifteen minutes —
 and exposure is keyed by era. Across a boundary it read the *previous* era and

@@ -18,9 +18,10 @@ import { resolveNetwork, resolveRpcUrl } from '../../config/networks';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const POLYX = (value: bigint) => (Number(value) / 1e6).toLocaleString(undefined, {
-  maximumFractionDigits: 2,
-});
+const POLYX = (value: bigint) =>
+  (Number(value) / 1e6).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
 
 async function main(): Promise<void> {
   const stash = process.argv[2];

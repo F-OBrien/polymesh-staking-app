@@ -267,8 +267,7 @@ export async function fetchRewardTotals(
   { earnedEra, ...options }: FetchRewardsOptions = {},
 ): Promise<RewardTotals> {
   const data = await graphql<SummaryResponse>(REWARD_SUMMARY_QUERY, { stash }, options);
-  const edge = (nodes: SummaryNode[]) =>
-    nodes[0] ? toRewardEvent(nodes[0], earnedEra) : null;
+  const edge = (nodes: SummaryNode[]) => (nodes[0] ? toRewardEvent(nodes[0], earnedEra) : null);
 
   return {
     total: BigInt(toBaseUnits(data.totals.aggregates?.sum?.amount)),

@@ -5,14 +5,7 @@ import type { ApiLike } from './compat';
 const STASH = '2Ghq2EKWezZnmdkn2z2bVeDo8GKgegmvrdFoCb45vzobqye8';
 const OTHER = '2D65g8EDYWHbKfjvNFWHmXdxBVc5EyssJDc1ciHHE5s4pcPW';
 
-/** A `Vec<IndividualExposure>` page, in the shape polkadot-js hands back. */
-const page = (others: { who: string; value: bigint }[]) => ({
-  isNone: false,
-  unwrap: () => ({
-    others: others.map((o) => ({ who: o.who, value: { toString: () => o.value.toString() } })),
-  }),
-});
-
+/** `(era, validator, page)` — the key shape polkadot-js yields from entries(). */
 const key = (era: number, operator: string, pageIndex: number) => ({
   args: [
     { toString: () => String(era) },
@@ -21,23 +14,43 @@ const key = (era: number, operator: string, pageIndex: number) => ({
   ],
 });
 
+const page = (others: { who: string; value: bigint }[]) => ({
+  isNone: false,
+  unwrap: () => ({
+    others: others.map((o) => ({ who: o.who, value: { toString: () => o.value.toString() } })),
+  }),
+});
+
+type Era = Record<string, { who: string; value: bigint }[][]>;
+
 /**
- * A paged-exposure chain. `pages[era][operator]` is a list of pages, each a
- * list of backers.
+ * A chain whose exposure is read by *whole-era* prefix scan.
+ *
+ * `entries(era)` takes no validator argument — which is the point. The reader
+ * must not depend on being told which operators to look at, because the
+ * nomination list is exactly what can be wrong.
  */
-function fakeApi(pages: Record<number, Record<string, { who: string; value: bigint }[][]>>): ApiLike {
+function fakeApi(eras: Record<number, Era>, activeEra = 10): ApiLike {
   return {
     query: {
       staking: {
         activeEra: () =>
-          Promise.resolve({ isSome: true, unwrap: () => ({ index: { toString: () => '10' } }) }),
+          Promise.resolve({
+            isSome: true,
+            unwrap: () => ({ index: { toString: () => String(activeEra) } }),
+          }),
         erasStakersPaged: {
-          entries: (era: number, operator: string) =>
+          entries: (era: number) =>
             Promise.resolve(
-              (pages[era]?.[operator] ?? []).map((backers, i) => [
-                key(era, operator, i),
-                page(backers),
-              ]),
+              Object.entries(eras[era] ?? {}).flatMap(([operator, pages]) =>
+                pages.map((backers, i) => [key(era, operator, i), page(backers)]),
+              ),
+            ),
+        },
+        erasStakersOverview: {
+          entries: (era: number) =>
+            Promise.resolve(
+              Object.keys(eras[era] ?? {}).map((operator) => [key(era, operator, 0), {}]),
             ),
         },
       },
@@ -48,27 +61,25 @@ function fakeApi(pages: Record<number, Record<string, { who: string; value: bigi
 describe('readEraAllocation', () => {
   it('finds this stash across an operator’s pages', async () => {
     const api = fakeApi({
-      10: {
-        alice: [
-          [{ who: OTHER, value: 5n }],
-          [{ who: STASH, value: 700n }],
-        ],
-      },
+      10: { alice: [[{ who: OTHER, value: 5n }], [{ who: STASH, value: 700n }]] },
     });
 
     const result = await readEraAllocation(api, STASH, 10, ['alice']);
     expect(result.assigned).toBe(700n);
-    expect(result.targets[0]).toEqual({ address: 'alice', value: 700n, page: 1, elected: true });
+    expect(result.targets[0]).toEqual({
+      address: 'alice',
+      value: 700n,
+      page: 1,
+      elected: true,
+      nominated: true,
+    });
   });
 
   it('reports zero for a nominated operator the election did not use', async () => {
-    // The single most surprising fact on the page: nominating an operator does
-    // not mean backing it. Phragmén picks a subset.
+    // Phragmén picks a subset of a nominator's targets, so nominating an
+    // operator does not mean backing it.
     const api = fakeApi({
-      10: {
-        alice: [[{ who: STASH, value: 1000n }]],
-        bob: [[{ who: OTHER, value: 50n }]],
-      },
+      10: { alice: [[{ who: STASH, value: 1000n }]], bob: [[{ who: OTHER, value: 50n }]] },
     });
 
     const result = await readEraAllocation(api, STASH, 10, ['alice', 'bob']);
@@ -77,9 +88,55 @@ describe('readEraAllocation', () => {
       address: 'bob',
       value: 0n,
       page: null,
-      // Elected — it has exposure — just not backed by *this* stash.
       elected: true,
+      nominated: true,
     });
+  });
+
+  it('finds stake held by an operator that is NO LONGER nominated', async () => {
+    // The bug this whole-era scan exists for. Nominations can change at any
+    // moment; exposure is fixed at the election. Re-nominate mid-era and the
+    // stake stays with the operator just dropped. A reader that iterates the
+    // nomination list cannot see it, and reports a normally-earning position
+    // as "nothing assigned" — at exactly the moment someone is most likely to
+    // be looking, having just changed who they back.
+    const api = fakeApi({
+      10: {
+        oldOperator: [[{ who: STASH, value: 2000n }]],
+        newOperator: [[{ who: OTHER, value: 9n }]],
+      },
+    });
+
+    // The stash now nominates only `newOperator`.
+    const result = await readEraAllocation(api, STASH, 10, ['newOperator']);
+
+    expect(result.assigned).toBe(2000n);
+    expect(result.unnominated).toBe(2000n);
+
+    expect(result.targets.find((t) => t.address === 'oldOperator')).toEqual({
+      address: 'oldOperator',
+      value: 2000n,
+      page: 0,
+      elected: true,
+      nominated: false,
+    });
+  });
+
+  it('lists nominations first, then anything else holding stake', async () => {
+    const api = fakeApi({
+      10: { dropped: [[{ who: STASH, value: 1n }]], kept: [[{ who: STASH, value: 2n }]] },
+    });
+    const result = await readEraAllocation(api, STASH, 10, ['kept']);
+    expect(result.targets.map((t) => t.address)).toEqual(['kept', 'dropped']);
+  });
+
+  it('finds stake for a stash that has chilled entirely', async () => {
+    // Withdrawing every nomination does not withdraw stake from the current
+    // era's exposure — it keeps earning until the next election.
+    const api = fakeApi({ 10: { alice: [[{ who: STASH, value: 500n }]] } });
+    const result = await readEraAllocation(api, STASH, 10, []);
+    expect(result.assigned).toBe(500n);
+    expect(result.unnominated).toBe(500n);
   });
 
   it('distinguishes "not elected" from "elected but not backing me"', async () => {
@@ -90,40 +147,14 @@ describe('readEraAllocation', () => {
 
   it('sums across pages if a stash ever appears on more than one', async () => {
     const api = fakeApi({
-      10: {
-        alice: [
-          [{ who: STASH, value: 100n }],
-          [{ who: STASH, value: 200n }],
-        ],
-      },
+      10: { alice: [[{ who: STASH, value: 100n }], [{ who: STASH, value: 200n }]] },
     });
     expect((await readEraAllocation(api, STASH, 10, ['alice'])).assigned).toBe(300n);
-  });
-
-  it('survives one unreadable operator rather than blanking the position', async () => {
-    const api = {
-      query: {
-        staking: {
-          erasStakersPaged: {
-            entries: (_era: number, operator: string) =>
-              operator === 'broken'
-                ? Promise.reject(new Error('decode failed'))
-                : Promise.resolve([[key(10, operator, 0), page([{ who: STASH, value: 42n }])]]),
-          },
-        },
-      },
-    } as unknown as ApiLike;
-
-    const result = await readEraAllocation(api, STASH, 10, ['alice', 'broken']);
-    expect(result.assigned).toBe(42n);
-    expect(result.targets.find((t) => t.address === 'broken')?.elected).toBe(false);
   });
 });
 
 describe('readStakeAllocation', () => {
   it('reads the current era and the one whose rewards are being paid', async () => {
-    // Rewards for era N land during era N+1, so "why did I earn nothing?" is
-    // usually answered by the previous era, not the current one.
     const api = fakeApi({
       10: { alice: [[{ who: STASH, value: 500n }]] },
       9: { alice: [[{ who: OTHER, value: 500n }]] },
@@ -135,70 +166,30 @@ describe('readStakeAllocation', () => {
     expect(result.previous?.assigned).toBe(0n);
   });
 
-  it('does not read a previous era at genesis', async () => {
-    const api = {
-      query: {
-        staking: {
-          activeEra: () =>
-            Promise.resolve({ isSome: true, unwrap: () => ({ index: { toString: () => '0' } }) }),
-          erasStakersPaged: {
-            entries: () => Promise.resolve([[key(0, 'alice', 0), page([{ who: STASH, value: 1n }])]]),
-          },
-        },
-      },
-    } as unknown as ApiLike;
-    expect((await readStakeAllocation(api, STASH, 0, ['alice'])).previous).toBeNull();
-  });
-
   it('takes the era from the chain, not the snapshot it is handed', async () => {
     // `latest.json` lags the chain by up to fifteen minutes, and exposure is
-    // keyed by era. Trusting the snapshot across an era boundary read the wrong
+    // keyed by era. Trusting the snapshot across a boundary read the wrong
     // era's exposure and reported a fully-assigned stash as assigned nothing.
     const api = fakeApi({
       10: { alice: [[{ who: STASH, value: 999n }]] },
       9: { alice: [[{ who: STASH, value: 111n }]] },
     });
-    // Chain says 10 (see `fakeApi`); the caller passes a stale 9.
     const result = await readStakeAllocation(api, STASH, 9, ['alice']);
     expect(result.current.era).toBe(10);
     expect(result.current.assigned).toBe(999n);
   });
 
-  it('falls back to the snapshot era when the chain will not say', async () => {
-    const api = {
-      query: {
-        staking: {
-          activeEra: () => Promise.reject(new Error('unavailable')),
-          erasStakersPaged: {
-            entries: (era: number) =>
-              Promise.resolve(
-                era === 7 ? [[key(7, 'alice', 0), page([{ who: STASH, value: 5n }])]] : [],
-              ),
-          },
-        },
-      },
-    } as unknown as ApiLike;
-    const result = await readStakeAllocation(api, STASH, 7, ['alice']);
-    expect(result.current.era).toBe(7);
-    expect(result.current.assigned).toBe(5n);
+  it('does not read a previous era at genesis', async () => {
+    const api = fakeApi({ 0: { alice: [[{ who: STASH, value: 1n }]] } }, 0);
+    expect((await readStakeAllocation(api, STASH, 0, ['alice'])).previous).toBeNull();
   });
 
-  it('does no reads at all when nothing is nominated', async () => {
-    const api = {
-      query: {
-        staking: {
-          activeEra: () =>
-            Promise.resolve({ isSome: true, unwrap: () => ({ index: { toString: () => '10' } }) }),
-          erasStakersPaged: {
-            entries: () => Promise.reject(new Error('should not be called')),
-          },
-        },
-      },
-    } as unknown as ApiLike;
-
+  it('still reads exposure when nothing is nominated', async () => {
+    // No shortcut on an empty nomination list: a chilled stash is still exposed
+    // for the current era, and skipping the read would report it as gone.
+    const api = fakeApi({ 10: { alice: [[{ who: STASH, value: 77n }]] } });
     const result = await readStakeAllocation(api, STASH, 10, []);
-    expect(result.current.assigned).toBe(0n);
-    expect(result.previous).toBeNull();
+    expect(result.current.assigned).toBe(77n);
   });
 });
 

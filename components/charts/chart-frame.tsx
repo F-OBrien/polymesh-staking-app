@@ -1,7 +1,15 @@
 'use client';
 
 import { Tabs } from 'radix-ui';
-import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { ErrorState, Skeleton } from '@/components/states';
 
 /**

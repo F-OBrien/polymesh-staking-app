@@ -426,8 +426,10 @@ describe('rewardsToCsv', () => {
   });
 
   it('adds an explorer link only when a URL builder is supplied', () => {
-    const withUrl = rewardsToCsv([event({ blockNumber: 99, eventIndex: 3 })], 6, (b, i) =>
-      `https://example.test/event/${b}-${i}`,
+    const withUrl = rewardsToCsv(
+      [event({ blockNumber: 99, eventIndex: 3 })],
+      6,
+      (b, i) => `https://example.test/event/${b}-${i}`,
     );
     expect(withUrl.split('\n')[0]).toContain('explorer_url');
     expect(withUrl.split('\n')[1]).toContain('https://example.test/event/99-3');

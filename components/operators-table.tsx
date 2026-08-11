@@ -89,10 +89,9 @@ function columns({ basis, rangeEras, lastEra, eraProgress }: ColumnContext): Col
           has scored so far in the era now running, against the stake currently backing it —{' '}
           {suffix}.
           <br />
-          <br />
-          A share of points is meaningful before an era ends even though the count is not, because
-          points accrue roughly evenly. But block authorship is random in the short run, so the
-          figure is noisy early on and firms up through the day.
+          <br />A share of points is meaningful before an era ends even though the count is not,
+          because points accrue roughly evenly. But block authorship is random in the short run, so
+          the figure is noisy early on and firms up through the day.
           {/* "Only 92% elapsed" would be nonsense; the reading changes with
               the number, so the sentence has to as well. */}
           {elapsed == null
@@ -395,9 +394,7 @@ function HeaderCell({
         color: 'var(--text-muted)',
       }}
     >
-      <span
-        className={`inline-flex items-center gap-1 ${column.numeric ? 'justify-end' : ''}`}
-      >
+      <span className={`inline-flex items-center gap-1 ${column.numeric ? 'justify-end' : ''}`}>
         {onSort ? (
           <button
             type="button"

@@ -37,7 +37,11 @@ describe('toTransition', () => {
 });
 
 describe('buildEraIndex', () => {
-  const transition = (era: number, block: number, at: number): EraTransition => ({ era, block, at });
+  const transition = (era: number, block: number, at: number): EraTransition => ({
+    era,
+    block,
+    at,
+  });
 
   it('shifts transitions into era starts', () => {
     // The load-bearing behaviour of this module. An event tagged era N fires
@@ -77,9 +81,9 @@ describe('buildEraIndex', () => {
     // Filling or ignoring a gap would move every subsequent entry by one, so
     // every era after it would report the wrong date — plausible-looking and
     // invisible until someone reconciles a CSV against an explorer.
-    expect(() =>
-      buildEraIndex([transition(0, 100, 1_000), transition(2, 300, 3_000)]),
-    ).toThrow(/gaps.*Missing: 1/s);
+    expect(() => buildEraIndex([transition(0, 100, 1_000), transition(2, 300, 3_000)])).toThrow(
+      /gaps.*Missing: 1/s,
+    );
   });
 
   it('lists only the first few missing eras in the message', () => {

@@ -166,11 +166,7 @@ export function OperatorsView() {
           as="h2"
           id="comparison-heading"
           className="mb-4"
-          title={
-            selected.length > 0
-              ? 'Pinned operators'
-              : 'The five highest-returning operators'
-          }
+          title={selected.length > 0 ? 'Pinned operators' : 'The five highest-returning operators'}
           lead={
             selected.length > 0
               ? undefined
@@ -187,8 +183,8 @@ export function OperatorsView() {
             <>
               Ranked by mean return after commission over the era range selected above. Note that
               ranking operators by <em>stake</em> would not tell you much on Polymesh: the election
-              spreads stake almost evenly, so the whole active set sits within a few percent of
-              each other.
+              spreads stake almost evenly, so the whole active set sits within a few percent of each
+              other.
             </>
           )}
         </HeadingWithTip>

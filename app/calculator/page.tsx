@@ -18,9 +18,9 @@ export default function CalculatorPage() {
         title="Calculator"
         lead="Projected from what operators have actually earned, not from a headline rate."
       >
-        The answer is a range rather than a number, because the return moves — and how much it
-        moves is itself worth knowing before you bond anything. The range comes from the variance
-        of that operator’s own per-era return over the era range you choose.
+        The answer is a range rather than a number, because the return moves — and how much it moves
+        is itself worth knowing before you bond anything. The range comes from the variance of that
+        operator’s own per-era return over the era range you choose.
       </HeadingWithTip>
 
       <Suspense fallback={<Skeleton height={480} label="Loading calculator" />}>

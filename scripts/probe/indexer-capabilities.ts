@@ -41,15 +41,27 @@ async function main(): Promise<void> {
   console.log('StakingEvent fields');
   const introspection = await try_('introspect StakingEvent', () =>
     graphql<any>(
-      `query { __type(name: "StakingEvent") { fields { name type { name kind ofType { name } } } } }`,
+      `
+        query {
+          __type(name: "StakingEvent") {
+            fields {
+              name
+              type {
+                name
+                kind
+                ofType {
+                  name
+                }
+              }
+            }
+          }
+        }
+      `,
       {},
     ),
   );
   const fields: { name: string; type: any }[] = introspection?.__type?.fields ?? [];
-  console.log(
-    '   ',
-    fields.map((f) => f.name).join(', ') || '(none)',
-  );
+  console.log('   ', fields.map((f) => f.name).join(', ') || '(none)');
   const eraField = fields.find((f) => /era/i.test(f.name));
   console.log(`    era-bearing field: ${eraField ? eraField.name : 'NONE'}`);
 
@@ -58,7 +70,15 @@ async function main(): Promise<void> {
   for (const first of [100, 500, 1000]) {
     await try_(`first: ${first}`, async () => {
       const data = await graphql<any>(
-        `query($first: Int!) { stakingEvents(first: $first, filter: { eventId: { in: [Reward, Rewarded] } }) { nodes { id } } }`,
+        `
+          query ($first: Int!) {
+            stakingEvents(first: $first, filter: { eventId: { in: [Reward, Rewarded] } }) {
+              nodes {
+                id
+              }
+            }
+          }
+        `,
         { first },
       );
       const n = data.stakingEvents.nodes.length;
@@ -69,7 +89,13 @@ async function main(): Promise<void> {
 
   await try_('totalCount (one request instead of N pages)', async () => {
     const data = await graphql<any>(
-      `query { stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }) { totalCount } }`,
+      `
+        query {
+          stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }) {
+            totalCount
+          }
+        }
+      `,
       {},
     );
     console.log(`      totalCount = ${data.stakingEvents.totalCount}`);
@@ -78,7 +104,17 @@ async function main(): Promise<void> {
 
   await try_('aggregates { sum { amount } } — server-side lifetime total', async () => {
     const data = await graphql<any>(
-      `query { stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }) { aggregates { sum { amount } } } }`,
+      `
+        query {
+          stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }) {
+            aggregates {
+              sum {
+                amount
+              }
+            }
+          }
+        }
+      `,
       {},
     );
     console.log(`      sum = ${JSON.stringify(data.stakingEvents.aggregates)}`);
@@ -87,7 +123,21 @@ async function main(): Promise<void> {
 
   await try_('groupBy — server-side bucketing', async () => {
     const data = await graphql<any>(
-      `query { stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }, groupBy: [EVENT_ID]) { keys aggregates { sum { amount } distinctCount { id } } } }`,
+      `
+        query {
+          stakingEvents(filter: { eventId: { in: [Reward, Rewarded] } }, groupBy: [EVENT_ID]) {
+            keys
+            aggregates {
+              sum {
+                amount
+              }
+              distinctCount {
+                id
+              }
+            }
+          }
+        }
+      `,
       {},
     );
     console.log(`      ${JSON.stringify(data.stakingEvents).slice(0, 300)}`);
@@ -99,12 +149,24 @@ async function main(): Promise<void> {
   for (const eventId of ['EraPaid', 'EraPayout']) {
     await try_(`events where eventId = ${eventId}`, async () => {
       const data = await graphql<any>(
-        `query($e: EventIdEnum!) {
-           events(filter: { moduleId: { equalTo: staking }, eventId: { equalTo: $e } }, first: 3, orderBy: [CREATED_AT_ASC]) {
-             totalCount
-             nodes { id blockId eventIdx eventArgs createdAt }
-           }
-         }`,
+        `
+          query ($e: EventIdEnum!) {
+            events(
+              filter: { moduleId: { equalTo: staking }, eventId: { equalTo: $e } }
+              first: 3
+              orderBy: [CREATED_AT_ASC]
+            ) {
+              totalCount
+              nodes {
+                id
+                blockId
+                eventIdx
+                eventArgs
+                createdAt
+              }
+            }
+          }
+        `,
         { e: eventId },
       );
       console.log(`      totalCount = ${data.events.totalCount}`);
@@ -118,7 +180,15 @@ async function main(): Promise<void> {
   // What the EventIdEnum actually contains, for era-ish names.
   await try_('EventIdEnum members matching /era/i', async () => {
     const data = await graphql<any>(
-      `query { __type(name: "EventIdEnum") { enumValues { name } } }`,
+      `
+        query {
+          __type(name: "EventIdEnum") {
+            enumValues {
+              name
+            }
+          }
+        }
+      `,
       {},
     );
     const names: string[] = (data.__type?.enumValues ?? []).map((v: any) => v.name);

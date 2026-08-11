@@ -25,7 +25,13 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
  *  - announced, via `aria-describedby` rather than a bare tooltip role
  *  - usable on touch, where there is no hover at all, hence the click toggle
  */
-export function InfoTip({ label = 'More information', children }: { label?: string; children: ReactNode }) {
+export function InfoTip({
+  label = 'More information',
+  children,
+}: {
+  label?: string;
+  children: ReactNode;
+}) {
   /**
    * Open state and the measured anchor position, as one value.
    *

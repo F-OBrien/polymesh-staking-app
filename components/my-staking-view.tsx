@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useEraIndex, useEraSeries, useLatest, useManifest, useOperators } from '@/lib/data/queries';
+import {
+  useEraIndex,
+  useEraSeries,
+  useLatest,
+  useManifest,
+  useOperators,
+} from '@/lib/data/queries';
 import { useResolvedRange } from '@/components/era-range-control';
 import { useNow } from '@/lib/data/use-era-clock';
 import { useLive } from '@/lib/data/use-live';
@@ -27,7 +33,7 @@ import { LiveToggle } from '@/components/live-toggle';
 import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
-import { idleStake } from '@/lib/chain/allocation';
+import { idleStake, type TargetAllocation } from '@/lib/chain/allocation';
 import { looksLikeAddress } from '@/lib/chain/wallet';
 import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
@@ -162,13 +168,19 @@ export function MyStakingView() {
   }, [currentTargets]);
 
   const assigned = allocation.data?.current.assigned ?? null;
+  // Operators still holding this stash's stake that it no longer nominates —
+  // the result of re-nominating mid-era. They are earning, and the old UI
+  // could not see them at all.
+  const unnominatedHolders = useMemo(
+    () => (currentTargets ?? []).filter((t) => !t.nominated && t.value > 0n),
+    [currentTargets],
+  );
   // The era the allocation was actually read at — from the chain, which can be
   // one ahead of the snapshot's `activeEra` across a boundary. Every label in
   // this section uses it, so the number on screen and the era named beside it
   // can never disagree.
   const allocationEra = allocation.data?.current.era ?? null;
-  const idle =
-    position.data && assigned != null ? idleStake(position.data.active, assigned) : null;
+  const idle = position.data && assigned != null ? idleStake(position.data.active, assigned) : null;
   const previousAssigned = allocation.data?.previous?.assigned ?? null;
 
   // Needs the *first* payout's date to know over how long, which only the
@@ -397,9 +409,8 @@ export function MyStakingView() {
                   Load full payout history
                 </button>
                 <p className="mt-2 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {formatNumber(payoutCount)} payouts — about{' '}
-                  {formatNumber(pagesFor(payoutCount))} requests to the indexer. Needed for the
-                  chart, the per-era breakdown and the CSV.
+                  {formatNumber(payoutCount)} payouts — about {formatNumber(pagesFor(payoutCount))}{' '}
+                  requests to the indexer. Needed for the chart, the per-era breakdown and the CSV.
                 </p>
               </div>
             ) : rewards.isLoading ? (
@@ -493,15 +504,20 @@ export function MyStakingView() {
               idle={idle}
               previousAssigned={previousAssigned}
               backing={
-                allocation.data?.current.targets.filter((t) => t.value > 0n).length ?? null
+                allocation.data?.current.targets.filter((t) => t.nominated && t.value > 0n)
+                  .length ?? null
               }
               nominated={nominations.length}
+              unnominated={allocation.data?.current.unnominated ?? null}
+              unnominatedCount={unnominatedHolders.length}
               toPolyx={toPolyx}
             />
             <NominationsTable
               rows={myOperators}
               addresses={nominations}
               assignedByOperator={assignedByOperator}
+              unnominatedHolders={unnominatedHolders}
+              registryLabel={(address) => registry.data?.[address]?.nodeLabel ?? address}
               toPolyx={toPolyx}
               loading={allocation.isLoading}
             />
@@ -751,6 +767,8 @@ function AllocationNote({
   previousAssigned,
   backing,
   nominated,
+  unnominated,
+  unnominatedCount,
   toPolyx,
 }: {
   activeEra: number | null;
@@ -759,11 +777,26 @@ function AllocationNote({
   previousAssigned: bigint | null;
   backing: number | null;
   nominated: number;
+  /** Stake held by operators no longer nominated. */
+  unnominated: bigint | null;
+  unnominatedCount: number;
   toPolyx: (value: bigint) => number;
 }) {
   if (assigned == null) return null;
 
   const notes: string[] = [];
+
+  // Said first, because it is the one that otherwise looks like a bug: the
+  // nomination list and the stake do not agree, and both are correct.
+  if (unnominated != null && unnominated > 0n) {
+    notes.push(
+      `${formatPolyx(toPolyx(unnominated))} POLYX is still staked with ` +
+        `${unnominatedCount === 1 ? 'an operator' : `${unnominatedCount} operators`} no longer ` +
+        `nominated. Changing nominations does not move stake that is already exposed — the ` +
+        `election fixed it for this era, and it moves at the next one. It is still earning in ` +
+        `the meantime.`,
+    );
+  }
 
   if (backing != null && backing > 0 && backing < nominated) {
     notes.push(
@@ -815,12 +848,17 @@ function NominationsTable({
   rows,
   addresses,
   assignedByOperator,
+  unnominatedHolders,
+  registryLabel,
   toPolyx,
   loading,
 }: {
   rows: readonly OperatorRow[];
   addresses: readonly string[];
   assignedByOperator: ReadonlyMap<string, bigint>;
+  /** Operators holding stake that this stash no longer nominates. */
+  unnominatedHolders: readonly TargetAllocation[];
+  registryLabel: (address: string) => string;
   toPolyx: (value: bigint) => number;
   loading: boolean;
 }) {
@@ -836,7 +874,13 @@ function NominationsTable({
       >
         <caption className="pb-2 text-left" style={{ color: 'var(--text-muted)' }}>
           {formatNumber(addresses.length)} nomination
-          {addresses.length === 1 ? '' : 's'}. Warnings flag anything worth acting on.
+          {addresses.length === 1 ? '' : 's'}
+          {unnominatedHolders.length > 0
+            ? `, plus ${formatNumber(unnominatedHolders.length)} operator${
+                unnominatedHolders.length === 1 ? '' : 's'
+              } still holding stake from a previous era`
+            : ''}
+          . Warnings flag anything worth acting on.
         </caption>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -873,7 +917,10 @@ function NominationsTable({
                   ) : (assignedByOperator.get(row.address) ?? 0n) > 0n ? (
                     formatPolyx(toPolyx(assignedByOperator.get(row.address)!))
                   ) : (
-                    <span style={{ color: 'var(--text-muted)' }} title="The election did not put any of this stake behind this operator for the current era">
+                    <span
+                      style={{ color: 'var(--text-muted)' }}
+                      title="The election did not put any of this stake behind this operator for the current era"
+                    >
                       none
                     </span>
                   )}
@@ -906,6 +953,25 @@ function NominationsTable({
               <td className="p-2 text-right">—</td>
               <td className="p-2" style={{ color: 'var(--text-muted)' }}>
                 No data — not in the current set or our history
+              </td>
+            </tr>
+          ))}
+          {/* Operators that still hold this stash's stake but are no longer
+              nominated. Omitting them would show a position as unassigned when
+              it is earning normally — and this row is the whole explanation. */}
+          {unnominatedHolders.map((holder) => (
+            <tr key={holder.address} style={{ borderTop: '1px solid var(--border)' }}>
+              <th scope="row" className="p-2 text-left font-normal">
+                <Link href={`/operators/${holder.address}/`}>{registryLabel(holder.address)}</Link>
+              </th>
+              <td className="p-2 text-right">{formatPolyx(toPolyx(holder.value))}</td>
+              <td className="p-2 text-right">—</td>
+              <td className="p-2 text-right">—</td>
+              <td className="p-2">
+                <span style={{ color: 'var(--status-warning)' }}>
+                  <span aria-hidden="true">▲</span> No longer nominated — still staked here until
+                  the next era
+                </span>
               </td>
             </tr>
           ))}
