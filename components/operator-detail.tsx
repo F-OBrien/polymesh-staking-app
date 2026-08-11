@@ -11,6 +11,7 @@ import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState } from '@/components/states';
 import { explorerAccountUrl } from '@/config/networks';
+import { CopyAddress } from '@/components/copy-address';
 import {
   formatNumber,
   formatPercent,
@@ -92,9 +93,9 @@ export function OperatorDetail({ address }: { address: string }) {
         <div className="min-w-0">
           <h1 className="m-0 text-3xl leading-9 font-semibold tracking-tight">{label}</h1>
           <p className="mt-2 mb-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-              {truncateAddress(address, 8, 8)}
-            </code>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              <CopyAddress address={address} head={8} tail={8} label={label} />
+            </span>
             <a
               href={explorerAccountUrl(address)}
               target="_blank"

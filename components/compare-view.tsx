@@ -13,6 +13,7 @@ import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { SERIES_TOKENS } from '@/lib/charts/palette';
 import { buildLabeller } from '@/lib/data/operator-label';
+import { CopyAddress } from '@/components/copy-address';
 import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
 import type { NamedSeries } from '@/components/charts/banded-line-chart';
 
@@ -414,6 +415,11 @@ function ComparisonTable({
                   <Link href={`/operators/${row.address}/`} className="truncate">
                     {row.name}
                   </Link>
+                  <CopyAddress
+                    address={row.address}
+                    label={row.name}
+                    className="shrink-0 text-xs font-normal"
+                  />
                   <button
                     type="button"
                     onClick={() => onRemove(row.address)}

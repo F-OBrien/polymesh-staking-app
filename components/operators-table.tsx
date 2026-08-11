@@ -5,7 +5,8 @@ import { useMemo, useState } from 'react';
 import { Sparkline } from '@/components/charts/sparkline';
 import { InfoTip } from '@/components/info-tip';
 import { EmptyState } from '@/components/states';
-import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
+import { formatNumber, formatPercent, formatPolyx } from '@/lib/format';
+import { CopyAddress } from '@/components/copy-address';
 import {
   filterRows,
   rowsToCsv,
@@ -471,9 +472,11 @@ function Row({
         <Link href={`/operators/${row.address}/`} className="no-underline hover:underline">
           {row.name}
         </Link>
-        <span className="ms-2 font-normal" style={{ color: 'var(--text-muted)' }}>
-          {truncateAddress(row.address)}
-        </span>
+        <CopyAddress
+          address={row.address}
+          label={row.name}
+          className="ms-2 align-middle font-normal"
+        />
         <StatusFlags row={row} />
       </th>
 

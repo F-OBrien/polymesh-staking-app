@@ -35,6 +35,7 @@ import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
 import { idleStake, type TargetAllocation } from '@/lib/chain/allocation';
 import { buildLabeller } from '@/lib/data/operator-label';
+import { CopyAddress } from '@/components/copy-address';
 import { looksLikeAddress } from '@/lib/chain/wallet';
 import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
@@ -211,7 +212,7 @@ export function MyStakingView() {
             Showing
           </p>
           <h2 className="m-0 flex flex-wrap items-baseline gap-x-3 text-xl font-semibold">
-            <code style={{ fontFamily: 'var(--font-mono)' }}>{truncateAddress(stash, 8, 8)}</code>
+            <CopyAddress address={stash} head={8} tail={8} label="this stash" />
             <a
               href={explorerAccountUrl(stash)}
               target="_blank"
@@ -912,6 +913,11 @@ function NominationsTable({
               <tr key={row.address} style={{ borderTop: '1px solid var(--border)' }}>
                 <th scope="row" className="p-2 text-left font-normal">
                   <Link href={`/operators/${row.address}/`}>{row.name}</Link>
+                  <CopyAddress
+                    address={row.address}
+                    label={row.name}
+                    className="ms-2 align-middle text-xs"
+                  />
                 </th>
                 <td className="p-2 text-right">
                   {loading ? (
@@ -949,7 +955,7 @@ function NominationsTable({
           {unknown.map((address) => (
             <tr key={address} style={{ borderTop: '1px solid var(--border)' }}>
               <th scope="row" className="p-2 text-left font-normal">
-                <code style={{ fontFamily: 'var(--font-mono)' }}>{truncateAddress(address)}</code>
+                <CopyAddress address={address} />
               </th>
               <td className="p-2 text-right">—</td>
               <td className="p-2 text-right">—</td>
@@ -965,6 +971,11 @@ function NominationsTable({
             <tr key={holder.address} style={{ borderTop: '1px solid var(--border)' }}>
               <th scope="row" className="p-2 text-left font-normal">
                 <Link href={`/operators/${holder.address}/`}>{registryLabel(holder.address)}</Link>
+                <CopyAddress
+                  address={holder.address}
+                  label={registryLabel(holder.address)}
+                  className="ms-2 align-middle text-xs"
+                />
               </th>
               <td className="p-2 text-right">{formatPolyx(toPolyx(holder.value))}</td>
               <td className="p-2 text-right">—</td>
