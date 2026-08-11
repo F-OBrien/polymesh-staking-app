@@ -34,6 +34,7 @@ import {
 import { LazyChart, LazyEraSeriesChart, LazyTimeBarChart } from '@/components/charts/lazy-chart';
 import { MAX_NAMED_SERIES } from '@/lib/charts/palette';
 import { deriveOperatorApr } from '@/lib/metrics/derive';
+import { compareChoice, type ChoiceComparison } from '@/lib/metrics/choice';
 import type { NamedSeries } from '@/components/charts/banded-line-chart';
 import { ProductionChart } from '@/components/production-chart';
 import { LiveToggle } from '@/components/live-toggle';
@@ -269,6 +270,27 @@ export function MyStakingView() {
     for (const target of currentTargets ?? []) map.set(target.address, target.value);
     return map;
   }, [currentTargets]);
+
+  /**
+   * What this address's operator choice is worth, against the average.
+   *
+   * Weighted by what the election actually assigned, not by the nomination
+   * list: sixteen nominations with stake behind one of them is normal, and an
+   * unweighted average would describe a portfolio nobody holds.
+   */
+  const choice = useMemo(() => {
+    if (!series) return null;
+    return compareChoice({
+      eras: series.eras,
+      network: series.network,
+      operators: series.operators,
+      picks: nominations.map((address) => ({
+        address,
+        weight: Number(assignedByOperator.get(address) ?? 0n),
+      })),
+      erasPerYear: manifest.data?.erasPerYear ?? 365,
+    });
+  }, [series, nominations, assignedByOperator, manifest.data?.erasPerYear]);
 
   const assigned = allocation.data?.current.assigned ?? null;
   // Operators still holding this stash's stake that it no longer nominates —
@@ -642,6 +664,16 @@ export function MyStakingView() {
               loading={allocation.isLoading}
             />
 
+            {choice ? (
+              <ChoiceVerdict
+                choice={choice}
+                assigned={assigned}
+                nominated={nominations.length}
+                backing={nominations.filter((a) => (assignedByOperator.get(a) ?? 0n) > 0n).length}
+                toPolyx={toPolyx}
+              />
+            ) : null}
+
             {/*
               C24. The same banded chart as /operators, with this address's own
               picks as the named series — the table says what they charge and
@@ -948,6 +980,90 @@ function UnbondingTable({
  * Only rendered when there is something to say, so a straightforward position
  * gets no lecture.
  */
+/**
+ * Was picking these operators worth anything?
+ *
+ * The page is otherwise a list of absolutes — earned so far, realised return,
+ * network average — and none of them answers that. This one does, and splits
+ * the answer into the two things a nominator can act on separately: the fee
+ * they agreed to, and how well the node runs.
+ *
+ * Deliberately a paragraph rather than tiles. The conclusion is a comparison
+ * with a sign and a cause, and four numbers in boxes would make the reader
+ * assemble it themselves.
+ */
+function ChoiceVerdict({
+  choice,
+  assigned,
+  nominated,
+  backing,
+  toPolyx,
+}: {
+  choice: ChoiceComparison;
+  /** Stake assigned this era, for pricing the gap. */
+  assigned: bigint | null;
+  nominated: number;
+  /** How many of the nominations the election actually put stake behind. */
+  backing: number;
+  toPolyx: (value: bigint) => number;
+}) {
+  const points = (value: number) => `${(value * 100).toFixed(2)} points`;
+  const ahead = choice.difference >= 0;
+
+  // Priced against assigned stake, not the bond: idle stake earns nothing, so
+  // quoting the gap on it would overstate what the choice is worth this era.
+  const stake = assigned != null ? toPolyx(assigned) : null;
+  const worth = stake != null && stake > 0 ? stake * choice.difference : null;
+
+  const larger = Math.abs(choice.fromCommission) >= Math.abs(choice.fromProduction);
+
+  return (
+    <div
+      className="mt-4 rounded-[var(--radius-md)] border p-4 text-sm"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+    >
+      <h3 className="m-0 mb-1 text-[15px] font-semibold">Is this a good set of operators?</h3>
+      <p className="m-0 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>
+        {/* Named precisely. Weighting by assigned stake commonly reduces
+            sixteen nominations to the one the election used, and calling that
+            "your operators" would credit the set for one member's record. */}
+        Over {formatNumber(choice.eras)} eras{' '}
+        {backing === 1
+          ? 'the operator your stake is actually behind'
+          : backing > 0
+            ? `the ${formatNumber(backing)} operators your stake is actually behind`
+            : 'these operators'}{' '}
+        returned{' '}
+        <strong style={{ color: 'var(--text-primary)' }}>
+          {formatPercent(choice.yourNet, { decimals: 2 })}
+        </strong>{' '}
+        after commission, against {formatPercent(choice.fieldNet, { decimals: 2 })} for the average
+        operator — {ahead ? 'ahead by' : 'behind by'} {points(Math.abs(choice.difference))}.
+        {worth != null
+          ? ` On the ${formatPolyx(stake ?? 0)} POLYX assigned this era that is ${ahead ? 'worth' : 'costing'} about ${formatPolyx(Math.abs(worth))} POLYX a year.`
+          : ' Nothing is assigned this era, so it is worth nothing until the next election.'}
+      </p>
+      <p className="mt-2 mb-0 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>
+        {/* The split, and which half actually decided it. Commission is the
+            larger lever on this network — it spans 8% to 10% while block
+            production separates operators by about 1% — so saying which one
+            drove the result is usually the actionable part. */}
+        Commission accounts for {points(choice.fromCommission)} of that (
+        {formatPercent(choice.yourCommission, { decimals: 2 })} against{' '}
+        {formatPercent(choice.fieldCommission, { decimals: 2 })} across the field), and block
+        production for {points(choice.fromProduction)}
+        {larger ? ' — the fee is what decided it' : ' — the nodes are what decided it'}.
+      </p>
+      {choice.covered < nominated ? (
+        <p className="mt-2 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Based on {choice.covered} of {nominated} nominations. The rest have too little history in
+          this range to measure.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function AllocationNote({
   activeEra,
   assigned,
