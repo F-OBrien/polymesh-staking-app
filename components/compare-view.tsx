@@ -12,6 +12,7 @@ import { OperatorPicker } from '@/components/operator-picker';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { SERIES_TOKENS } from '@/lib/charts/palette';
+import { buildLabeller } from '@/lib/data/operator-label';
 import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
 import type { NamedSeries } from '@/components/charts/banded-line-chart';
 
@@ -149,6 +150,7 @@ export function CompareView() {
     [selected, allRows],
   );
 
+  const labelOf = useMemo(() => buildLabeller(registry.data), [registry.data]);
   const comparison = useMemo(() => buildComparison(rows, METRICS), [rows]);
   const notable = useMemo(() => notableDifferences(comparison), [comparison]);
 
@@ -158,27 +160,27 @@ export function CompareView() {
       const columns = series.operators[row.address];
       if (!columns) return [];
       const { net } = deriveOperatorApr(columns, series.network, erasPerYear);
-      return [{ id: row.address, label: row.nodeLabel, values: net }];
+      return [{ id: row.address, label: labelOf(row.address), values: net }];
     });
-  }, [series, rows, erasPerYear]);
+  }, [series, rows, labelOf, erasPerYear]);
 
   const stakeSeries = useMemo<NamedSeries[]>(() => {
     if (!series) return [];
     return rows.flatMap((row) => {
       const columns = series.operators[row.address];
       if (!columns) return [];
-      return [{ id: row.address, label: row.nodeLabel, values: columns.totalStake }];
+      return [{ id: row.address, label: labelOf(row.address), values: columns.totalStake }];
     });
-  }, [series, rows]);
+  }, [series, rows, labelOf]);
 
   const commissionSeries = useMemo<NamedSeries[]>(() => {
     if (!series) return [];
     return rows.flatMap((row) => {
       const columns = series.operators[row.address];
       if (!columns) return [];
-      return [{ id: row.address, label: row.nodeLabel, values: columns.commission }];
+      return [{ id: row.address, label: labelOf(row.address), values: columns.commission }];
     });
-  }, [series, rows]);
+  }, [series, rows, labelOf]);
 
   const band = series
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }
@@ -363,7 +365,7 @@ export function CompareView() {
 }
 
 function nameFor(rows: readonly OperatorRow[], address: string): string {
-  return rows.find((row) => row.address === address)?.nodeLabel ?? truncateAddress(address);
+  return rows.find((row) => row.address === address)?.name ?? truncateAddress(address);
 }
 
 /**
@@ -410,12 +412,12 @@ function ComparisonTable({
                     style={{ background: SERIES_TOKENS[i % SERIES_TOKENS.length] }}
                   />
                   <Link href={`/operators/${row.address}/`} className="truncate">
-                    {row.nodeLabel}
+                    {row.name}
                   </Link>
                   <button
                     type="button"
                     onClick={() => onRemove(row.address)}
-                    aria-label={`Remove ${row.nodeLabel} from the comparison`}
+                    aria-label={`Remove ${row.name} from the comparison`}
                     className="shrink-0 px-0.5 leading-none"
                     style={{ color: 'var(--text-muted)' }}
                   >

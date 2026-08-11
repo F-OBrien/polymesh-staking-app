@@ -59,7 +59,7 @@ export function OperatorDetail({ address }: { address: string }) {
     };
   }, [series, columns, erasPerYear]);
 
-  const label = record?.nodeLabel ?? truncateAddress(address);
+  const label = record?.name ?? truncateAddress(address);
   const pinned = selectedSet.has(address);
   const band = series
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }

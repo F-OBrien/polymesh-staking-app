@@ -34,6 +34,7 @@ import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
 import { idleStake, type TargetAllocation } from '@/lib/chain/allocation';
+import { buildLabeller } from '@/lib/data/operator-label';
 import { looksLikeAddress } from '@/lib/chain/wallet';
 import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
@@ -159,6 +160,7 @@ export function MyStakingView() {
    * nominations commonly means backing one. And stake bonded or nominated since
    * the last election is not in this era's exposure at all.
    */
+  const labelOf = useMemo(() => buildLabeller(registry.data), [registry.data]);
   const allocation = useStakeAllocation(stash, activeEra, nominations);
   const currentTargets = allocation.data?.current.targets;
   const assignedByOperator = useMemo(() => {
@@ -517,7 +519,7 @@ export function MyStakingView() {
               addresses={nominations}
               assignedByOperator={assignedByOperator}
               unnominatedHolders={unnominatedHolders}
-              registryLabel={(address) => registry.data?.[address]?.nodeLabel ?? address}
+              registryLabel={labelOf}
               toPolyx={toPolyx}
               loading={allocation.isLoading}
             />
@@ -909,7 +911,7 @@ function NominationsTable({
             return (
               <tr key={row.address} style={{ borderTop: '1px solid var(--border)' }}>
                 <th scope="row" className="p-2 text-left font-normal">
-                  <Link href={`/operators/${row.address}/`}>{row.nodeLabel}</Link>
+                  <Link href={`/operators/${row.address}/`}>{row.name}</Link>
                 </th>
                 <td className="p-2 text-right">
                   {loading ? (

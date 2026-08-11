@@ -5,7 +5,6 @@ import type { OperatorRow } from './operator-rows';
 const row = (address: string, overrides: Partial<OperatorRow> = {}): OperatorRow => ({
   address,
   name: address,
-  nodeLabel: address,
   status: 'active',
   commission: 0.1,
   totalStake: 1000,

@@ -22,7 +22,6 @@ import type { StitchedSeries } from './series';
 export interface OperatorRow {
   address: string;
   name: string;
-  nodeLabel: string;
   status: 'active' | 'waiting' | 'inactive';
   /** null where the operator has no current snapshot entry. */
   commission: number | null;
@@ -192,7 +191,6 @@ export function buildOperatorRows({
     rows.push({
       address,
       name: record?.name ?? address,
-      nodeLabel: record?.nodeLabel ?? record?.name ?? address,
       status: record?.status ?? (snapshot?.elected ? 'active' : 'inactive'),
       commission,
       totalStake,
@@ -259,16 +257,16 @@ export function sortRows(
 
   return [...rows].sort((a, b) => {
     if (key === 'name') {
-      return sign * a.nodeLabel.localeCompare(b.nodeLabel, undefined, { numeric: true });
+      return sign * a.name.localeCompare(b.name, undefined, { numeric: true });
     }
 
     const left = a[key];
     const right = b[key];
 
-    if (left == null && right == null) return a.nodeLabel.localeCompare(b.nodeLabel);
+    if (left == null && right == null) return a.name.localeCompare(b.name);
     if (left == null) return 1;
     if (right == null) return -1;
-    if (left === right) return a.nodeLabel.localeCompare(b.nodeLabel);
+    if (left === right) return a.name.localeCompare(b.name);
 
     return sign * (left < right ? -1 : 1);
   });
@@ -305,7 +303,7 @@ export function filterRows(
     }
 
     if (needle) {
-      const haystack = `${row.name} ${row.nodeLabel} ${row.address}`.toLowerCase();
+      const haystack = `${row.name} ${row.address}`.toLowerCase();
       if (!haystack.includes(needle)) return false;
     }
 
@@ -355,7 +353,7 @@ export function rowsToCsv(rows: readonly OperatorRow[]): string {
 
   const lines = rows.map((row) =>
     [
-      escape(row.nodeLabel),
+      escape(row.name),
       row.address,
       row.status,
       num(row.commission),

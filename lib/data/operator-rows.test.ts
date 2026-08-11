@@ -12,7 +12,6 @@ import type { Chunk, Latest, OperatorRegistry } from '@/lib/schemas/data';
 function row(partial: Partial<OperatorRow> & { address: string }): OperatorRow {
   return {
     name: partial.address,
-    nodeLabel: partial.address,
     status: 'active',
     commission: 0.1,
     totalStake: 1000,
@@ -39,9 +38,9 @@ function row(partial: Partial<OperatorRow> & { address: string }): OperatorRow {
 
 describe('sortRows', () => {
   const rows = [
-    row({ address: 'b', nodeLabel: 'Beta', totalStake: 200 }),
-    row({ address: 'a', nodeLabel: 'Alpha', totalStake: 300 }),
-    row({ address: 'c', nodeLabel: 'Gamma', totalStake: 100 }),
+    row({ address: 'b', name: 'Beta', totalStake: 200 }),
+    row({ address: 'a', name: 'Alpha', totalStake: 300 }),
+    row({ address: 'c', name: 'Gamma', totalStake: 100 }),
   ];
 
   it('sorts numerically in both directions', () => {
@@ -51,10 +50,10 @@ describe('sortRows', () => {
 
   it('sorts names naturally, so "Node 2" precedes "Node 10"', () => {
     const named = [
-      row({ address: '1', nodeLabel: 'Node 10' }),
-      row({ address: '2', nodeLabel: 'Node 2' }),
+      row({ address: '1', name: 'Node 10' }),
+      row({ address: '2', name: 'Node 2' }),
     ];
-    expect(sortRows(named, 'name', 'asc').map((r) => r.nodeLabel)).toEqual(['Node 2', 'Node 10']);
+    expect(sortRows(named, 'name', 'asc').map((r) => r.name)).toEqual(['Node 2', 'Node 10']);
   });
 
   it('places unknown values last in BOTH directions', () => {
@@ -81,10 +80,10 @@ describe('sortRows', () => {
 
   it('breaks ties by name, so the order is stable rather than arbitrary', () => {
     const tied = [
-      row({ address: 'z', nodeLabel: 'Zeta', totalStake: 100 }),
-      row({ address: 'a', nodeLabel: 'Alpha', totalStake: 100 }),
+      row({ address: 'z', name: 'Zeta', totalStake: 100 }),
+      row({ address: 'a', name: 'Alpha', totalStake: 100 }),
     ];
-    expect(sortRows(tied, 'totalStake', 'desc').map((r) => r.nodeLabel)).toEqual(['Alpha', 'Zeta']);
+    expect(sortRows(tied, 'totalStake', 'desc').map((r) => r.name)).toEqual(['Alpha', 'Zeta']);
   });
 
   it('does not mutate its input', () => {
@@ -96,10 +95,10 @@ describe('sortRows', () => {
 
 describe('filterRows', () => {
   const rows = [
-    row({ address: '2AbcDef', name: 'Assetera', nodeLabel: 'Assetera 1', commission: 0.05 }),
-    row({ address: '2XyzGhi', name: 'Binance', nodeLabel: 'Binance 2', commission: 0.4 }),
-    row({ address: '2QrsTuv', name: 'Scrypt', nodeLabel: 'Scrypt 1', status: 'waiting' }),
-    row({ address: '2PooledOp', name: 'Pooled', nodeLabel: 'Pooled 1', pageCount: 5 }),
+    row({ address: '2AbcDef', name: 'Assetera', commission: 0.05 }),
+    row({ address: '2XyzGhi', name: 'Binance', commission: 0.4 }),
+    row({ address: '2QrsTuv', name: 'Scrypt', status: 'waiting' }),
+    row({ address: '2PooledOp', name: 'Pooled', pageCount: 5 }),
   ];
 
   it('matches name, node label or address, case-insensitively', () => {
@@ -228,7 +227,6 @@ describe('buildOperatorRows', () => {
     historic: {
       did: null,
       name: 'Historic',
-      nodeLabel: 'Historic 1',
       website: null,
       firstSeenEra: 1,
       lastSeenEra: 2,
@@ -280,9 +278,9 @@ describe('buildOperatorRows', () => {
     const series = stitchChunks([chunk()]);
     const rows = buildOperatorRows({ series, latest, registry, erasPerYear: 365 });
 
-    expect(rows.find((r) => r.address === 'historic')!.nodeLabel).toBe('Historic 1');
+    expect(rows.find((r) => r.address === 'historic')!.name).toBe('Historic');
     // No registry entry: the address stands in rather than showing "undefined".
-    expect(rows.find((r) => r.address === 'newcomer')!.nodeLabel).toBe('newcomer');
+    expect(rows.find((r) => r.address === 'newcomer')!.name).toBe('newcomer');
   });
 
   it('handles having no data at all', () => {
@@ -294,7 +292,7 @@ describe('buildOperatorRows', () => {
 
 describe('rowsToCsv', () => {
   it('emits a header and one line per row', () => {
-    const csv = rowsToCsv([row({ address: 'a', nodeLabel: 'Alpha 1' })]);
+    const csv = rowsToCsv([row({ address: 'a', name: 'Alpha 1' })]);
     const lines = csv.split('\n');
     expect(lines[0]).toContain('operator,address,status');
     expect(lines).toHaveLength(2);
@@ -302,12 +300,12 @@ describe('rowsToCsv', () => {
   });
 
   it('quotes fields containing commas or quotes', () => {
-    const csv = rowsToCsv([row({ address: 'a', nodeLabel: 'Smith, "Bob" & Co' })]);
+    const csv = rowsToCsv([row({ address: 'a', name: 'Smith, "Bob" & Co' })]);
     expect(csv).toContain('"Smith, ""Bob"" & Co"');
   });
 
   it('writes an empty field for an unknown value rather than "null"', () => {
-    const csv = rowsToCsv([row({ address: 'a', nodeLabel: 'A', aprMean: null })]);
+    const csv = rowsToCsv([row({ address: 'a', name: 'A', aprMean: null })]);
     expect(csv).not.toContain('null');
   });
 });

@@ -458,7 +458,7 @@ function Row({
           onClick={onTogglePin}
           disabled={pinDisabled}
           aria-pressed={pinned}
-          title={pinned ? `Unpin ${row.nodeLabel}` : `Pin ${row.nodeLabel} to the charts`}
+          title={pinned ? `Unpin ${row.name}` : `Pin ${row.name} to the charts`}
           className="rounded px-1 leading-none disabled:cursor-not-allowed disabled:opacity-30"
           style={{ color: pinned ? 'var(--series-1)' : 'var(--text-muted)' }}
         >
@@ -469,7 +469,7 @@ function Row({
 
       <th scope="row" className={`${cell} text-left font-medium`} style={border}>
         <Link href={`/operators/${row.address}/`} className="no-underline hover:underline">
-          {row.nodeLabel}
+          {row.name}
         </Link>
         <span className="ms-2 font-normal" style={{ color: 'var(--text-muted)' }}>
           {truncateAddress(row.address)}

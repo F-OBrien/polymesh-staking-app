@@ -73,23 +73,6 @@ async function fetchUpstreamNames(): Promise<Map<string, string> | null> {
  * address so the numbering is stable across runs — otherwise a node could
  * silently swap labels between ingests.
  */
-function assignNodeLabels(
-  addressesByDid: Map<string, string[]>,
-  nameForDid: (did: string) => string,
-): Map<string, string> {
-  const labels = new Map<string, string>();
-
-  for (const [did, addresses] of addressesByDid) {
-    const name = nameForDid(did);
-    const sorted = [...addresses].sort();
-    for (const [index, address] of sorted.entries()) {
-      labels.set(address, sorted.length > 1 ? `${name} ${index + 1}` : name);
-    }
-  }
-
-  return labels;
-}
-
 export interface BuildRegistryOptions {
   api: ApiLike;
   store: DataStore;
@@ -149,8 +132,6 @@ export async function buildOperatorRegistry({
     Object.values(existing).find((r) => r.did?.toLowerCase() === did)?.name ??
     truncateAddress(addressesByDid.get(did)?.[0] ?? did);
 
-  const nodeLabels = assignNodeLabels(addressesByDid, nameForDid);
-
   const { active, waiting } = await readValidatorSet(api);
   const activeSet = new Set(active);
   const waitingSet = new Set(waiting);
@@ -165,7 +146,6 @@ export async function buildOperatorRegistry({
     const record: OperatorRecord = {
       did,
       name,
-      nodeLabel: nodeLabels.get(address) ?? name,
       website: previous?.website ?? null,
       firstSeenEra: Math.min(previous?.firstSeenEra ?? firstEra, firstEra),
       lastSeenEra: Math.max(previous?.lastSeenEra ?? lastEra, lastEra),

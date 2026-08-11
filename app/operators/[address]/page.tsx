@@ -41,7 +41,6 @@ That directory is gitignored — generated data never lives on a source branch.
 
 interface OperatorRecordShape {
   name?: string;
-  nodeLabel?: string;
 }
 
 async function readRegistry(): Promise<Record<string, OperatorRecordShape>> {
@@ -69,7 +68,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { address } = await params;
   const registry = await readRegistry();
-  const name = registry[address]?.nodeLabel ?? registry[address]?.name;
+  const name = registry[address]?.name;
 
   return {
     title: name ?? 'Operator',

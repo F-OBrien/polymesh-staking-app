@@ -77,14 +77,14 @@ export function OperatorPickerImpl({
             {available.map((row) => (
               <Command.Item
                 key={row.address}
-                value={`${row.nodeLabel} ${row.name} ${row.address}`}
+                value={`${row.name} ${row.name} ${row.address}`}
                 onSelect={() => {
                   onSelect(row.address);
                   setSearch('');
                 }}
                 className="flex cursor-pointer items-baseline justify-between gap-3 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm data-[selected=true]:bg-[var(--surface-2)]"
               >
-                <span className="truncate">{row.nodeLabel}</span>
+                <span className="truncate">{row.name}</span>
                 <span
                   className="shrink-0 text-xs"
                   style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}

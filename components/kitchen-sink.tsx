@@ -41,7 +41,7 @@ export function KitchenSink() {
       return [
         {
           id: address,
-          label: operatorNames.data?.[address]?.nodeLabel ?? address,
+          label: operatorNames.data?.[address]?.name ?? address,
           values: net,
         },
       ];
@@ -56,7 +56,7 @@ export function KitchenSink() {
       return [
         {
           id: address,
-          label: operatorNames.data?.[address]?.nodeLabel ?? address,
+          label: operatorNames.data?.[address]?.name ?? address,
           values: columns.totalStake,
         },
       ];

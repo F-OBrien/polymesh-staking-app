@@ -256,10 +256,23 @@ export const OperatorStatusSchema = z.enum(['active', 'waiting', 'inactive']);
 export const OperatorRecordSchema = z.object({
   /** Absent when the stash has no resolvable identity. */
   did: Did.nullable(),
-  /** From the official registry, else a truncated address. */
+  /**
+   * From the official registry, else a truncated address.
+   *
+   * **There is deliberately no `nodeLabel`.** An operator running several nodes
+   * used to get "Assetera 1", "Assetera 2" and so on, numbered by the position
+   * of each stash in a lexicographic sort of that identity's addresses. Nothing
+   * on chain or in the registry carries that number — we invented it — and it is
+   * not stable: adding a stash that sorts earlier renumbers every node after it,
+   * so today's "Bitgo 5" silently becomes "Bitgo 6" and a *different* node takes
+   * the old name. Anyone who noted a number down would then be reading the wrong
+   * operator.
+   *
+   * Several nodes under one identity therefore share a name, and are told apart
+   * by their address — which is the thing that actually identifies them, and is
+   * shown beside the name everywhere it matters.
+   */
   name: z.string(),
-  /** Disambiguates several nodes under one identity, e.g. "Assetera 1". */
-  nodeLabel: z.string(),
   website: z.string().nullable(),
   firstSeenEra: EraIndex,
   lastSeenEra: EraIndex,

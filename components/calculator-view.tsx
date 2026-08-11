@@ -93,7 +93,7 @@ export function CalculatorView() {
       const row = rows.find((r) => r.address === operator);
       if (row) {
         return {
-          label: row.nodeLabel,
+          label: row.name,
           apr: row.aprMean,
           stdDev: row.aprStdDev,
           commission: row.commission,

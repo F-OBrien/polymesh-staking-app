@@ -7,6 +7,7 @@ import { useResolvedRange, EraRangeControl } from '@/components/era-range-contro
 import { buildOperatorRows } from '@/lib/data/operator-rows';
 import { deriveOperatorApr } from '@/lib/metrics/derive';
 import { rankOperators } from '@/lib/data/series';
+import { buildLabeller } from '@/lib/data/operator-label';
 import { OperatorsTable } from '@/components/operators-table';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { HeadingWithTip } from '@/components/info-tip';
@@ -79,7 +80,9 @@ export function OperatorsView() {
     return rankOperators(series, 'aprNet', 5, { erasPerYear });
   }, [selected, series, erasPerYear]);
 
-  const nameOf = (address: string) => registry.data?.[address]?.nodeLabel ?? address;
+  // Several nodes share one identity's name, so a legend needs the address to
+  // tell them apart — appended only where the name is actually ambiguous.
+  const nameOf = useMemo(() => buildLabeller(registry.data), [registry.data]);
 
   const aprSeries = useMemo<NamedSeries[]>(() => {
     if (!series) return [];
@@ -89,8 +92,7 @@ export function OperatorsView() {
       const { net } = deriveOperatorApr(columns, series.network, erasPerYear);
       return [{ id: address, label: nameOf(address), values: net }];
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- nameOf reads registry.data, listed below
-  }, [series, charted, registry.data, erasPerYear]);
+  }, [series, charted, nameOf, erasPerYear]);
 
   const stakeSeries = useMemo<NamedSeries[]>(() => {
     if (!series) return [];
@@ -99,8 +101,7 @@ export function OperatorsView() {
       if (!columns) return [];
       return [{ id: address, label: nameOf(address), values: columns.totalStake }];
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as above
-  }, [series, charted, registry.data]);
+  }, [series, charted, nameOf]);
 
   const band = series
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }

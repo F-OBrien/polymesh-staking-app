@@ -200,9 +200,10 @@ function buildOperators(rng: () => number, count: number, firstEra: number, last
   const operators: SyntheticOperator[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    // Mirror mainnet's shape: most identities run three nodes.
+    // Mirror mainnet's shape: most identities run three nodes, which therefore
+    // share a name and are told apart by address. No per-node number — see the
+    // note on `name` in `lib/schemas/data.ts`.
     const name = OPERATOR_NAMES[i % OPERATOR_NAMES.length]!;
-    const nodeIndex = Math.floor(i / OPERATOR_NAMES.length) + 1;
     const address = syntheticAddress(rng);
 
     // A minority join late or leave early, so the UI meets gaps in the data.
@@ -229,7 +230,6 @@ function buildOperators(rng: () => number, count: number, firstEra: number, last
       record: {
         did: `0x${createHash('sha256').update(address).digest('hex')}`,
         name,
-        nodeLabel: `${name} ${nodeIndex}`,
         website:
           rng() < 0.6 ? `https://example.invalid/${name.toLowerCase().replace(/\W+/g, '-')}` : null,
         firstSeenEra: joinEra,

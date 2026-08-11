@@ -48,7 +48,7 @@ export function SlashingView() {
   // re-run the totals below each time the component painted.
   const events = useMemo(() => slashes.data?.events ?? [], [slashes.data]);
   const nameOf = (address: string) =>
-    registry.data?.[address]?.nodeLabel ?? truncateAddress(address);
+    registry.data?.[address]?.name ?? truncateAddress(address);
 
   const totals = useMemo(() => {
     const operatorLoss = events.reduce((sum, e) => sum + e.amount, 0);

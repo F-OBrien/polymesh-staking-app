@@ -278,6 +278,31 @@ reported a fully-assigned stash as assigned nothing. Anything read over the
 socket must ask the socket what era it is; the snapshot's era is right for
 snapshot-derived figures and wrong for these. `npm run probe:allocation -- <stash>`.
 
+### Node numbers dropped — they were ours, and they were unstable
+
+Raised by the user: the numbers beside operator names ("Bitgo 5", "DigiClear 2")
+looked authoritative and were not. Nothing on chain or in the official registry
+carries them — `assignNodeLabels` invented them from each stash's position in a
+lexicographic sort of that identity's addresses.
+
+That makes them **actively unstable**, not merely arbitrary: an operator adding a
+stash that sorts earlier renumbers every node after it, so a "Bitgo 5" noted
+today can be a different node tomorrow, silently and with no version bump.
+
+`nodeLabel` is gone from the schema, the pipeline and every consumer. Operators
+are identified by `name` plus address.
+
+**The consequence needed handling.** 25 of 86 mainnet names are now shared —
+DigiClear and Entoro run three nodes each — so a chart legend would have read
+"DigiClear" three times, which §8.1 rule 5 forbids. `lib/data/operator-label.ts`
+appends a truncated address *only* where a name is shared:
+
+    Assetera                    — the only node under that name
+    DigiClear (2HW34b…sNz3Dz)   — one of three
+
+Ambiguity is judged against the whole registry rather than what is on screen, so
+a label never changes as a filter or selection changes.
+
 ### Still open from that review
 
 - **The cumulative rewards chart is still a `Sparkline`** with no axis or

@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   // Now the real query, against an operator stash (operators earn rewards too).
   const registry = JSON.parse(readFileSync('public/data/operators.json', 'utf8'));
   const stash = Object.keys(registry)[0]!;
-  console.log('\nquerying stash:', stash, `(${registry[stash].nodeLabel})`);
+  console.log('\nquerying stash:', stash, `(${registry[stash].name})`);
 
   const { events, truncated } = await fetchRewards(stash, { endpoint });
   console.log('events        :', events.length, '| truncated:', truncated);

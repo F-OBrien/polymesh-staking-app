@@ -25,7 +25,7 @@ async function main(): Promise<void> {
 
     for (const stash of candidates) {
       const p = await readStashPosition(api, stash, activeEra.index);
-      const label = registry[stash]?.nodeLabel ?? '(not an operator)';
+      const label = registry[stash]?.name ?? '(not an operator)';
       console.log(`\n${stash}  ${label}`);
       console.log('  isBonded       :', p.isBonded);
       console.log('  total / active :', fmt(p.total), '/', fmt(p.active), 'POLYX');
