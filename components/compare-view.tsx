@@ -40,10 +40,33 @@ const polyx = (v: number | null) => (v == null ? '—' : formatPolyx(v, { compac
  * changes what you keep, a rounding difference does not.
  */
 const METRICS: MetricDefinition[] = [
+  // Three returns rather than one. They answer different questions and can
+  // disagree sharply — an operator can be top of the field this era and
+  // mid-table over ninety — so a comparison that shows only one of them is
+  // making the choice for the reader. All three are after commission, which is
+  // what a nominator actually receives; the gross figures are in the CSV.
+  {
+    key: 'aprThisEra',
+    label: 'Return, this era',
+    hint: 'estimated from points scored so far — noisy early in an era',
+    polarity: 'higher',
+    value: (r) => r.aprThisEra,
+    format: percent2,
+    notableSpread: 0.01,
+  },
+  {
+    key: 'aprLastEra',
+    label: 'Return, last era',
+    hint: 'actual, for the most recent complete era',
+    polarity: 'higher',
+    value: (r) => r.aprLastEra,
+    format: percent2,
+    notableSpread: 0.01,
+  },
   {
     key: 'aprMean',
-    label: 'Return, after commission',
-    hint: 'mean across the selected range',
+    label: 'Return, mean',
+    hint: 'after commission, averaged across the selected range',
     polarity: 'higher',
     value: (r) => r.aprMean,
     format: percent2,
@@ -186,16 +209,21 @@ export function CompareView() {
             selected={selectedSet}
             onSelect={toggle}
             disabled={isFull}
-            disabledReason={`${max} operators is the most that can be told apart by colour. Remove one to add another.`}
+            disabledReason={`${max} is the maximum. Remove one to add another.`}
           />
+          {/* A real button rather than the muted underline this was: with
+              several operators pinned, removing them one at a time is the
+              slowest thing on the page. */}
           {selected.length > 0 ? (
             <button
               type="button"
               onClick={clear}
-              className="self-start text-sm underline"
-              style={{ color: 'var(--text-muted)' }}
+              className="self-start rounded-[var(--radius-sm)] border px-2 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+              title="Remove every pinned operator from this comparison"
             >
-              Clear all
+              <span aria-hidden="true">☆ </span>
+              Unpin all ({selected.length})
             </button>
           ) : null}
         </div>

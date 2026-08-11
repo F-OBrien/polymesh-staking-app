@@ -16,6 +16,7 @@ import { MAX_NAMED_SERIES, SERIES_TOKENS } from '@/lib/charts/palette';
 import { useMeasuredWidth } from '@/lib/charts/use-measure';
 import { formatEraDate } from '@/lib/format';
 import { Grid, XAxis, YAxis } from './axes';
+import { useChartHeight } from './chart-frame';
 
 /**
  * The banded multi-series line chart.
@@ -84,7 +85,7 @@ export function BandedLineChart({
   reference,
   format,
   yLabel,
-  height = 320,
+  height: requestedHeight = 320,
   includeZero = false,
   tickFormat,
 }: BandedLineChartProps) {
@@ -103,6 +104,10 @@ export function BandedLineChart({
   const width = measuredWidth ?? 0;
   const margin = responsiveMargin(width);
   const showDirectLabels = width >= DIRECT_LABEL_MIN_WIDTH;
+  // Taller when the frame is expanded. This is the chart that most needs it:
+  // eight operators over ninety eras is a thicket in a page-width card, and
+  // vertical room separates the lines as much as horizontal room does.
+  const height = useChartHeight(requestedHeight);
   const box = plotBox(width, height, margin);
 
   const x = useMemo(() => timeScale(eraStart, box.innerWidth), [eraStart, box.innerWidth]);
@@ -405,8 +410,7 @@ export function BandedLineChart({
       {overflow > 0 ? (
         <p className="mt-2 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
           {overflow} more selected {overflow === 1 ? 'operator is' : 'operators are'} not drawn —
-          the palette holds {MAX_NAMED_SERIES} distinguishable colours. See the table for all of
-          them.
+          the chart shows at most {MAX_NAMED_SERIES}. See the table for all of them.
         </p>
       ) : null}
     </div>

@@ -1,4 +1,4 @@
-import { deriveOperatorApr } from '@/lib/metrics/derive';
+import { deriveEstimatedEraApr, deriveOperatorApr, lastDefinedAt } from '@/lib/metrics/derive';
 import { mean, stdDev } from '@/lib/metrics/stats';
 import type { Latest, OperatorRegistry } from '@/lib/schemas/data';
 import type { StitchedSeries } from './series';
@@ -31,10 +31,42 @@ export interface OperatorRow {
   /** Own stake as a share of total — skin in the game. */
   selfStakeRatio: number | null;
   nominatorCount: number | null;
-  oversubscribed: boolean;
+  /**
+   * Exposure pages the operator's backers were split across.
+   *
+   * Carried for the CSV export only. It is a payout mechanic with no
+   * consequence for a nominator on Polymesh, so nothing renders it as a status
+   * — see the note on `pageCount` in `lib/schemas/data.ts`.
+   */
+  pageCount: number | null;
   blocked: boolean;
-  /** Mean APR after commission across the visible range. */
+  /**
+   * Return, on three time bases and two commission bases.
+   *
+   * "Return" on its own is the site's most-asked-about number and was also its
+   * vaguest: a single column labelled `Return` was a *mean over the selected
+   * era range, after commission*, and said none of that. Three quantities were
+   * being conflated — what this operator is earning right now, what it earned
+   * last era, and what it has averaged — and they differ enough to change a
+   * nomination.
+   *
+   * So each is carried separately and labelled, and each exists gross and net,
+   * because whether commission has been taken off moves the number by up to a
+   * fifth. `…Gross` is before commission (node performance); the unsuffixed
+   * field is after commission (what a nominator receives).
+   */
+
+  /** Estimated from points scored so far in the era now running. Forward-looking. */
+  aprThisEra: number | null;
+  aprThisEraGross: number | null;
+  /** Actual, for the most recent complete era held. */
+  aprLastEra: number | null;
+  aprLastEraGross: number | null;
+  /** Which era `aprLastEra` refers to, so the column can name it. */
+  lastEraIndex: number | null;
+  /** Mean across the visible era range. */
   aprMean: number | null;
+  aprMeanGross: number | null;
   /**
    * Standard deviation of per-era APR. Lower is steadier.
    *
@@ -42,6 +74,9 @@ export interface OperatorRow {
    * average return are not equivalent if one of them halves some weeks.
    */
   aprStdDev: number | null;
+  aprStdDevGross: number | null;
+  /** Points scored so far in the era now running, from the snapshot or Live. */
+  pointsThisEra: number | null;
   /** Eras present in the visible range, for the sparkline. */
   aprSeries: (number | null)[];
   /** Share of reward points in the most recent era with data. */
@@ -53,6 +88,14 @@ export interface BuildRowsInput {
   latest: Latest | undefined;
   registry: OperatorRegistry | undefined;
   erasPerYear: number;
+  /**
+   * Tier-4 points for the era in progress, when the reader has Live on.
+   *
+   * Overrides the snapshot's points, which are up to 15 minutes old. That
+   * staleness is invisible on a mean over 90 eras and very visible on "is my
+   * node producing blocks right now", which is the question this answers.
+   */
+  livePoints?: { total: number; byOperator: Record<string, number> } | null | undefined;
 }
 
 const lastDefined = (values: readonly (number | null)[]): number | null => {
@@ -75,12 +118,22 @@ export function buildOperatorRows({
   latest,
   registry,
   erasPerYear,
+  livePoints,
 }: BuildRowsInput): OperatorRow[] {
   const bySnapshot = new Map((latest?.operators ?? []).map((op) => [op.address, op]));
   const addresses = new Set<string>([
     ...Object.keys(series?.operators ?? {}),
     ...bySnapshot.keys(),
   ]);
+
+  // Inputs to the current-era estimate, shared by every row. Points come from
+  // Live when it is on and the snapshot otherwise; the two are the same
+  // quantity read at different freshness, so the estimate is identical in shape
+  // either way and simply becomes exact.
+  const snapshotTotalPoints = (latest?.operators ?? []).reduce((sum, op) => sum + op.points, 0);
+  const eraTotalPoints = livePoints?.total ?? snapshotTotalPoints;
+  const inflation = latest?.inflation ?? 0;
+  const issuancePolyx = latest ? Number(BigInt(latest.totalIssuance) / 1_000_000n) : 0;
 
   const rows: OperatorRow[] = [];
 
@@ -89,7 +142,11 @@ export function buildOperatorRows({
     const snapshot = bySnapshot.get(address);
     const columns = series?.operators[address];
 
-    const aprSeries = columns && series ? deriveOperatorApr(columns, series.network, erasPerYear).net : [];
+    const apr =
+      columns && series
+        ? deriveOperatorApr(columns, series.network, erasPerYear)
+        : { gross: [], net: [] };
+    const aprSeries = apr.net;
 
     // Snapshot values are exact base-unit strings; the range gives POLYX
     // floats. Prefer the snapshot for "now" figures and fall back to the last
@@ -111,20 +168,49 @@ export function buildOperatorRows({
       return null;
     })();
 
+    const commission = snapshot?.commission ?? lastDefined(columns?.commission ?? []);
+
+    // "Last era" is the newest era actually held, which is the newest complete
+    // one for every range preset. Named in the column header rather than left
+    // implicit, because a stale ingest would otherwise pass for yesterday.
+    const lastNet = lastDefinedAt(apr.net);
+    const lastGross = lastDefinedAt(apr.gross);
+
+    const pointsThisEra = livePoints
+      ? (livePoints.byOperator[address] ?? null)
+      : (snapshot?.points ?? null);
+
+    const thisEra = deriveEstimatedEraApr({
+      points: pointsThisEra,
+      totalPoints: eraTotalPoints,
+      totalStake,
+      commission,
+      inflation,
+      totalIssuance: issuancePolyx,
+    });
+
     rows.push({
       address,
       name: record?.name ?? address,
       nodeLabel: record?.nodeLabel ?? record?.name ?? address,
       status: record?.status ?? (snapshot?.elected ? 'active' : 'inactive'),
-      commission: snapshot?.commission ?? lastDefined(columns?.commission ?? []),
+      commission,
       totalStake,
       ownStake,
       selfStakeRatio: totalStake != null && totalStake > 0 && ownStake != null ? ownStake / totalStake : null,
       nominatorCount: snapshot?.nominatorCount ?? lastDefined(columns?.nominatorCount ?? []),
-      oversubscribed: snapshot?.oversubscribed ?? false,
+      pageCount: snapshot?.pageCount ?? null,
       blocked: snapshot?.blocked ?? false,
+      aprThisEra: thisEra.net,
+      aprThisEraGross: thisEra.gross,
+      aprLastEra: lastNet?.value ?? null,
+      aprLastEraGross: lastGross?.value ?? null,
+      lastEraIndex: lastNet != null ? (series?.eras[lastNet.index] ?? null) : null,
       aprMean: mean(aprSeries),
+      aprMeanGross: mean(apr.gross),
       aprStdDev: stdDev(aprSeries),
+      aprStdDevGross: stdDev(apr.gross),
+      pointsThisEra,
       aprSeries,
       pointsShare,
     });
@@ -143,8 +229,15 @@ export type SortKey =
   | 'totalStake'
   | 'selfStakeRatio'
   | 'nominatorCount'
+  | 'aprThisEra'
+  | 'aprThisEraGross'
+  | 'aprLastEra'
+  | 'aprLastEraGross'
   | 'aprMean'
+  | 'aprMeanGross'
   | 'aprStdDev'
+  | 'aprStdDevGross'
+  | 'pointsThisEra'
   | 'pointsShare';
 
 export type SortDirection = 'asc' | 'desc';
@@ -191,8 +284,6 @@ export interface OperatorFilters {
   status?: 'all' | 'active' | 'waiting' | 'inactive' | undefined;
   /** Maximum commission as a ratio; undefined means no cap. */
   maxCommission?: number | undefined;
-  /** Hide operators whose nominator page is full — they pay nothing extra. */
-  hideOversubscribed?: boolean | undefined;
   /** Restrict to a specific set, e.g. the connected wallet's nominations. */
   onlyAddresses?: ReadonlySet<string> | undefined;
 }
@@ -206,7 +297,6 @@ export function filterRows(
   return rows.filter((row) => {
     if (filters.onlyAddresses && !filters.onlyAddresses.has(row.address)) return false;
     if (filters.status && filters.status !== 'all' && row.status !== filters.status) return false;
-    if (filters.hideOversubscribed && row.oversubscribed) return false;
 
     if (filters.maxCommission != null) {
       // An unknown commission is not evidence of a low one, so it is excluded
@@ -244,10 +334,20 @@ export function rowsToCsv(rows: readonly OperatorRow[]): string {
     'own_stake_polyx',
     'self_stake_ratio',
     'nominators',
-    'apr_mean',
-    'apr_stddev',
+    // Every return column is exported on both commission bases and named for
+    // the period it covers. A bare `apr` column in a spreadsheet is exactly the
+    // ambiguity this rework exists to remove.
+    'apr_this_era_est_net',
+    'apr_this_era_est_gross',
+    'apr_last_era_net',
+    'apr_last_era_gross',
+    'last_era',
+    'apr_range_mean_net',
+    'apr_range_mean_gross',
+    'apr_range_stddev_net',
+    'points_this_era',
     'points_share',
-    'oversubscribed',
+    'exposure_pages',
   ];
 
   const escape = (value: string) => (/[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
@@ -263,10 +363,17 @@ export function rowsToCsv(rows: readonly OperatorRow[]): string {
       num(row.ownStake),
       num(row.selfStakeRatio),
       num(row.nominatorCount),
+      num(row.aprThisEra),
+      num(row.aprThisEraGross),
+      num(row.aprLastEra),
+      num(row.aprLastEraGross),
+      num(row.lastEraIndex),
       num(row.aprMean),
+      num(row.aprMeanGross),
       num(row.aprStdDev),
+      num(row.pointsThisEra),
       num(row.pointsShare),
-      String(row.oversubscribed),
+      num(row.pageCount),
     ].join(','),
   );
 

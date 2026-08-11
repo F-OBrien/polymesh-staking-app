@@ -55,6 +55,7 @@ bug that review did not:
 | `npm run probe:stash` | `readStashPosition` decoding, incl. the controller indirection |
 | `npm run probe:slashes` | that slash storage exists and is genuinely empty |
 | `npm run probe:slashing-switch` | `validators.slashingAllowedFor` |
+| `npm run probe:payouts` | that every exposure page is actually claimed and paid |
 
 **Local data state:** `public/data` holds a real mainnet ingest, eras 1664–1746,
 86 operators, plus `latest.json` and `slashes.json` (`scope: Validator`, zero
@@ -92,6 +93,95 @@ Every page now exists. What remains is the work that makes it shippable:
   criterion, not a tidy-up.
 - **Rewrite `README.md`**, and record a before/after comparison in
   `docs/baseline.md`.
+
+### Review pass on `/operators` — five findings, four of them real bugs
+
+Done after Phase 7, from a read of the rendered page rather than the code. Data
+refreshed to era 1748 first.
+
+**1. The "full" badge was materially wrong — removed.** Any operator with more
+than 64 nominators was badged `full`, with "new nominators may earn nothing" on
+the tooltip, the stat tile and the `/my-staking` warnings, plus a "Hide full"
+filter. Polymesh uses paged exposures and rewards **every** page; the runtime
+has a test named `test_nominators_over_max_exposure_page_size_are_rewarded`, and
+`validators::payouts()` pays each page automatically. Verified on mainnet — see
+the probe table above. Seven operators were affected, including the three
+most-nominated on the network, so the site was steering people *away* from the
+most popular nodes on a false premise. The `oversubscribed` field is gone from
+the schema; `pageCount` stays as a neutral fact and reaches only the CSV.
+
+This is the second instance of the same failure mode as the slashing claim:
+**Substrate's default semantics assumed, and wrong for Polymesh.** Both were
+found by reading the runtime rather than the docs. Worth doing again for any
+remaining claim about what a nominator earns or risks.
+
+**2. Pinned operators did not survive navigation — fixed.** The selection lived
+only in `?ops=`, and `<Link>` carries no query string, so pinning in the
+directory and clicking Compare landed on an empty page — while the copy claimed
+the selection travelled with you. Now `lib/data/selection-store.ts` mirrors it
+to `localStorage`, consulted only when the URL is silent, so a shared link still
+wins. Clearing writes `[]` — distinct from "never pinned" — or the restore path
+would put the pins straight back and the clear button would look broken.
+Verified in a browser across nav, reload, a pass through `/network`, clear, and
+a shared link overriding stored pins.
+
+**3. "The five largest operators" was vague *and* nearly meaningless.** It
+ranked on total stake, which the election equalises: the whole active set spans
+3.9% and the top five sit within 0.1% of each other. Now the five
+highest-returning by mean net APR over the selected range, named as such.
+`rankOperators` takes `aprNet`/`aprGross` and ranks those on the mean rather
+than the latest era, since one era's return is noisy enough to reshuffle the
+chart daily.
+
+**4. "Return" meant three different things.** One column, labelled `Return`,
+was a mean over whatever range was selected, after commission, and said none of
+that. Split into **This era (est.)**, **Last era**, and **Mean (N eras)**, each
+labelled with its period, under one "after/before commission" control — the
+basis being invisible is the usual reason two staking sites appear to disagree
+about the same operator. Also on `/compare` as three rows and on the detail page
+as three tiles.
+
+**5. Page prose folded into tooltips.** `components/info-tip.tsx` — hand-rolled,
+not Radix, for the same budget reason as the table. Two mechanics are
+load-bearing: the panel is `position: fixed` and measured in the event handler,
+because `overflow-x-auto` on the table clipped an absolutely-positioned one and
+measuring in an effect trips `react-hooks/set-state-in-effect`; and it forces
+`white-space: normal`, because table headers set `nowrap` and the prose ran off
+the side of the panel.
+
+### The forward-looking return, and where Live went
+
+This closes the request below. `deriveEstimatedEraApr` in `lib/metrics/derive.ts`
+annualises an operator's *share of points so far this era* against its current
+stake:
+
+```
+gross = inflation × issuance × points ÷ (totalPoints × stake)
+```
+
+`erasPerYear` cancels, so it does not depend on knowing the era length. Two
+things make it trustworthy rather than a guess:
+
+- **It reconciles with the network figure.** Equal points and equal stake for
+  every operator returns `inflation ÷ stakingRatio` exactly — the same number
+  `stakingReturns` derives from the reward curve. Pinned by a unit test.
+- **The curve matches what the chain actually pays.** Measured over eras
+  1744–1748: curve-implied pot 339,042 POLYX against 338,670 actual, a 0.11%
+  gap. The model is not drifting from reality.
+
+The estimate is honest about its own noise: the column header shows how far into
+the era we are (tier 3, no network), and the tooltip says that sorting by it
+puts the *lucky* near the top alongside the genuinely performing.
+
+**Live lives on `/operators`**, in the filter row. With it on, the two
+current-era columns — This era and Points — stop being a 15-minute snapshot and
+update per block from `LiveState.eraPoints`. That is the "is my node producing
+right now" confirmation, and it feeds the forward-looking number rather than
+sitting in a chart of its own.
+
+Still open from the original request: a **points-accruing-now chart** rather
+than a column, if watching the race block by block turns out to matter. The data
+is already wired; it is a chart, not a pipeline change.
 
 ### Requested by the user, not yet built — do this before the polish work
 
@@ -430,6 +520,14 @@ historical probes must keep their loose access.
 Each of these was confirmed against mainnet (spec `8000020`) this session, and
 several contradict what a reasonable person would assume from Substrate.
 
+- **Exposure paging costs a nominator nothing.** More than
+  `maxExposurePageSize` (64) backers splits an operator's exposure into
+  multiple pages, and **every page is rewarded**. The runtime carries a test
+  called `test_nominators_over_max_exposure_page_size_are_rewarded`, and
+  Polymesh pays each page *automatically* via `validators::payouts()` walking
+  `PendingPayouts` for `CurrentPayoutEra` — no one has to call
+  `payout_stakers`. Confirmed on mainnet for era 1748: all five pages of the
+  283-nominator operator were claimed and paid. `npm run probe:payouts`.
 - **Nominators are not slashed.** `validators.slashingAllowedFor` reads
   `Validator`. It is a governance switch, so it is read per run into
   `slashes.json.scope` and never hardcoded. The docs' phrasing is "not

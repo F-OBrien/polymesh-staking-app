@@ -91,8 +91,10 @@ async function main(): Promise<void> {
 
     const operators: LatestOperator[] = exposures.exposures.map((exposure) => {
       const nominatorCount = exposure.nominatorCount;
-      // Nominators past the page limit earn nothing, which is the difference
-      // between staking and only appearing to stake. Surfaced as a warning.
+      // Purely how many pages the payout is split across. Every page is
+      // rewarded on Polymesh, and the chain pays them automatically, so this
+      // is a mechanic rather than a risk — see the note on `pageCount` in
+      // `lib/schemas/data.ts` and `npm run probe:payouts`.
       const pageCount =
         maxPageSize == null ? 1 : Math.max(1, Math.ceil(nominatorCount / maxPageSize));
 
@@ -103,7 +105,6 @@ async function main(): Promise<void> {
         totalStake: exposure.total.toString(),
         ownStake: exposure.own.toString(),
         nominatorCount,
-        oversubscribed: maxPageSize != null && nominatorCount > maxPageSize,
         pageCount,
         blocked: prefs.get(exposure.address)?.blocked ?? false,
         elected: activeSet.has(exposure.address),

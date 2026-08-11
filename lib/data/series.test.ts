@@ -141,6 +141,48 @@ describe('rankOperators', () => {
     const series = stitchChunks([chunk(0, [0, 1], { ghost: [null, null], real: [1, 1] })]);
     expect(rankOperators(series, 'totalStake', 5)).toEqual(['real']);
   });
+
+  /**
+   * Equal stake throughout, so return varies only with points. The default
+   * helper ties points to stake, which would make every return identical.
+   */
+  const byPoints = (points: Record<string, (number | null)[]>) => {
+    const eras = Object.values(points)[0]!.map((_, i) => i);
+    const base = chunk(
+      0,
+      eras,
+      Object.fromEntries(Object.keys(points).map((k) => [k, eras.map(() => 10)])),
+    );
+    for (const [address, values] of Object.entries(points)) {
+      base.operators[address]!.points = values;
+    }
+    return stitchChunks([base]);
+  };
+
+  it('ranks derived return on the mean, not the latest era', () => {
+    // A single era's return is noisy enough that a latest-value ranking would
+    // reshuffle the top of the chart every day. `spiky` wins the most recent
+    // era outright and still loses on the mean, which is the whole point.
+    const series = byPoints({ spiky: [1, 100], steady: [60, 60] });
+    expect(rankOperators(series, 'points', 1)).toEqual(['spiky']);
+    expect(rankOperators(series, 'aprNet', 1)).toEqual(['steady']);
+  });
+
+  it('orders gross and net identically at a flat commission', () => {
+    // Commission is a flat 0.1 across the fixture, so it scales every return
+    // by the same factor and cannot reorder them.
+    const series = byPoints({ a: [10, 10], b: [20, 20] });
+    expect(rankOperators(series, 'aprGross', 2)).toEqual(['b', 'a']);
+    expect(rankOperators(series, 'aprNet', 2)).toEqual(['b', 'a']);
+  });
+
+  it('defaults to return rather than stake', () => {
+    // The default matters: Polymesh's election equalises exposure, so ranking
+    // by stake is very nearly arbitrary. See `docs/STATUS.md`.
+    const series = byPoints({ low: [1, 1], high: [90, 90] });
+    expect(rankOperators(series)).toEqual(rankOperators(series, 'aprNet'));
+    expect(rankOperators(series, undefined, 1)).toEqual(['high']);
+  });
 });
 
 describe('seriesCoverage', () => {

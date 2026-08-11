@@ -208,11 +208,20 @@ export const LatestOperatorSchema = z.object({
   ownStake: BaseUnits,
   nominatorCount: z.number().int().nonnegative(),
   /**
-   * Nominators beyond the page limit earn nothing, so this is the difference
-   * between staking and only appearing to stake — it drives a warning, not a
-   * footnote.
+   * How many exposure pages the operator's backers were split across.
+   *
+   * A payout mechanic, and deliberately *not* a warning. There was an
+   * `oversubscribed` flag here that badged any operator with more than
+   * `maxExposurePageSize` (64) nominators as "full", claiming new nominators
+   * might earn nothing. That is the pre-paged-exposure rule and it is wrong on
+   * Polymesh: every page is rewarded, the runtime has a test named
+   * `test_nominators_over_max_exposure_page_size_are_rewarded`, and the chain
+   * pays each page automatically via `validators::payouts()` rather than
+   * waiting for someone to call `payout_stakers`. Verified on mainnet — see
+   * `npm run probe:payouts`, which confirms every page of every multi-page
+   * operator was claimed. Page count has no consequence for a nominator, so
+   * nothing in the UI treats it as one.
    */
-  oversubscribed: z.boolean(),
   pageCount: z.number().int().nonnegative(),
   /** Operator has blocked further nominations. */
   blocked: z.boolean(),

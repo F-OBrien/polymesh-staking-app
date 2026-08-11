@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { CompareView } from '@/components/compare-view';
+import { HeadingWithTip } from '@/components/info-tip';
 import { Skeleton } from '@/components/states';
 
 export const metadata: Metadata = {
@@ -12,14 +13,11 @@ export const metadata: Metadata = {
 export default function ComparePage() {
   return (
     <main id="main">
-      <div className="max-w-[65ch]">
-        <h1 className="text-3xl leading-9 font-semibold tracking-tight">Compare</h1>
-        <p className="mt-3" style={{ color: 'var(--text-secondary)' }}>
-          Up to eight operators, side by side. The selection is held in the address bar, so this
-          page can be sent to someone exactly as you see it — and it is the same set you pinned in
-          the directory.
-        </p>
-      </div>
+      <HeadingWithTip as="h1" title="Compare" lead="Up to eight operators, side by side.">
+        The selection is the same set you pinned in the directory, and it is held in the address
+        bar — so this page can be sent to someone exactly as you see it. Pins persist as you move
+        around the site, and clearing them clears them everywhere.
+      </HeadingWithTip>
 
       <Suspense fallback={<Skeleton height={520} label="Loading comparison" />}>
         <CompareView />

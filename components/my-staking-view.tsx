@@ -697,12 +697,16 @@ function describePayee(destination: string | null | undefined): { value: string;
   return { value: destination, hint: 'paid out free — not compounding' };
 }
 
-/** What would make a nominator want to move. */
+/**
+ * What would make a nominator want to move.
+ *
+ * Note what is *not* here: a warning about the operator's nominator page being
+ * full. Polymesh rewards every exposure page and pays them automatically, so
+ * telling someone they "may be earning nothing" because an operator is popular
+ * would push them off a perfectly good node for no reason.
+ */
 function nominationWarnings(row: OperatorRow): string[] {
   const warnings: string[] = [];
-  if (row.oversubscribed) {
-    warnings.push('Nominator page is full — you may be earning nothing here');
-  }
   if (row.status !== 'active') {
     warnings.push(
       row.status === 'waiting' ? 'Not elected this era' : 'Not in the active set at all',

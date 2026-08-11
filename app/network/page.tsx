@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { NetworkAnalytics } from '@/components/network-analytics';
+import { HeadingWithTip } from '@/components/info-tip';
 import { Skeleton } from '@/components/states';
 
 export const metadata: Metadata = {
@@ -12,14 +13,15 @@ export const metadata: Metadata = {
 export default function NetworkPage() {
   return (
     <main id="main">
-      <div className="max-w-[65ch]">
-        <h1 className="text-3xl leading-9 font-semibold tracking-tight">Network</h1>
-        <p className="mt-3" style={{ color: 'var(--text-secondary)' }}>
-          What the network paid, how much is staked, who is producing blocks, and how evenly stake
-          is spread. Every figure is derived from public chain data — the{' '}
-          <a href="./about/">methodology</a> sets out each formula.
-        </p>
-      </div>
+      <HeadingWithTip
+        as="h1"
+        title="Network"
+        lead="What the network paid, how much is staked, and how evenly it is spread."
+      >
+        Every figure is derived from public chain data. The <a href="./about/">methodology</a> sets
+        out each formula, including the reward curve constants and how the commission-weighted
+        average is taken.
+      </HeadingWithTip>
 
       {/* The era range lives in the URL, so this subtree reads useSearchParams
           and must sit behind a Suspense boundary for static export. The

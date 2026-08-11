@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { SlashingView } from '@/components/slashing-view';
+import { HeadingWithTip } from '@/components/info-tip';
 import { Skeleton } from '@/components/states';
 
 export const metadata: Metadata = {
@@ -12,15 +13,16 @@ export const metadata: Metadata = {
 export default function SlashingPage() {
   return (
     <main id="main">
-      <div className="max-w-[65ch]">
-        <h1 className="text-3xl leading-9 font-semibold tracking-tight">Slashing</h1>
-        <p className="mt-3" style={{ color: 'var(--text-secondary)' }}>
-          Slashing is the one way staking can lose money rather than merely fail to earn it. On
-          Polymesh it applies to operators&rsquo; own stake, not to nominated tokens — and it has
-          been rare. This page shows what has actually happened, who it would fall on, and what a
-          penalty would cost if it did.
-        </p>
-      </div>
+      <HeadingWithTip
+        as="h1"
+        title="Slashing"
+        lead="The one way staking can lose money rather than merely fail to earn it."
+      >
+        On Polymesh, slashing applies to operators&rsquo; own stake and not to nominated tokens —
+        a governance switch that is read from the chain on every run rather than assumed. It has
+        also been rare. This page shows what has actually happened, who it would fall on, and what
+        a penalty would cost if it did.
+      </HeadingWithTip>
 
       <Suspense fallback={<Skeleton height={520} label="Loading slashing record" />}>
         <SlashingView />

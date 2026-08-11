@@ -92,6 +92,98 @@ export function deriveOperatorApr(
   return { gross, net };
 }
 
+/** A single return figure on both commission bases. */
+export interface AprPoint {
+  /** Before commission — node performance, not the deal on offer. */
+  gross: number | null;
+  /** After commission — what a nominator actually earns. */
+  net: number | null;
+}
+
+export const NO_APR: AprPoint = { gross: null, net: null };
+
+export interface EraEstimateInput {
+  /** Points this operator has scored so far in the era now running. */
+  points: number | null;
+  /** Points scored so far this era across every operator. */
+  totalPoints: number | null;
+  /** This operator's total exposure this era, in POLYX. */
+  totalStake: number | null;
+  /** 0–1, or null when the preferences record is missing. */
+  commission: number | null;
+  /** Annual inflation as a ratio, from the reward curve. */
+  inflation: number;
+  /** Total issuance, in POLYX. */
+  totalIssuance: number;
+}
+
+/**
+ * Forward-looking return for the era **now in progress**.
+ *
+ * Every other return figure on the site looks backwards. This one answers the
+ * question a nominator actually has — *what am I likely to earn next* — and it
+ * is the half the previous app could not show at all. It was assembled by hand
+ * from two sites: the Polymesh Portal for last era's realised return, and the
+ * old app's live points chart for whether a node was still producing.
+ *
+ * The trick is that a *share* of points is meaningful long before the era ends.
+ * Points accrue roughly uniformly, so an operator holding 1.2% of the points at
+ * hour six is likely to hold about 1.2% at hour twenty-four. The absolute count
+ * is useless mid-era; the ratio is not.
+ *
+ *     era pot  = inflation × issuance ÷ erasPerYear
+ *     share    = points ÷ totalPoints
+ *     gross    = (pot × share ÷ stake) × erasPerYear
+ *              = inflation × issuance × points ÷ (totalPoints × stake)
+ *
+ * `erasPerYear` cancels, which is worth noticing: the estimate does not depend
+ * on knowing the era length, only on the inflation rate and the points split.
+ * It also reconciles with `stakingReturns` — give every operator an equal share
+ * of points and an equal share of stake and this returns `inflation ÷ ratio`,
+ * the network APR, exactly.
+ *
+ * Returns nulls rather than zero when the era has produced no points yet. Zero
+ * would read as "this operator is earning nothing", which is a different and
+ * much more alarming claim than "the era just started".
+ */
+export function deriveEstimatedEraApr({
+  points,
+  totalPoints,
+  totalStake,
+  commission,
+  inflation,
+  totalIssuance,
+}: EraEstimateInput): AprPoint {
+  if (
+    points == null ||
+    totalPoints == null ||
+    totalPoints <= 0 ||
+    totalStake == null ||
+    totalStake <= 0 ||
+    !Number.isFinite(inflation) ||
+    totalIssuance <= 0
+  ) {
+    return NO_APR;
+  }
+
+  const gross = (inflation * totalIssuance * points) / (totalPoints * totalStake);
+
+  // As in `deriveOperatorApr`: a missing commission is withheld rather than
+  // treated as zero, which would overstate what a nominator receives.
+  return { gross, net: commission == null ? null : gross * portionAfterCommission(commission) };
+}
+
+/** The most recent non-null entry of a series, with the index it sits at. */
+export function lastDefinedAt(
+  values: readonly (number | null)[],
+): { value: number; index: number } | null {
+  for (let i = values.length - 1; i >= 0; i -= 1) {
+    const value = values[i];
+    if (value != null && Number.isFinite(value)) return { value, index: i };
+  }
+  return null;
+}
+
 /** Compounds a derived APR series into APY, preserving gaps. */
 export function deriveApy(apr: readonly (number | null)[], erasPerYear: number): (number | null)[] {
   return apr.map((value) => (value == null ? null : aprToApy(value, erasPerYear)));

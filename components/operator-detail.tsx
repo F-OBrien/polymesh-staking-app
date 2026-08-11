@@ -167,11 +167,32 @@ export function OperatorDetail({ address }: { address: string }) {
 
           <section aria-label="Key figures" className="mt-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Three periods, not one. "Return" meaning a mean over
+                  whatever range was selected — and saying so only in a hint —
+                  conflated what this operator is earning now with what it has
+                  averaged. All three are after commission. */}
               <StatTile
                 emphasis
-                label="Return, after commission"
+                label="Return, this era"
+                value={percent(row?.aprThisEra ?? null)}
+                hint="estimated from points so far, after commission"
+                footer={asOf}
+                loading={latest.isLoading}
+              />
+              <StatTile
+                label="Return, last era"
+                value={percent(row?.aprLastEra ?? null)}
+                hint={
+                  row?.lastEraIndex == null
+                    ? 'actual, most recent complete era'
+                    : `actual, era ${row.lastEraIndex}`
+                }
+                loading={isLoading}
+              />
+              <StatTile
+                label="Return, mean"
                 value={percent(row?.aprMean ?? null)}
-                hint="mean across the selected range"
+                hint="after commission, across the selected range"
                 loading={isLoading}
               />
               <StatTile
@@ -200,9 +221,6 @@ export function OperatorDetail({ address }: { address: string }) {
               <StatTile
                 label="Nominators"
                 value={formatNumber(row?.nominatorCount ?? null)}
-                hint={
-                  row?.oversubscribed ? 'page is full — new nominators may earn nothing' : undefined
-                }
                 footer={asOf}
                 loading={latest.isLoading}
               />

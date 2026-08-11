@@ -1,8 +1,22 @@
 'use client';
 
 import { Tabs } from 'radix-ui';
-import { useId, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ErrorState, Skeleton } from '@/components/states';
+
+/**
+ * The plot height a chart should draw at, given the height it asked for.
+ *
+ * Non-null only inside an expanded frame. Charts read this rather than being
+ * handed a height prop twice, because `children` are rendered *at their
+ * position in the tree* — inside the provider below — even though they are
+ * constructed by the chart component outside it.
+ */
+const ExpandedHeightContext = createContext<number | null>(null);
+
+export function useChartHeight(requested: number): number {
+  return useContext(ExpandedHeightContext) ?? requested;
+}
 
 /**
  * The shell every chart is rendered inside.
@@ -65,78 +79,196 @@ export function ChartFrame({
   const titleId = useId();
   const descriptionId = useId();
 
+  /**
+   * Expanded height, doubling as the open flag.
+   *
+   * A dense chart — eight operators over ninety eras — is legible at 2300px and
+   * a thicket at 900. Rather than a height control nobody would find, the whole
+   * frame moves into a modal that uses the viewport. Measured on open in the
+   * click handler rather than an effect, so opening costs one render.
+   */
+  const [expandedHeight, setExpandedHeight] = useState<number | null>(null);
+  const expanded = expandedHeight != null;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const element = dialogRef.current;
+    if (!element) return;
+    // `showModal` — not the `open` attribute — is what puts the dialog in the
+    // top layer and brings the focus trap, inertness and Escape with it.
+    if (expanded && !element.open) element.showModal();
+    if (!expanded && element.open) element.close();
+  }, [expanded]);
+
+  const expand = () => {
+    // Leave room for the header, legend and tab strip inside the modal.
+    setExpandedHeight(Math.max(height, Math.round(window.innerHeight * 0.92) - 240));
+  };
+  const collapse = () => setExpandedHeight(null);
+
+  const header = (
+    <figcaption className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 id={titleId} className="m-0 text-[17px] leading-6 font-semibold tracking-tight">
+          {title}
+        </h3>
+        {subtitle ? (
+          <p
+            id={descriptionId}
+            className="mt-0.5 mb-0 text-sm"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {subtitle}
+          </p>
+        ) : null}
+        {coverage ? (
+          <p className="mt-0.5 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {coverage}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {actions}
+        <FrameButton
+          onClick={expanded ? collapse : expand}
+          label={expanded ? `Close the expanded ${title}` : `Expand ${title} to full screen`}
+        >
+          <span aria-hidden="true">{expanded ? '✕' : '⤢'}</span>
+          {expanded ? 'Close' : 'Expand'}
+        </FrameButton>
+      </div>
+    </figcaption>
+  );
+
+  const body = error ? (
+    <ErrorState
+      compact
+      title="Could not load this chart"
+      message={error.message}
+      {...(onRetry ? { onRetry } : {})}
+    />
+  ) : loading ? (
+    // Exactly the chart's height, so nothing moves when data arrives.
+    <Skeleton height={height} label={`Loading ${title}`} />
+  ) : empty ? (
+    <div style={{ minHeight: height }} className="flex items-center justify-center">
+      {empty}
+    </div>
+  ) : (
+    // The chart is mounted in exactly one place at a time — inline or in the
+    // modal — so expanding never renders two copies of a heavy SVG.
+    <ExpandedHeightContext.Provider value={expandedHeight}>
+      <Tabs.Root defaultValue="chart" className="flex min-h-0 flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          {legend ? <div className="min-w-0 flex-1">{legend}</div> : <div />}
+
+          <Tabs.List
+            aria-label={`View ${title} as`}
+            className="flex shrink-0 items-center gap-0.5 rounded-full border p-0.5 text-xs"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <ViewTab value="chart">Chart</ViewTab>
+            <ViewTab value="table">Table</ViewTab>
+          </Tabs.List>
+        </div>
+
+        <Tabs.Content value="chart" className="focus-visible:outline-none">
+          {children}
+        </Tabs.Content>
+
+        <Tabs.Content
+          value="table"
+          className="min-h-0 overflow-auto focus-visible:outline-none"
+          style={{ maxHeight: (expandedHeight ?? height) * 1.5 }}
+        >
+          {table}
+        </Tabs.Content>
+      </Tabs.Root>
+    </ExpandedHeightContext.Provider>
+  );
+
   return (
-    <figure
-      className="m-0 flex flex-col gap-3 rounded-[var(--radius-md)] border p-4"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-      aria-labelledby={titleId}
-      aria-describedby={subtitle ? descriptionId : undefined}
-    >
-      <figcaption className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 id={titleId} className="m-0 text-[17px] leading-6 font-semibold tracking-tight">
-            {title}
-          </h3>
-          {subtitle ? (
-            <p
-              id={descriptionId}
-              className="mt-0.5 mb-0 text-sm"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {subtitle}
-            </p>
-          ) : null}
-          {coverage ? (
-            <p className="mt-0.5 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-              {coverage}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
-      </figcaption>
-
-      {error ? (
-        <ErrorState
-          compact
-          title="Could not load this chart"
-          message={error.message}
-          {...(onRetry ? { onRetry } : {})}
-        />
-      ) : loading ? (
-        // Exactly the chart's height, so nothing moves when data arrives.
-        <Skeleton height={height} label={`Loading ${title}`} />
-      ) : empty ? (
-        <div style={{ minHeight: height }} className="flex items-center justify-center">
-          {empty}
-        </div>
-      ) : (
-        <Tabs.Root defaultValue="chart" className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            {legend ? <div className="min-w-0 flex-1">{legend}</div> : <div />}
-
-            <Tabs.List
-              aria-label={`View ${title} as`}
-              className="flex shrink-0 items-center gap-0.5 rounded-full border p-0.5 text-xs"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <ViewTab value="chart">Chart</ViewTab>
-              <ViewTab value="table">Table</ViewTab>
-            </Tabs.List>
+    <>
+      <figure
+        className="m-0 flex flex-col gap-3 rounded-[var(--radius-md)] border p-4"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+        aria-labelledby={titleId}
+        aria-describedby={subtitle ? descriptionId : undefined}
+      >
+        {header}
+        {/* While expanded the inline card keeps its footprint, so closing the
+            modal returns you to the same scroll position. */}
+        {expanded ? (
+          <div
+            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-dashed text-sm"
+            style={{ height, borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
+            Shown full screen
           </div>
+        ) : (
+          body
+        )}
+      </figure>
 
-          <Tabs.Content value="chart" className="focus-visible:outline-none">
-            {children}
-          </Tabs.Content>
+      {expanded ? (
+        <dialog
+          ref={dialogRef}
+          aria-label={title}
+          onClose={collapse}
+          // A click on the backdrop lands on the dialog itself, since the
+          // content sits in a child element.
+          onClick={(event) => {
+            if (event.target === dialogRef.current) collapse();
+          }}
+          className="m-auto max-w-none rounded-[var(--radius-lg)] border p-0 backdrop:bg-black/60"
+          style={{
+            width: '96vw',
+            // Sized to content, not `92vh`: only the banded chart takes the
+            // extra height (via the context above), and a 300px curve floating
+            // in a full-height box looks broken.
+            //
+            // `fit-content` rather than `auto` — the UA stylesheet gives a
+            // modal dialog `inset: 0`, and `height: auto` against both a top
+            // and a bottom offset resolves to "fill", which stretched the box
+            // to the full viewport with 600px of dead space under the chart.
+            height: 'fit-content',
+            maxHeight: '92vh',
+            borderColor: 'var(--border)',
+            background: 'var(--surface-1)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div className="flex max-h-[92vh] flex-col gap-3 overflow-auto p-4">
+            {header}
+            {body}
+          </div>
+        </dialog>
+      ) : null}
+    </>
+  );
+}
 
-          <Tabs.Content value="table" className="focus-visible:outline-none">
-            <div className="overflow-x-auto" style={{ maxHeight: height * 1.5 }}>
-              {table}
-            </div>
-          </Tabs.Content>
-        </Tabs.Root>
-      )}
-    </figure>
+function FrameButton({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors"
+      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+    >
+      {children}
+    </button>
   );
 }
 

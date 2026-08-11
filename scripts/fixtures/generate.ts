@@ -652,7 +652,6 @@ async function main(): Promise<void> {
       totalStake: (BigInt(Math.round(a.stake)) * BASE).toString(),
       ownStake: (BigInt(Math.round(a.ownStake)) * BASE).toString(),
       nominatorCount: a.nominatorCount,
-      oversubscribed: a.nominatorCount > 256,
       pageCount: Math.max(1, Math.ceil(a.nominatorCount / 256)),
       blocked: false,
       elected: true,

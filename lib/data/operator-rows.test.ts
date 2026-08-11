@@ -19,8 +19,16 @@ function row(partial: Partial<OperatorRow> & { address: string }): OperatorRow {
     ownStake: 100,
     selfStakeRatio: 0.1,
     nominatorCount: 10,
-    oversubscribed: false,
+    pageCount: 1,
     blocked: false,
+    aprThisEra: null,
+    aprThisEraGross: null,
+    aprLastEra: null,
+    aprLastEraGross: null,
+    lastEraIndex: null,
+    aprMeanGross: null,
+    aprStdDevGross: null,
+    pointsThisEra: null,
     aprMean: 0.2,
     aprStdDev: 0.01,
     aprSeries: [0.2],
@@ -91,7 +99,7 @@ describe('filterRows', () => {
     row({ address: '2AbcDef', name: 'Assetera', nodeLabel: 'Assetera 1', commission: 0.05 }),
     row({ address: '2XyzGhi', name: 'Binance', nodeLabel: 'Binance 2', commission: 0.4 }),
     row({ address: '2QrsTuv', name: 'Scrypt', nodeLabel: 'Scrypt 1', status: 'waiting' }),
-    row({ address: '2FullOp', name: 'Full', nodeLabel: 'Full 1', oversubscribed: true }),
+    row({ address: '2PooledOp', name: 'Pooled', nodeLabel: 'Pooled 1', pageCount: 5 }),
   ];
 
   it('matches name, node label or address, case-insensitively', () => {
@@ -114,12 +122,12 @@ describe('filterRows', () => {
     expect(capped).not.toContain('2Unknown');
   });
 
-  it('can hide operators whose nominator page is full', () => {
-    // They pay a new nominator nothing, so this is the difference between
-    // staking and only appearing to stake.
-    expect(filterRows(rows, { hideOversubscribed: true }).map((r) => r.address)).not.toContain(
-      '2FullOp',
-    );
+  it('does not filter on exposure paging', () => {
+    // There was a "hide full" filter here, backed by an `oversubscribed` flag
+    // that badged any operator with more than 64 nominators. Polymesh rewards
+    // every exposure page, so that filter hid the most popular operators for
+    // no reason. Paging must stay a neutral fact.
+    expect(filterRows(rows, {}).map((r) => r.address)).toContain('2PooledOp');
   });
 
   it('restricts to an explicit address set', () => {
@@ -209,7 +217,6 @@ describe('buildOperatorRows', () => {
         totalStake: '800000000',
         ownStake: '200000000',
         nominatorCount: 42,
-        oversubscribed: true,
         pageCount: 2,
         blocked: false,
         elected: true,
@@ -245,7 +252,7 @@ describe('buildOperatorRows', () => {
     expect(newcomer.totalStake).toBe(800);
     expect(newcomer.ownStake).toBe(200);
     expect(newcomer.selfStakeRatio).toBeCloseTo(0.25, 10);
-    expect(newcomer.oversubscribed).toBe(true);
+    expect(newcomer.pageCount).toBe(2);
   });
 
   it('falls back to the last era held when there is no snapshot entry', () => {

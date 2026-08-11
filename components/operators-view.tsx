@@ -9,6 +9,10 @@ import { deriveOperatorApr } from '@/lib/metrics/derive';
 import { rankOperators } from '@/lib/data/series';
 import { OperatorsTable } from '@/components/operators-table';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
+import { HeadingWithTip } from '@/components/info-tip';
+import { LiveToggle } from '@/components/live-toggle';
+import { useLive } from '@/lib/data/use-live';
+import { useEraClock } from '@/lib/data/use-era-clock';
 import { ErrorState, Skeleton } from '@/components/states';
 import { formatPercent, formatPolyx } from '@/lib/format';
 import type { NamedSeries } from '@/components/charts/banded-line-chart';
@@ -34,22 +38,46 @@ export function OperatorsView() {
 
   const erasPerYear = manifest.data?.erasPerYear ?? 365;
 
+  /**
+   * Live is opt-in and never gates first paint (§6.6a). When it is on, the
+   * two current-era columns stop being a 15-minute-old snapshot and start
+   * updating as blocks arrive — which is the "is my node producing right now?"
+   * confirmation the previous app's live points chart provided.
+   */
+  const live = useLive();
+
+  // Tier 3: derived in the browser from the snapshot's anchors against the
+  // local clock, so it ticks with no network traffic at all (§6.6a).
+  const clock = useEraClock(latest.data?.eraStatus);
+
   const rows = useMemo(
-    () => buildOperatorRows({ series, latest: latest.data, registry: registry.data, erasPerYear }),
-    [series, latest.data, registry.data, erasPerYear],
+    () =>
+      buildOperatorRows({
+        series,
+        latest: latest.data,
+        registry: registry.data,
+        erasPerYear,
+        livePoints: live.enabled ? live.state.eraPoints : null,
+      }),
+    [series, latest.data, registry.data, erasPerYear, live.enabled, live.state.eraPoints],
   );
 
   /**
-   * What the charts draw.
+   * What the charts draw when nothing is pinned.
    *
-   * Falls back to the five largest by stake when nothing is pinned, so the
-   * charts are never empty on arrival. Phase 7 will prefer the connected
-   * wallet's nominations over both.
+   * Was "the five largest by stake", which was both vague and close to
+   * meaningless: Polymesh's election equalises exposure, so the whole field
+   * spans under 4% on total stake and the top five sit within 0.1% of each
+   * other. Picking them was effectively picking at random and calling it a
+   * ranking. Highest measured return over the selected range at least answers
+   * the question the page is for. Phase 7's wallet nominations take precedence
+   * over both when a wallet is connected.
    */
   const charted = useMemo(() => {
     if (selected.length > 0) return selected;
-    return series ? rankOperators(series, 'totalStake', 5) : [];
-  }, [selected, series]);
+    if (!series) return [];
+    return rankOperators(series, 'aprNet', 5, { erasPerYear });
+  }, [selected, series, erasPerYear]);
 
   const nameOf = (address: string) => registry.data?.[address]?.nodeLabel ?? address;
 
@@ -100,17 +128,12 @@ export function OperatorsView() {
   return (
     <>
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        {/* The count only. Unpinning lives in the table's control row, next to
+            the ★ column it undoes, rather than in a sentence above it. */}
         <p className="m-0 text-sm" style={{ color: 'var(--text-muted)' }}>
-          {selected.length > 0 ? (
-            <>
-              {selected.length} pinned ·{' '}
-              <button type="button" onClick={clear} className="underline">
-                clear
-              </button>
-            </>
-          ) : (
-            'Pin operators with ★ to compare them in the charts below'
-          )}
+          {selected.length > 0
+            ? `${selected.length} operator${selected.length === 1 ? '' : 's'} pinned`
+            : 'Pin operators with ★ to compare them in the charts below'}
         </p>
         <EraRangeControl manifest={manifest.data} />
       </div>
@@ -130,22 +153,45 @@ export function OperatorsView() {
             selectionFull={isFull}
             maxSelected={max}
             loading={tableLoading}
+            rangeEras={series?.eras.length ?? null}
+            eraProgress={clock?.progress ?? null}
+            liveControl={<LiveToggle live={live} />}
+            onClearPins={clear}
           />
         )}
       </section>
 
       <section aria-labelledby="comparison-heading" className="mt-12">
-        <h2
+        <HeadingWithTip
+          as="h2"
           id="comparison-heading"
-          className="mb-1 text-[22px] leading-7 font-semibold tracking-tight"
+          className="mb-4"
+          title={
+            selected.length > 0
+              ? 'Pinned operators'
+              : 'The five highest-returning operators'
+          }
+          lead={
+            selected.length > 0
+              ? undefined
+              : 'Pin operators with ★ in the table above to compare them here instead.'
+          }
         >
-          {selected.length > 0 ? 'Pinned operators' : 'The five largest operators'}
-        </h2>
-        <p className="mt-0 mb-4 max-w-[65ch]" style={{ color: 'var(--text-secondary)' }}>
-          {selected.length > 0
-            ? 'Shown against the whole field, so a line can be judged in context rather than in isolation.'
-            : 'Pin operators in the table above to compare them here. Colours follow the operator, so they stay the same on every page.'}
-        </p>
+          {selected.length > 0 ? (
+            <>
+              Shown against the whole field, so a line can be judged in context rather than in
+              isolation. Colours follow the operator, so they stay the same on every page and a
+              filter change never repaints them.
+            </>
+          ) : (
+            <>
+              Ranked by mean return after commission over the era range selected above. Note that
+              ranking operators by <em>stake</em> would not tell you much on Polymesh: the election
+              spreads stake almost evenly, so the whole active set sits within a few percent of
+              each other.
+            </>
+          )}
+        </HeadingWithTip>
 
         <div className="flex flex-col gap-4">
           <LazyChart height={320} label="Operator return">

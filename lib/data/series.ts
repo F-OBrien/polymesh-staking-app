@@ -1,3 +1,4 @@
+import { deriveOperatorApr } from '@/lib/metrics/derive';
 import type { Chunk, NetworkSeries, OperatorSeries } from '@/lib/schemas/data';
 
 /**
@@ -106,27 +107,65 @@ export function stitchChunks(
 }
 
 /**
- * Operators present in the series, ordered by a column's most recent value.
+ * Ranking key. Raw chunk columns, plus the two derived returns — which are the
+ * only rankings that actually discriminate between Polymesh operators.
  *
- * Used to pick sensible default selections — the largest operators by stake —
- * when the user has no wallet connected and nothing pinned.
+ * `totalStake` looks like the obvious default and is not: the election
+ * equalises exposure, so the entire active set sits within a few percent of
+ * each other and "the largest" is very nearly arbitrary. See
+ * `docs/STATUS.md` on why the decentralisation figures look so even.
+ */
+export type RankKey = keyof OperatorSeries | 'aprNet' | 'aprGross';
+
+/**
+ * Operators present in the series, ordered by a metric.
+ *
+ * Raw columns rank on their most recent value; the derived returns rank on
+ * their *mean* over the range, since a single era's return is noisy enough
+ * that the top of a latest-value ranking would reshuffle daily.
+ *
+ * Used to pick a default selection when nothing is pinned and no wallet is
+ * connected — the charts should never open empty.
  */
 export function rankOperators(
   series: StitchedSeries,
-  column: keyof OperatorSeries = 'totalStake',
+  key: RankKey = 'aprNet',
   limit = 5,
+  options: { erasPerYear?: number } = {},
 ): string[] {
-  const latest = (values: readonly (number | null)[]): number => {
+  const { erasPerYear = 365 } = options;
+
+  const latest = (values: readonly (number | null)[]): number | null => {
     for (let i = values.length - 1; i >= 0; i -= 1) {
       const value = values[i];
       if (value != null) return value;
     }
-    return -1;
+    return null;
+  };
+
+  const average = (values: readonly (number | null)[]): number | null => {
+    let sum = 0;
+    let count = 0;
+    for (const value of values) {
+      if (value != null && Number.isFinite(value)) {
+        sum += value;
+        count += 1;
+      }
+    }
+    return count === 0 ? null : sum / count;
+  };
+
+  const score = (columns: OperatorSeries): number | null => {
+    if (key === 'aprNet' || key === 'aprGross') {
+      const apr = deriveOperatorApr(columns, series.network, erasPerYear);
+      return average(key === 'aprNet' ? apr.net : apr.gross);
+    }
+    return latest(columns[key]);
   };
 
   return Object.entries(series.operators)
-    .map(([address, columns]) => ({ address, value: latest(columns[column]) }))
-    .filter((entry) => entry.value >= 0)
+    .map(([address, columns]) => ({ address, value: score(columns) }))
+    .filter((entry): entry is { address: string; value: number } => entry.value != null)
     .sort((a, b) => b.value - a.value)
     .slice(0, limit)
     .map((entry) => entry.address);
