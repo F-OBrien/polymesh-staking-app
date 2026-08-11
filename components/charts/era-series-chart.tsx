@@ -43,6 +43,15 @@ export interface EraSeriesChartProps {
   yLabel?: string | undefined;
   height?: number;
   includeZero?: boolean;
+  /**
+   * Appended to the coverage line.
+   *
+   * For anything the reader needs in order to read the plot correctly rather
+   * than to know what it covers — chiefly `axisRangeNote`, which says a
+   * non-zero-based axis is scaled to the data. Null is accepted so a caller can
+   * pass the helper's result straight through.
+   */
+  note?: string | null | undefined;
   loading?: boolean | undefined;
   error?: Error | null | undefined;
   onRetry?: (() => void) | undefined;
@@ -63,6 +72,7 @@ export function EraSeriesChart({
   yLabel,
   height = 320,
   includeZero = false,
+  note,
   loading,
   error,
   onRetry,
@@ -80,11 +90,12 @@ export function EraSeriesChart({
    * 90 were asked for is worse than one that says so.
    */
   const coverage = useMemo(() => {
-    if (eras.length === 0) return undefined;
+    if (eras.length === 0) return note ?? undefined;
     const from = formatEraDate(eraStart[0], { withYear: true });
     const to = formatEraDate(eraStart.at(-1), { withYear: true });
-    return `${eras.length} eras · ${from} – ${to}`;
-  }, [eras.length, eraStart]);
+    const span = `${eras.length} eras · ${from} – ${to}`;
+    return note ? `${span}. ${note}` : span;
+  }, [eras.length, eraStart, note]);
 
   const legendItems = useMemo<LegendItem[]>(() => {
     const items: LegendItem[] = operators.slice(0, MAX_NAMED_SERIES).map((op) => ({

@@ -12,6 +12,7 @@ import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState } from '@/components/states';
 import { explorerAccountUrl } from '@/config/networks';
 import { CopyAddress } from '@/components/copy-address';
+import { axisRangeNote } from '@/lib/charts/notes';
 import {
   formatNumber,
   formatPercent,
@@ -296,7 +297,9 @@ export function OperatorDetail({ address }: { address: string }) {
                   format={(v) => formatPercent(v, { decimals: 3 })}
                   tickFormat={(v) => formatPercent(v, { decimals: 2 })}
                   yLabel="share"
-                  includeZero
+                  note={axisRangeNote(derived?.pointsShare ?? [], (v) =>
+                    formatPercent(v, { decimals: 3 }),
+                  )}
                   height={260}
                   loading={isLoading}
                   error={chartError}

@@ -11,6 +11,7 @@ import { RewardCurve, RewardCurveReading } from '@/components/reward-curve';
 import { HeadingWithTip } from '@/components/info-tip';
 import { AsOf, ErrorState } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
+import { axisRangeNote } from '@/lib/charts/notes';
 import { REWARD_CURVE } from '@/lib/metrics/staking';
 import {
   formatBaseUnits,
@@ -243,7 +244,9 @@ export function NetworkAnalytics() {
               format={polyx}
               tickFormat={(v) => formatPolyx(v, { compact: true })}
               yLabel="POLYX"
-              includeZero
+              note={axisRangeNote(series?.network.validatorReward ?? [], (v) =>
+                formatPolyx(v, { compact: true }),
+              )}
               height={260}
               loading={isLoading}
               error={chartError}
@@ -349,9 +352,12 @@ export function NetworkAnalytics() {
                     : []
                 }
                 format={count}
-                tickFormat={(v) => formatNumber(v, { compact: true })}
+                // Not compact: a truncated axis spanning 285,720 to 288,000
+                // rounds to "288K" three times over, and repeated tick labels
+                // on a rescaled axis defeat the whole point of rescaling it.
+                tickFormat={(v) => formatNumber(v)}
                 yLabel="points"
-                includeZero
+                note={axisRangeNote(series?.network.totalPoints ?? [], (v) => formatNumber(v))}
                 height={260}
                 loading={isLoading}
                 error={chartError}
@@ -373,7 +379,7 @@ export function NetworkAnalytics() {
                 format={count}
                 tickFormat={(v) => formatNumber(v)}
                 yLabel="operators"
-                includeZero
+                note={axisRangeNote(series?.network.activeOperators ?? [], (v) => formatNumber(v))}
                 height={240}
                 loading={isLoading}
                 error={chartError}
