@@ -36,8 +36,14 @@ import type { XySeries } from '@/components/charts/xy-line-chart';
  * and only the current-position marker needs `latest.json`.
  */
 
-/** Sampled finely enough that the kink at the cap is a corner, not a bevel. */
-const SAMPLES = 200;
+/**
+ * One sample per whole percent of staking ratio.
+ *
+ * Finer sampling drew several points that rounded to the same x label, so the
+ * table view showed repeated rows — "42%" twice with different returns. Whole
+ * percents make every row distinct, and the exact crossover is marked anyway.
+ */
+const STEP = 0.01;
 
 /**
  * The curve starts here, not at zero.
@@ -70,8 +76,9 @@ export function RewardCurve({ height = 300 }: { height?: number }) {
     const inflation: number[] = [];
     const apr: number[] = [];
 
-    for (let i = 0; i <= SAMPLES; i += 1) {
-      const ratio = MIN_RATIO + (i / SAMPLES) * (1 - MIN_RATIO);
+    const steps = Math.round((1 - MIN_RATIO) / STEP);
+    for (let i = 0; i <= steps; i += 1) {
+      const ratio = Number((MIN_RATIO + i * STEP).toFixed(4));
       const capped = Math.min(curveInflation(ratio), cap);
       xs.push(ratio);
       inflation.push(capped);
@@ -79,8 +86,11 @@ export function RewardCurve({ height = 300 }: { height?: number }) {
       apr.push(capped / ratio);
     }
 
-    // Where the curve first reaches the cap — a bisection, because the curve is
-    // monotonic below its ideal and an eyeballed sample index would be coarse.
+    // Where the curve reaches the cap *at today's supply*. This is not a fixed
+    // property of the chain: the ceiling is a fixed 140,000,000 POLYX a year,
+    // so as supply grows the ceiling shrinks as a *fraction* of issuance and
+    // this crossover slides down with it — 50% at 1.31bn supply, 38% at 1.6bn,
+    // 27% at 2bn. Marked as "at today's supply" for that reason.
     let lo = 0;
     let hi: number = REWARD_CURVE.xIdeal;
     for (let i = 0; i < 50; i += 1) {
@@ -103,7 +113,7 @@ export function RewardCurve({ height = 300 }: { height?: number }) {
     };
   }, [latest.data]);
 
-  const percent = (v: number) => formatPercent(v, { decimals: 1 });
+  const percent = (v: number) => formatPercent(v, { decimals: 2 });
 
   const markers = useMemo(() => {
     const list: { x: number; label: string; colour?: string }[] = [];
@@ -115,7 +125,10 @@ export function RewardCurve({ height = 300 }: { height?: number }) {
       });
     }
     if (capRatio != null) {
-      list.push({ x: capRatio, label: `cap binds ${formatPercent(capRatio, { decimals: 0 })}` });
+      list.push({
+        x: capRatio,
+        label: `cap bites ${formatPercent(capRatio, { decimals: 0 })} (today)`,
+      });
     }
     return list;
   }, [currentRatio, capRatio]);
@@ -128,9 +141,10 @@ export function RewardCurve({ height = 300 }: { height?: number }) {
         coverage={
           capRatio == null
             ? 'The protocol’s formula, not observed data.'
-            : `The protocol’s formula, not observed data. Inflation is capped at ` +
-              `${percent(cap)} of issuance, which binds from ` +
-              `${formatPercent(capRatio, { decimals: 0 })} staked.`
+            : `The protocol’s formula, not observed data. Inflation is the lower of the curve ` +
+              `and a fixed 140,000,000 POLYX a year — ${percent(cap)} of today’s supply, which ` +
+              `the curve would only reach at ${formatPercent(capRatio, { decimals: 0 })} staked. ` +
+              `That crossover falls as supply grows.`
         }
         x={x}
         series={series}
@@ -160,15 +174,33 @@ export function RewardCurveReading() {
   const ratio = latest.data.stakingRatio;
   const inflation = latest.data.inflation;
   const curveHere = curveInflation(ratio);
-  const capped = inflation < curveHere - 1e-9;
+  const cap =
+    BigInt(latest.data.totalIssuance) > 0n
+      ? Number(BigInt(latest.data.fixedYearlyReward)) / Number(BigInt(latest.data.totalIssuance))
+      : Number.POSITIVE_INFINITY;
+
+  /**
+   * Which of the two rules is actually binding.
+   *
+   * Compare the *curve* against the *cap* — not the stored inflation against
+   * the curve. `latest.json` rounds inflation to six places, so that comparison
+   * was a rounded value against its own unrounded source: it read as "below the
+   * curve", i.e. capped, and the page confidently reported a ceiling that is
+   * not being reached. Measured: curve 9.4715%, cap 10.7111%.
+   */
+  const capped = curveHere >= cap;
 
   return (
     <p className="mt-3 mb-0 max-w-[70ch] text-sm" style={{ color: 'var(--text-secondary)' }}>
       {formatPercent(ratio, { decimals: 1 })} of all POLYX is staked, earning{' '}
-      {formatPercent(inflation / ratio, { decimals: 1 })} a year before commission.{' '}
+      {formatPercent(inflation / ratio, { decimals: 2 })} a year before commission. Inflation is
+      whichever is lower of the reward curve and a fixed 140,000,000 POLYX a year.{' '}
       {capped
-        ? 'Inflation is at its fixed ceiling, so any further growth in staking divides the same pot among more stake and lowers the return proportionally.'
-        : 'Inflation still rises with participation here, so the return falls only gently as more is staked — until the fixed ceiling is reached, after which it falls in step with any further growth.'}
+        ? `The fixed amount is binding, so the pot no longer grows with participation and any further staking divides it among more stake.`
+        : `The curve is binding at ${formatPercent(inflation, { decimals: 2 })}; the fixed amount is ${formatPercent(cap, { decimals: 2 })} of today’s supply and is not yet reached.`}{' '}
+      Because that amount is fixed in tokens rather than as a rate, it shrinks as a share of supply
+      every time new POLYX is minted — so the staking level at which it starts to bite falls over
+      time.
     </p>
   );
 }

@@ -53,9 +53,7 @@ describe('CopyAddress', () => {
     render(<CopyAddress address={ADDRESS} />);
 
     fireEvent.click(screen.getByRole('button'));
-    await waitFor(() =>
-      expect(screen.getByRole('button')).toHaveAccessibleName(/Could not copy/i),
-    );
+    await waitFor(() => expect(screen.getByRole('button')).toHaveAccessibleName(/Could not copy/i));
   });
 
   it('reports a rejected write as a failure', async () => {
@@ -63,15 +61,13 @@ describe('CopyAddress', () => {
     render(<CopyAddress address={ADDRESS} />);
 
     fireEvent.click(screen.getByRole('button'));
-    await waitFor(() =>
-      expect(screen.getByRole('button')).toHaveAccessibleName(/Could not copy/i),
-    );
+    await waitFor(() => expect(screen.getByRole('button')).toHaveAccessibleName(/Could not copy/i));
   });
 
   it('names what it is copying, for a screen reader in a dense table', async () => {
     mockClipboard();
     render(<CopyAddress address={ADDRESS} label="Assetera" />);
-    expect(screen.getByRole('button')).toHaveAccessibleName("Copy the full Assetera’s address");
+    expect(screen.getByRole('button')).toHaveAccessibleName('Copy the full Assetera’s address');
   });
 
   it('exposes the full address on hover without a click', () => {

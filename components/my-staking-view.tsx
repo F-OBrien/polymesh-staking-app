@@ -24,10 +24,12 @@ import { buildOperatorRows, type OperatorRow } from '@/lib/data/operator-rows';
 import {
   cumulativeRewards,
   realisedApr,
-  rewardsByDay,
+  rewardsByPeriod,
+  suggestPeriod,
   pagesFor,
   rewardsToCsv,
   summariseRewards,
+  type RewardPeriod,
 } from '@/lib/indexer/rewards';
 import { LazyChart, LazyTimeBarChart } from '@/components/charts/lazy-chart';
 import { LiveToggle } from '@/components/live-toggle';
@@ -63,6 +65,71 @@ import {
  */
 
 const DAY = 86_400;
+
+const PERIOD_NOUN: Record<RewardPeriod, string> = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+};
+
+const PERIODS: RewardPeriod[] = ['day', 'week', 'month', 'year'];
+
+/**
+ * Grouping for the reward bars.
+ *
+ * Starts on whatever the history's length suggests and says so, because an
+ * unexplained "monthly" on a chart the reader did not set is confusing. Picking
+ * a grain explicitly pins it.
+ */
+function PeriodControl({
+  value,
+  onChange,
+  auto,
+}: {
+  value: RewardPeriod;
+  onChange: (next: RewardPeriod) => void;
+  auto: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="sr-only" id="reward-period-label">
+        Group rewards by
+      </span>
+      <div
+        role="group"
+        aria-labelledby="reward-period-label"
+        className="flex items-center gap-0.5 rounded-full border p-0.5 text-xs"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        {PERIODS.map((option) => {
+          const active = option === value;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(option)}
+              aria-pressed={active}
+              className="rounded-full px-2 py-0.5 capitalize transition-colors"
+              style={{
+                color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: active ? 'var(--surface-2)' : 'transparent',
+                fontWeight: active ? 600 : 400,
+              }}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+      {auto ? (
+        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          auto
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 export function MyStakingView() {
   const { stash, setStash, clear } = useStashAddress();
@@ -126,7 +193,18 @@ export function MyStakingView() {
   const firstPayout = totals.data?.first ?? summary.first;
   const lastPayout = totals.data?.last ?? summary.last;
 
-  const daily = useMemo(() => rewardsByDay(rewards.data?.events ?? []), [rewards.data]);
+  /**
+   * How finely the reward bars are grouped.
+   *
+   * Null means "follow the history's length" — a five-year daily history is
+   * 1,800 sub-pixel bars, so the default coarsens itself. An explicit choice
+   * overrides it, because the right grain depends on the question: monthly to
+   * see a trend, daily to find the week something stopped.
+   */
+  const [period, setPeriod] = useState<RewardPeriod | null>(null);
+  const events = useMemo(() => rewards.data?.events ?? [], [rewards.data]);
+  const effectivePeriod = period ?? suggestPeriod(events);
+  const daily = useMemo(() => rewardsByPeriod(events, effectivePeriod), [events, effectivePeriod]);
   const cumulative = useMemo(() => cumulativeRewards(daily), [daily]);
 
   const operatorRows = useMemo(
@@ -437,13 +515,20 @@ export function MyStakingView() {
                 <LazyChart height={300} label="Rewards received">
                   <LazyTimeBarChart
                     title="Rewards received"
-                    subtitle="What arrived, and when. Gaps are days with no payout."
-                    coverage={`${formatNumber(daily.length)} days · ${formatDateTime(
+                    subtitle={`What arrived, and when. Gaps are ${PERIOD_NOUN[effectivePeriod]}s with no payout.`}
+                    actions={
+                      <PeriodControl
+                        value={effectivePeriod}
+                        onChange={setPeriod}
+                        auto={period == null}
+                      />
+                    }
+                    coverage={`${formatNumber(daily.length)} ${PERIOD_NOUN[effectivePeriod]}s · ${formatDateTime(
                       new Date(daily[0]!.day * 1000).toISOString(),
                     )} to today`}
                     times={daily.map((point) => point.day)}
                     values={daily.map((point) => toPolyx(point.amount))}
-                    yLabel="POLYX per day"
+                    yLabel={`POLYX per ${PERIOD_NOUN[effectivePeriod]}`}
                     format={(v) => (v == null ? '—' : formatPolyx(v))}
                     tickFormat={(v) => formatPolyx(v, { compact: true })}
                     companion={{

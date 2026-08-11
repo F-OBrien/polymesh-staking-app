@@ -1,13 +1,7 @@
 'use client';
 
 import { useId, useMemo, useState } from 'react';
-import {
-  linePath,
-  plotBox,
-  responsiveMargin,
-  timeScale,
-  valueScale,
-} from '@/lib/charts/geometry';
+import { linePath, plotBox, responsiveMargin, timeScale, valueScale } from '@/lib/charts/geometry';
 import { useMeasuredWidth } from '@/lib/charts/use-measure';
 import { formatEraDate } from '@/lib/format';
 import { Grid, XAxis, YAxis } from './axes';
@@ -39,6 +33,8 @@ export interface TimeBarChartProps {
   title: string;
   subtitle?: string | undefined;
   coverage?: string | undefined;
+  /** Controls for the frame's header, e.g. a grouping selector. */
+  actions?: React.ReactNode;
   /** Label for the bars' y axis. */
   yLabel?: string | undefined;
   format: (value: number | null) => string;
@@ -63,6 +59,7 @@ export function TimeBarChart({
   title,
   subtitle,
   coverage,
+  actions,
   yLabel,
   format,
   tickFormat,
@@ -118,7 +115,11 @@ export function TimeBarChart({
    */
   const barWidth = useMemo(() => {
     if (xs.length < 2) return Math.min(24, barsBox.innerWidth / 2);
-    const gaps = xs.slice(1).map((v, i) => v - (xs[i] ?? 0)).filter((g) => g > 0).sort((a, b) => a - b);
+    const gaps = xs
+      .slice(1)
+      .map((v, i) => v - (xs[i] ?? 0))
+      .filter((g) => g > 0)
+      .sort((a, b) => a - b);
     const median = gaps[Math.floor(gaps.length / 2)] ?? 8;
     return Math.max(1, Math.min(median * 0.7, 40));
   }, [xs, barsBox.innerWidth]);
@@ -132,21 +133,32 @@ export function TimeBarChart({
   }, [companion, companionY, xs]);
 
   const table = (
-    <table className="w-full border-collapse text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
+    <table
+      className="w-full border-collapse text-sm"
+      style={{ fontVariantNumeric: 'tabular-nums' }}
+    >
       <caption className="sr-only">{title}, as a table</caption>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--border)' }}>
-          <th scope="col" className="p-2 text-left font-medium">Date</th>
-          <th scope="col" className="p-2 text-right font-medium">{yLabel ?? 'Value'}</th>
+          <th scope="col" className="p-2 text-left font-medium">
+            Date
+          </th>
+          <th scope="col" className="p-2 text-right font-medium">
+            {yLabel ?? 'Value'}
+          </th>
           {companion ? (
-            <th scope="col" className="p-2 text-right font-medium">{companion.label}</th>
+            <th scope="col" className="p-2 text-right font-medium">
+              {companion.label}
+            </th>
           ) : null}
         </tr>
       </thead>
       <tbody>
         {times.map((time, i) => (
           <tr key={time} style={{ borderTop: '1px solid var(--border)' }}>
-            <th scope="row" className="p-2 text-left font-normal">{formatEraDate(time, { withYear: true })}</th>
+            <th scope="row" className="p-2 text-left font-normal">
+              {formatEraDate(time, { withYear: true })}
+            </th>
             <td className="p-2 text-right">{format(values[i] ?? null)}</td>
             {companion ? (
               <td className="p-2 text-right">
@@ -166,6 +178,7 @@ export function TimeBarChart({
       title={title}
       subtitle={subtitle}
       coverage={coverage}
+      actions={actions}
       height={requestedHeight}
       loading={loading}
       error={error}
@@ -183,13 +196,16 @@ export function TimeBarChart({
               className="block overflow-visible"
               onMouseLeave={() => setFocus(null)}
             >
-              <title id={titleId}>
-                {`${title}. ${times.length} periods.`}
-              </title>
+              <title id={titleId}>{`${title}. ${times.length} periods.`}</title>
 
               <g transform={`translate(${barsBox.margin.left}, ${barsBox.margin.top})`}>
                 <Grid box={barsBox} yScale={y} />
-                <YAxis box={barsBox} scale={y} format={tickFormat ?? ((v) => format(v))} label={yLabel} />
+                <YAxis
+                  box={barsBox}
+                  scale={y}
+                  format={tickFormat ?? ((v) => format(v))}
+                  label={yLabel}
+                />
 
                 {values.map((value, i) => {
                   if (value == null) return null;

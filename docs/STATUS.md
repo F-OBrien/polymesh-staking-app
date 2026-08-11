@@ -46,7 +46,10 @@ Never push to another branch without asking. Do not open a PR unless asked.
 empty. The build *fails* without that directory — see open item 7. If it
 already holds real ingested data, `fixtures` will refuse rather than delete it.
 
-**The gate is** `npm run check && npm run knip && npm run build && npm run budget && npm run assert:lazy`.
+**The gate is** `npm run format:check && npm run check && npm run knip && npm run build && npm run budget && npm run assert:lazy`.
+
+`format:check` is easy to forget — `npm run check` is typecheck + lint + test
+only, and CI runs Prettier separately. It has broken the build twice.
 All of it must pass before a commit. `budget` and `assert:lazy` read the built
 output, so they need `npm run build` first.
 

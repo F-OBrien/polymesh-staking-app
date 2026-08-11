@@ -10,6 +10,8 @@ import {
   toBaseUnits,
   toRewardEvent,
   type RewardEvent,
+  rewardsByPeriod,
+  suggestPeriod,
 } from './rewards';
 
 const DAY = 86_400;
@@ -451,5 +453,91 @@ describe('rewardsToCsv', () => {
   it('leaves the date blank rather than printing 1970 for an unreadable row', () => {
     const csv = rewardsToCsv([event({ datetime: 0 })], 6);
     expect(csv.split('\n')[1]!.startsWith(',')).toBe(true);
+  });
+});
+
+describe('rewardsByPeriod', () => {
+  const at = (iso: string, amount: string) =>
+    event({ datetime: Math.floor(Date.parse(iso) / 1000), amount });
+
+  it('sums several payouts landing on the same day', () => {
+    // An operator paid across multiple exposure pages takes several payouts in
+    // one block-ish window. They are one day's earnings, not several.
+    const rows = rewardsByPeriod(
+      [at('2026-03-04T01:00:00Z', '100'), at('2026-03-04T23:00:00Z', '250')],
+      'day',
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.amount).toBe(350n);
+  });
+
+  it('groups into ISO weeks starting Monday', () => {
+    // 2026-03-04 is a Wednesday; 2026-03-09 the following Monday.
+    const rows = rewardsByPeriod(
+      [
+        at('2026-03-04T12:00:00Z', '1'),
+        at('2026-03-08T12:00:00Z', '2'),
+        at('2026-03-09T12:00:00Z', '4'),
+      ],
+      'week',
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.amount).toBe(3n);
+    expect(rows[1]!.amount).toBe(4n);
+    expect(new Date(rows[0]!.day * 1000).toISOString()).toBe('2026-03-02T00:00:00.000Z');
+  });
+
+  it('keeps calendar months their real length', () => {
+    // Adding 30 days per step would drift; February would swallow March.
+    const rows = rewardsByPeriod(
+      [at('2026-01-15T00:00:00Z', '1'), at('2026-03-15T00:00:00Z', '2')],
+      'month',
+    );
+    expect(rows.map((r) => new Date(r.day * 1000).toISOString().slice(0, 7))).toEqual([
+      '2026-01',
+      '2026-02',
+      '2026-03',
+    ]);
+    expect(rows[1]!.amount).toBe(0n);
+  });
+
+  it('fills empty buckets so a gap in earning is visible', () => {
+    const rows = rewardsByPeriod(
+      [at('2026-01-01T00:00:00Z', '1'), at('2026-01-05T00:00:00Z', '1')],
+      'day',
+    );
+    expect(rows).toHaveLength(5);
+    expect(rows.slice(1, 4).every((r) => r.amount === 0n)).toBe(true);
+  });
+
+  it('groups into calendar years', () => {
+    const rows = rewardsByPeriod(
+      [at('2024-06-01T00:00:00Z', '5'), at('2026-06-01T00:00:00Z', '7')],
+      'year',
+    );
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.amount).toBe(5n);
+    expect(rows[2]!.amount).toBe(7n);
+  });
+});
+
+describe('suggestPeriod', () => {
+  const span = (days: number) => [
+    event({ datetime: 1_700_000_000 }),
+    event({ datetime: 1_700_000_000 + days * 86_400 }),
+  ];
+
+  it('keeps a short history daily', () => {
+    expect(suggestPeriod(span(60))).toBe('day');
+  });
+
+  it('coarsens as the history lengthens, so bars stay wider than a pixel', () => {
+    expect(suggestPeriod(span(365))).toBe('week');
+    expect(suggestPeriod(span(1500))).toBe('month');
+    expect(suggestPeriod(span(5000))).toBe('year');
+  });
+
+  it('handles an empty history without dividing by nothing', () => {
+    expect(suggestPeriod([])).toBe('day');
   });
 });

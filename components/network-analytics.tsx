@@ -239,13 +239,13 @@ export function NetworkAnalytics() {
         </div>
       </section>
 
-          {/* C3. The mechanism behind every APR elsewhere on the site, and
+      {/* C3. The mechanism behind every APR elsewhere on the site, and
               the correction to the "70% target" framing — on Polymesh the
               fixed reward cap binds long before the curve's ideal. */}
-          <div className="mt-4">
-            <RewardCurve />
-            <RewardCurveReading />
-          </div>
+      <div className="mt-4">
+        <RewardCurve />
+        <RewardCurveReading />
+      </div>
 
       {/* ---- Stake ---- */}
       <section aria-labelledby="stake-heading" className="mt-12">

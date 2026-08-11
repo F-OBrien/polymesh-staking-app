@@ -141,10 +141,7 @@ async function readEraBacking(api: ApiLike, stash: string, era: number): Promise
  * fully at work — the same class of wrong answer as the nomination-list bug,
  * for a different group of users.
  */
-async function readOverviews(
-  api: ApiLike,
-  era: number,
-): Promise<Map<string, { own: bigint }>> {
+async function readOverviews(api: ApiLike, era: number): Promise<Map<string, { own: bigint }>> {
   try {
     const overviews: any[] = await api.query.staking.erasStakersOverview.entries(era);
     const byAddress = new Map<string, { own: bigint }>();

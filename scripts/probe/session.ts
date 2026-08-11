@@ -53,14 +53,15 @@ async function main(): Promise<void> {
     console.log(`\nstaking.forceEra = ${forceEra?.toString()}`);
     console.log('  (NotForcing = eras roll normally; ForceNone = the set is frozen)');
 
-    const [activeEra, currentEra, sessionIndex, epochIndex, currentSlot]: any[] =
-      await Promise.all([
+    const [activeEra, currentEra, sessionIndex, epochIndex, currentSlot]: any[] = await Promise.all(
+      [
         api.query.staking.activeEra(),
         api.query.staking.currentEra(),
         api.query.session.currentIndex(),
         api.query.babe.epochIndex(),
         api.query.babe.currentSlot(),
-      ]);
+      ],
+    );
 
     const active = Number(activeEra.unwrap().index.toString());
     const startSession: any = await api.query.staking.erasStartSessionIndex(active);

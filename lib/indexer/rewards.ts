@@ -378,44 +378,121 @@ export function summariseRewards(events: readonly RewardEvent[]): RewardSummary 
 }
 
 export interface DailyReward {
-  /** Unix seconds, midnight UTC. */
+  /** Unix seconds at the start of the bucket, UTC. */
   day: number;
   amount: bigint;
 }
 
+/**
+ * How finely to bucket a reward history.
+ *
+ * Daily is the natural grain — Polymesh pays once per era and an era is a day —
+ * but a long history is thousands of buckets, which draws as a solid block of
+ * one-pixel bars. Coarser grouping is what makes a multi-year history readable,
+ * and it also absorbs the case where a stash takes several payouts in one day
+ * (an operator being paid across multiple exposure pages, say).
+ */
+export type RewardPeriod = 'day' | 'week' | 'month' | 'year';
+
 const DAY_SECONDS = 86_400;
 
 /**
- * Groups rewards into UTC days for charting.
+ * Start of the bucket a moment falls in, in UTC.
  *
- * Days rather than eras because a payout is claimed when the user gets round to
- * it, not when it was earned — several eras' rewards commonly land in one
- * transaction. Bucketing by era would attribute all of them to the claim era
- * and draw a spike where there was none.
- *
- * Empty days are filled in, so a gap in claiming renders as a flat line rather
- * than a straight jump between two distant points.
+ * UTC throughout, so a chart looks the same wherever it is read and a boundary
+ * does not appear to drift with the reader's timezone. Weeks start Monday,
+ * matching ISO-8601 — `getUTCDay()` returns 0 for Sunday, hence the shift.
  */
-export function rewardsByDay(events: readonly RewardEvent[]): DailyReward[] {
+export function periodStart(unixSeconds: number, period: RewardPeriod): number {
+  const date = new Date(unixSeconds * 1000);
+
+  switch (period) {
+    case 'day':
+      return Math.floor(unixSeconds / DAY_SECONDS) * DAY_SECONDS;
+    case 'week': {
+      const dayOfWeek = (date.getUTCDay() + 6) % 7;
+      const midnight = Math.floor(unixSeconds / DAY_SECONDS) * DAY_SECONDS;
+      return midnight - dayOfWeek * DAY_SECONDS;
+    }
+    case 'month':
+      return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000);
+    case 'year':
+      return Math.floor(Date.UTC(date.getUTCFullYear(), 0, 1) / 1000);
+  }
+}
+
+/** The next bucket after `start`. Calendar-aware, so months keep their length. */
+function nextPeriod(start: number, period: RewardPeriod): number {
+  const date = new Date(start * 1000);
+  switch (period) {
+    case 'day':
+      return start + DAY_SECONDS;
+    case 'week':
+      return start + 7 * DAY_SECONDS;
+    case 'month':
+      return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) / 1000);
+    case 'year':
+      return Math.floor(Date.UTC(date.getUTCFullYear() + 1, 0, 1) / 1000);
+  }
+}
+
+/**
+ * Groups rewards into buckets for charting.
+ *
+ * Buckets by *when the payout landed*, not by the era it was earned in, because
+ * several eras' rewards can be claimed in one transaction — attributing them
+ * all to the claim era would draw a spike where there was none.
+ *
+ * Empty buckets are filled in, so a gap in earning renders as a flat stretch
+ * rather than a straight jump between two distant points. That gap is often the
+ * most informative thing on the chart.
+ */
+export function rewardsByPeriod(
+  events: readonly RewardEvent[],
+  period: RewardPeriod = 'day',
+): DailyReward[] {
   if (events.length === 0) return [];
 
   const buckets = new Map<number, bigint>();
   for (const event of events) {
     if (event.datetime === 0) continue;
-    const day = Math.floor(event.datetime / DAY_SECONDS) * DAY_SECONDS;
-    buckets.set(day, (buckets.get(day) ?? 0n) + BigInt(event.amount));
+    const start = periodStart(event.datetime, period);
+    buckets.set(start, (buckets.get(start) ?? 0n) + BigInt(event.amount));
   }
 
-  const days = [...buckets.keys()].sort((a, b) => a - b);
-  const first = days[0];
-  const last = days.at(-1);
+  const keys = [...buckets.keys()].sort((a, b) => a - b);
+  const first = keys[0];
+  const last = keys.at(-1);
   if (first == null || last == null) return [];
 
   const filled: DailyReward[] = [];
-  for (let day = first; day <= last; day += DAY_SECONDS) {
-    filled.push({ day, amount: buckets.get(day) ?? 0n });
+  for (let start = first; start <= last; start = nextPeriod(start, period)) {
+    filled.push({ day: start, amount: buckets.get(start) ?? 0n });
   }
   return filled;
+}
+
+/** Daily buckets. Kept as the common case reads better than a defaulted call. */
+export function rewardsByDay(events: readonly RewardEvent[]): DailyReward[] {
+  return rewardsByPeriod(events, 'day');
+}
+
+/**
+ * The coarsest grain that still shows detail, given how long the history is.
+ *
+ * A five-year daily history is 1,800 bars in a 1,300px chart — under a pixel
+ * each, so the bars merge and the shape is lost. Around 120 buckets is where a
+ * bar is wide enough to see and to point at.
+ */
+export function suggestPeriod(events: readonly RewardEvent[]): RewardPeriod {
+  const times = events.map((e) => e.datetime).filter((t) => t > 0);
+  if (times.length === 0) return 'day';
+  const spanDays = (Math.max(...times) - Math.min(...times)) / DAY_SECONDS;
+
+  if (spanDays <= 120) return 'day';
+  if (spanDays <= 730) return 'week';
+  if (spanDays <= 3650) return 'month';
+  return 'year';
 }
 
 /** Running total, for the "what have I earned so far" line. */
