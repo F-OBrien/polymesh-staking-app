@@ -382,7 +382,7 @@ export async function readSlotInfo(api: ApiLike): Promise<SlotInfo> {
   };
 }
 
-export type ElectionPhase = 'Off' | 'Signed' | 'Unsigned' | 'Emergency';
+export type ElectionPhase = 'Off' | 'Signed' | 'Unsigned' | 'Emergency' | 'Unknown';
 
 /**
  * Current election phase. Absent on runtimes without
@@ -391,7 +391,12 @@ export type ElectionPhase = 'Off' | 'Signed' | 'Unsigned' | 'Emergency';
  */
 export async function readElectionPhase(api: ApiLike): Promise<ElectionPhase> {
   const pallet = api.query.electionProviderMultiPhase;
-  if (pallet?.currentPhase == null) return 'Off';
+  // `Unknown`, not `Off`. Reporting "Off" for a pallet that is not installed
+  // invents a status for machinery that does not exist — the same trap as
+  // reading an absent storage map as "no entries". Polymesh mainnet *does*
+  // carry `electionProviderMultiPhase` (verified, `npm run probe:session`), so
+  // in practice this branch means a runtime we do not know.
+  if (pallet?.currentPhase == null) return 'Unknown';
 
   const phase = await pallet.currentPhase();
   if (phase.isSigned) return 'Signed';

@@ -197,7 +197,7 @@ export const EraStatusSchema = z.object({
   sessionsPerEra: z.number().int().positive(),
   epochDurationBlocks: z.number().int().positive(),
   expectedBlockTimeMs: z.number().int().positive(),
-  electionPhase: z.enum(['Off', 'Signed', 'Unsigned', 'Emergency']),
+  electionPhase: z.enum(['Off', 'Signed', 'Unsigned', 'Emergency', 'Unknown']),
 });
 
 export const LatestOperatorSchema = z.object({

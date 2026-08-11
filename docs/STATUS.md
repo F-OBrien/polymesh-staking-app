@@ -303,6 +303,36 @@ appends a truncated address *only* where a name is shared:
 Ambiguity is judged against the whole registry rather than what is on screen, so
 a label never changes as a filter or selection changes.
 
+### Chain status surfaced — era, session and election
+
+Raised by the user: none of the era index, era progress, era start/end, session
+position or election status appeared anywhere. All of it was already in
+`latest.json`'s anchors; only a single countdown tile used any of it.
+
+`components/era-status.tsx` on `/network` shows four cells — current era with
+progress, era start and end, session *n* of 6 with its own progress, and the
+election phase. **Tier 3 throughout**: derived in the browser from the anchors
+against the local clock. Verified in a browser that the values tick with
+**zero network requests**.
+
+Session position is derived from elapsed time rather than from the snapshot's
+`currentSessionIndex`, which is fixed at write time and would sit on the wrong
+session for most of the fifteen minutes until the next snapshot. It clamps to
+the last session rather than reporting "session 7 of 6" when the snapshot lags
+a boundary.
+
+**`readElectionPhase` returned `'Off'` when the pallet was absent** — inventing
+a status for machinery that might not exist, the same trap as reading an absent
+storage map as "no entries". It now returns `'Unknown'`, which the UI renders as
+"Not reported". Polymesh mainnet *does* carry `electionProviderMultiPhase`
+(verified), so the phase shown is real.
+
+Worth knowing when reading `latest.json`: **`activeEra` and
+`eraStatus.currentEra` are different numbers.** The first is the era running;
+the second is `staking.currentEra`, which runs one ahead once the next era is
+planned. The panel uses `activeEra` and mentions the planned era only when they
+differ.
+
 ### Still open from that review
 
 - **The cumulative rewards chart is still a `Sparkline`** with no axis or

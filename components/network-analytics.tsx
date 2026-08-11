@@ -6,6 +6,8 @@ import { useResolvedRange, EraRangeControl } from '@/components/era-range-contro
 import dynamic from 'next/dynamic';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { StatTile } from '@/components/stat-tile';
+import { EraStatus } from '@/components/era-status';
+import { HeadingWithTip } from '@/components/info-tip';
 import { AsOf, ErrorState } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
 import { REWARD_CURVE } from '@/lib/metrics/staking';
@@ -116,6 +118,23 @@ export function NetworkAnalytics() {
         </p>
         <EraRangeControl manifest={manifest.data} />
       </div>
+
+      {/* ---- Where the chain is right now ---- */}
+      <section aria-labelledby="era-status-heading" className="mt-6">
+        <HeadingWithTip
+          as="h2"
+          id="era-status-heading"
+          className="mb-4"
+          title="Chain status"
+          lead="Where the era and session cycle has got to."
+        >
+          Everything here except the election phase is derived in your browser from the snapshot’s
+          anchors against your own clock, so it ticks continuously and costs no network traffic.
+          That is why the era and session progress move smoothly rather than jumping every fifteen
+          minutes when a new snapshot lands.
+        </HeadingWithTip>
+        <EraStatus />
+      </section>
 
       {/* ---- Returns ---- */}
       <section aria-labelledby="returns-heading" className="mt-6">

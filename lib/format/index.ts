@@ -123,14 +123,18 @@ export function formatEraDate(
   }).format(new Date(unixSeconds * 1000));
 }
 
-export function formatDateTime(iso: string | null | undefined): string {
+export function formatDateTime(
+  iso: string | null | undefined,
+  /** `timeOnly` drops the date, for when the surrounding text supplies it. */
+  { timeOnly = false }: { timeOnly?: boolean } = {},
+): string {
   if (iso == null) return EMPTY;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return EMPTY;
-  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    DEFAULT_LOCALE,
+    timeOnly ? { timeStyle: 'short' } : { dateStyle: 'medium', timeStyle: 'short' },
+  ).format(date);
 }
 
 /**

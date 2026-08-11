@@ -45,6 +45,8 @@ export interface EraClock {
   progress: number;
   /** Seconds until the era ends. Zero once the snapshot has fallen behind. */
   secondsRemaining: number;
+  /** Wall-clock start of the era. */
+  startsAt: Date;
   /** Wall-clock end of the era. */
   endsAt: Date;
   /**
@@ -53,6 +55,33 @@ export interface EraClock {
    * countdown pinned at zero, which reads as broken.
    */
   overdue: boolean;
+
+  /**
+   * Where we are in the era's sessions.
+   *
+   * Derived from elapsed time rather than carried from the snapshot's
+   * `currentSessionIndex`, and that is deliberate: a snapshot index is fixed at
+   * the moment it was written and would sit on the wrong session for most of
+   * the fifteen minutes until the next one. Time-derived, it advances on its
+   * own and self-corrects — the same reason `eraProgress` is not precomputed.
+   */
+  session: {
+    /** 1-based position within the era, e.g. 3 of 6. */
+    indexInEra: number;
+    perEra: number;
+    /** The chain's absolute session index. */
+    absolute: number;
+    /** Fraction of the current session elapsed, clamped to [0,1]. */
+    progress: number;
+    endsAt: Date;
+    secondsRemaining: number;
+    /**
+     * True during the era's last session — when the next validator set is
+     * chosen. Stated as "the set is being chosen now" rather than as a
+     * countdown to an exact election block, which we cannot know.
+     */
+    isFinal: boolean;
+  };
 }
 
 /**
@@ -86,10 +115,30 @@ export function useEraClock(eraStatus: EraStatus | null | undefined, tickMs = 10
   const endSeconds = eraStatus.eraStart + durationSeconds;
   const remaining = endSeconds - nowSeconds;
 
+  const sessionSeconds = durationSeconds / eraStatus.sessionsPerEra;
+  const elapsed = Math.max(0, nowSeconds - eraStatus.eraStart);
+  // Clamped to the last session: past the era's nominal end the snapshot is
+  // simply behind, and reporting "session 7 of 6" would look broken.
+  const sessionIndex = Math.min(
+    Math.floor(elapsed / sessionSeconds),
+    eraStatus.sessionsPerEra - 1,
+  );
+  const sessionEnd = eraStatus.eraStart + (sessionIndex + 1) * sessionSeconds;
+
   return {
     progress: eraProgress(eraStatus.eraStart, nowSeconds, timing),
     secondsRemaining: Math.max(0, remaining),
+    startsAt: new Date(eraStatus.eraStart * 1000),
     endsAt: new Date(endSeconds * 1000),
     overdue: remaining <= 0,
+    session: {
+      indexInEra: sessionIndex + 1,
+      perEra: eraStatus.sessionsPerEra,
+      absolute: eraStatus.eraStartSessionIndex + sessionIndex,
+      progress: Math.min(1, Math.max(0, (elapsed % sessionSeconds) / sessionSeconds)),
+      endsAt: new Date(sessionEnd * 1000),
+      secondsRemaining: Math.max(0, sessionEnd - nowSeconds),
+      isFinal: sessionIndex === eraStatus.sessionsPerEra - 1,
+    },
   };
 }
