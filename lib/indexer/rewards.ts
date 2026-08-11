@@ -29,13 +29,18 @@ import {
  */
 export interface RewardEvent {
   /**
-   * The era this reward was for, or `null` when it cannot be established.
+   * The era whose work earned this reward, or null if it cannot be established.
    *
-   * Null is the normal case, not an edge case. The indexer records a block, not
-   * an era, and the block→era mapping only exists for eras we still hold chunks
-   * for — about 84 of them, against reward histories that run for years. An
-   * earlier revision defaulted this to `0`, which exported as a confident "era
-   * 0" in a CSV people use for tax reporting.
+   * Null used to be the *normal* case rather than an edge case: the indexer
+   * records a block and not an era, and the block→era mapping came from our own
+   * chunks — about 85 eras, against reward histories running for years. So the
+   * era column in an exported CSV was blank for almost every row.
+   *
+   * It is now filled from `era-index.json`, which carries every era's start
+   * block for the chain's whole life. Null is reserved for what it should
+   * always have meant: a reward genuinely outside the known range. An earlier
+   * revision defaulted this to `0`, which exported as a confident "era 0" in a
+   * file people use for tax reporting.
    */
   era: number | null;
   blockNumber: number;
@@ -70,16 +75,30 @@ interface StakingEventsResponse {
  *
  *  - **The block field is `createdBlockId`,** not `blockId`. That one at least
  *    errors — the query 400s.
- *  - **Ordering is by `DATETIME_ASC`, not `CREATED_BLOCK_ID_ASC`.** The block id
- *    is a *String*, so ordering by it sorts lexicographically: block "10" sorts
- *    before block "9", and a reward history would come back subtly shuffled with
- *    no error at all. Datetime is the honest key here anyway, since the UI
- *    buckets by day.
  *  - **`eventId` must match both `Reward` and `Rewarded`.** Polymesh renamed the
  *    event across a runtime upgrade and the enum carries both spellings.
  *    Filtering on `Rewarded` alone returns only recent history and silently
  *    reports a lifetime total that is missing its early years — the worst kind
  *    of wrong, because it looks entirely plausible.
+ *
+ * **Ordering is by `CREATED_BLOCK_ID_ASC`, and this was got wrong in both
+ * directions.** An earlier revision assumed the id sorted lexicographically and
+ * so shuffled history; it was switched to `DATETIME_ASC` on that basis. Both
+ * halves of that reasoning were wrong:
+ *
+ *  - `createdBlockId` is **deliberately zero-padded** to a fixed ten digits
+ *    (`"0000129434"`), precisely so that a string sort is a numeric sort.
+ *    Verified across the dataset: every id is exactly 10 characters.
+ *  - `datetime` is the field that is *not* safe to sort on, because it is also
+ *    compared as a string and its format is **not** fixed-width — rows carry
+ *    fractional seconds inconsistently (`…T13:26:12` alongside
+ *    `…T13:26:12.001`). It happens to agree with block order today, which is
+ *    exactly why relying on it is a trap.
+ *
+ * Block order is also the only *true* order: it is the chain's own causal
+ * sequence, whereas a timestamp is a value written into a block and two blocks
+ * can carry the same one. `ID_ASC` breaks ties within a block — the id is
+ * `blockId/eventIdx`, both padded — so the walk is fully deterministic.
  */
 const REWARDS_QUERY = `
   query RewardsForStash($stash: String!, $first: Int!, $offset: Int!) {
@@ -88,7 +107,7 @@ const REWARDS_QUERY = `
         stashAccount: { equalTo: $stash }
         eventId: { in: [Reward, Rewarded] }
       }
-      orderBy: [DATETIME_ASC]
+      orderBy: [CREATED_BLOCK_ID_ASC, ID_ASC]
       first: $first
       offset: $offset
     ) {
@@ -110,11 +129,14 @@ const REWARDS_QUERY = `
 
 export interface FetchRewardsOptions extends GraphQlOptions {
   /**
-   * Maps a block number to the era it fell in. Reward events carry a block,
-   * not an era, and the mapping lives in our own manifest — so it is injected
-   * rather than guessed, and rows outside known history get era 0.
+   * Which era a payout was *earned* in, given the block it was paid in.
+   *
+   * Injected rather than computed here, because it needs the era index — every
+   * era's start block over the chain's whole life — and this module deliberately
+   * knows nothing about our own data files. Returns null for anything it cannot
+   * place, which becomes a blank cell rather than an invented era.
    */
-  eraForBlock?: ((blockNumber: number) => number) | undefined;
+  earnedEra?: ((blockNumber: number) => number | null) | undefined;
 }
 
 /**
@@ -125,7 +147,7 @@ export interface FetchRewardsOptions extends GraphQlOptions {
  */
 export async function fetchRewards(
   stash: string,
-  { eraForBlock, ...options }: FetchRewardsOptions = {},
+  { earnedEra, ...options }: FetchRewardsOptions = {},
 ): Promise<{ events: RewardEvent[]; truncated: boolean }> {
   const loadPage = async (offset: number): Promise<Page<RawStakingEvent>> => {
     const data = await graphql<StakingEventsResponse>(
@@ -140,7 +162,76 @@ export async function fetchRewards(
   };
 
   const { nodes, truncated } = await fetchAllPages(loadPage);
-  return { events: nodes.map((node) => toRewardEvent(node, eraForBlock)), truncated };
+  return { events: nodes.map((node) => toRewardEvent(node, earnedEra)), truncated };
+}
+
+/**
+ * Headline totals for a stash, in **one** request.
+ *
+ * The detail walk is paginated at 100 rows — a hard server cap, not a setting
+ * (asking for 500 or 1000 returns 100). A real account with 11,858 payouts is
+ * therefore 119 sequential round trips against someone else's public endpoint,
+ * just to print a total.
+ *
+ * The indexer will do the sum itself. `totalCount` and `aggregates.sum.amount`
+ * come back from a single query, so the page can show the lifetime total and
+ * the payout count immediately and only walk the detail when a reader actually
+ * asks for the chart or the CSV.
+ *
+ * Verified on mainnet: a stash reporting `totalCount 1763` and
+ * `sum 888711733041` in one request. Note the aggregate set is narrow —
+ * `min`/`max` over `datetime` are *not* offered, so a date range still needs
+ * rows.
+ */
+const REWARD_SUMMARY_QUERY = `
+  query RewardSummaryForStash($stash: String!) {
+    stakingEvents(
+      filter: {
+        stashAccount: { equalTo: $stash }
+        eventId: { in: [Reward, Rewarded] }
+      }
+    ) {
+      totalCount
+      aggregates { sum { amount } }
+    }
+  }
+`;
+
+interface SummaryResponse {
+  stakingEvents: {
+    totalCount: number;
+    aggregates: { sum: { amount: string | number | null } | null } | null;
+  };
+}
+
+export interface RewardTotals {
+  /** Exact lifetime total, in base units. */
+  total: bigint;
+  /** Number of payout events. Drives whether the detail walk is worth it. */
+  count: number;
+}
+
+/** Lifetime total and payout count, without downloading the payouts. */
+export async function fetchRewardTotals(
+  stash: string,
+  options: GraphQlOptions = {},
+): Promise<RewardTotals> {
+  const data = await graphql<SummaryResponse>(REWARD_SUMMARY_QUERY, { stash }, options);
+  return {
+    total: BigInt(toBaseUnits(data.stakingEvents.aggregates?.sum?.amount)),
+    count: data.stakingEvents.totalCount,
+  };
+}
+
+/**
+ * How many paginated requests a full detail walk would cost.
+ *
+ * Exposed so the UI can say "1,764 payouts — load the full history?" rather
+ * than silently spending two minutes of someone's connection, and so the cost
+ * is visible at the call site rather than buried in a loop.
+ */
+export function pagesFor(count: number): number {
+  return Math.ceil(count / INDEXER_PAGE_SIZE);
 }
 
 /**
@@ -157,14 +248,14 @@ export function toRewardEvent(
     amount: string | number | null;
     datetime: string;
   },
-  eraForBlock?: ((blockNumber: number) => number) | undefined,
+  earnedEra?: ((blockNumber: number) => number | null) | undefined,
 ): RewardEvent {
   const blockNumber = Number.parseInt(node.createdBlockId, 10);
   const safeBlock = Number.isFinite(blockNumber) ? blockNumber : 0;
   const parsed = Date.parse(node.datetime);
 
   return {
-    era: eraForBlock?.(safeBlock) ?? null,
+    era: earnedEra?.(safeBlock) ?? null,
     blockNumber: safeBlock,
     datetime: Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0,
     amount: toBaseUnits(node.amount),

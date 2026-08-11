@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useEraSeries, useLatest, useManifest, useOperators } from '@/lib/data/queries';
+import { useEraIndex, useEraSeries, useLatest, useManifest, useOperators } from '@/lib/data/queries';
 import { useResolvedRange } from '@/components/era-range-control';
 import { useNow } from '@/lib/data/use-era-clock';
 import { useLive } from '@/lib/data/use-live';
 import {
   useRewardHistory,
+  useRewardTotals,
   useStashAddress,
   useStashPosition,
   useWallet,
@@ -17,6 +18,7 @@ import {
   cumulativeRewards,
   realisedApr,
   rewardsByDay,
+  pagesFor,
   rewardsToCsv,
   summariseRewards,
 } from '@/lib/indexer/rewards';
@@ -66,7 +68,25 @@ export function MyStakingView() {
 
   const activeEra = latest.data?.activeEra;
   const position = useStashPosition(stash, activeEra);
-  const rewards = useRewardHistory(stash);
+
+  /**
+   * Reward history, in two stages.
+   *
+   * The totals are one request. The event-by-event walk is one request per 100
+   * payouts — 119 of them for a real account we measured — so it is held back
+   * until a reader asks for the detail. Everything above the fold comes from
+   * the cheap query.
+   */
+  const totals = useRewardTotals(stash);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // 34 KB, fetched only alongside the detail: it is what fills in which era
+  // each payout was earned in, and it is useless without the events.
+  const eraIndex = useEraIndex(showHistory);
+  const rewards = useRewardHistory(stash, {
+    enabled: showHistory,
+    eraIndex: eraIndex.data,
+  });
 
   // Live defaults on once a wallet is connected: that user has already paid for
   // `@polkadot/api`, so the subscription costs them nothing extra (§6.6a).
@@ -76,6 +96,11 @@ export function MyStakingView() {
   const toPolyx = (value: bigint) => Number(value) / 10 ** tokenDecimals;
 
   const summary = useMemo(() => summariseRewards(rewards.data?.events ?? []), [rewards.data]);
+
+  // Prefer the server-side aggregate; fall back to the walk's own sum once it
+  // has run. The two are verified to agree exactly on real data.
+  const lifetimeTotal = totals.data?.total ?? summary.total;
+  const payoutCount = totals.data?.count ?? summary.count;
 
   const daily = useMemo(() => rewardsByDay(rewards.data?.events ?? []), [rewards.data]);
   const cumulative = useMemo(() => cumulativeRewards(daily), [daily]);
@@ -104,6 +129,9 @@ export function MyStakingView() {
     [nominations, operatorRows],
   );
 
+  // Needs the *first* payout's date to know over how long, which only the
+  // detail walk provides — so this stays null until the history is loaded
+  // rather than being computed against an unknown period.
   const realised = useMemo(() => {
     const bonded = position.data?.active;
     const first = summary.first?.datetime;
@@ -235,19 +263,25 @@ export function MyStakingView() {
           Every payout actually received, from the chain&rsquo;s event history — not an estimate.
         </p>
 
-        {rewards.isError ? (
+        {totals.isError || rewards.isError ? (
           <div className="mt-4">
             <ErrorState
               title="Could not load reward history"
-              message={(rewards.error as Error | null)?.message ?? 'The indexer did not respond.'}
-              onRetry={() => void rewards.refetch()}
+              message={
+                ((totals.error ?? rewards.error) as Error | null)?.message ??
+                'The indexer did not respond.'
+              }
+              onRetry={() => {
+                void totals.refetch();
+                if (showHistory) void rewards.refetch();
+              }}
             />
           </div>
-        ) : rewards.isLoading ? (
+        ) : totals.isLoading ? (
           <div className="mt-4">
-            <Skeleton height={160} label="Loading reward history" />
+            <Skeleton height={160} label="Loading reward totals" />
           </div>
-        ) : summary.count === 0 ? (
+        ) : payoutCount === 0 ? (
           <div className="mt-4">
             <EmptyState
               title="No payouts on record"
@@ -260,17 +294,21 @@ export function MyStakingView() {
               <StatTile
                 emphasis
                 label="Total earned"
-                value={formatPolyx(toPolyx(summary.total))}
+                value={formatPolyx(toPolyx(lifetimeTotal))}
                 hint={
                   rewards.data?.truncated
                     ? 'at least — history was truncated'
-                    : `across ${formatNumber(summary.count)} payouts`
+                    : `across ${formatNumber(payoutCount)} payouts`
                 }
               />
               <StatTile
                 label="Realised return"
                 value={realised == null ? '—' : formatPercent(realised, { decimals: 2 })}
-                hint="earned so far, against what is bonded now"
+                hint={
+                  showHistory
+                    ? 'earned so far, against what is bonded now'
+                    : 'needs the full history below'
+                }
               />
               <StatTile
                 label="Network average"
@@ -293,7 +331,31 @@ export function MyStakingView() {
               />
             </div>
 
-            {cumulative.length > 1 ? (
+            {/* The detail walk, behind an explicit choice.
+                It is one request per 100 payouts against a public endpoint,
+                and the figures above already answer "how much have I earned".
+                The button states the cost rather than hiding it. */}
+            {!showHistory ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(true)}
+                  className="rounded-[var(--radius-sm)] border px-3 py-2 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+                >
+                  Load full payout history
+                </button>
+                <p className="mt-2 mb-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {formatNumber(payoutCount)} payouts — about{' '}
+                  {formatNumber(pagesFor(payoutCount))} requests to the indexer. Needed for the
+                  chart, the per-era breakdown and the CSV.
+                </p>
+              </div>
+            ) : rewards.isLoading ? (
+              <div className="mt-4">
+                <Skeleton height={160} label="Loading payout history" />
+              </div>
+            ) : cumulative.length > 1 ? (
               <figure
                 className="mt-4 m-0 rounded-[var(--radius-md)] border p-4"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
@@ -304,9 +366,12 @@ export function MyStakingView() {
                     {formatDateTime(new Date(cumulative[0]!.day * 1000).toISOString())} to today
                   </span>
                 </figcaption>
-                {/* A sparkline rather than the full chart kit: this is one
-                    monotonic series with no field to compare against, and the
-                    exact figures are in the CSV. */}
+                {/* Still a sparkline, and still inadequate: a monotonic
+                    cumulative line with no axis always slopes up and to the
+                    right, so it shows a shape without showing a quantity.
+                    Replacing it with the design doc's C23 — per-period bars on
+                    a shared axis with the cumulative line — is the next piece
+                    of work here. */}
                 <Sparkline
                   values={cumulative.map((point) => toPolyx(point.amount))}
                   width={640}
@@ -324,12 +389,14 @@ export function MyStakingView() {
               </p>
             ) : null}
 
-            <div className="mt-4">
-              <ExportButton
-                stash={stash}
-                csv={() => rewardsToCsv(rewards.data?.events ?? [], tokenDecimals)}
-              />
-            </div>
+            {showHistory && (rewards.data?.events.length ?? 0) > 0 ? (
+              <div className="mt-4">
+                <ExportButton
+                  stash={stash}
+                  csv={() => rewardsToCsv(rewards.data?.events ?? [], tokenDecimals)}
+                />
+              </div>
+            ) : null}
           </>
         )}
       </section>

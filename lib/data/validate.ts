@@ -20,12 +20,27 @@
  * deferred — verified by measuring the built output, not assumed.
  */
 
-import type { Chunk, Latest, Manifest, OperatorRegistry, Rollup, Slashes } from '@/lib/schemas/data';
+import type {
+  Chunk,
+  EraIndexFile,
+  Latest,
+  Manifest,
+  OperatorRegistry,
+  Rollup,
+  Slashes,
+} from '@/lib/schemas/data';
 
 /** The expected `schemaVersion` for every versioned file. Bump with the schema. */
 const EXPECTED_SCHEMA_VERSION = 1;
 
-export type DataFileKind = 'manifest' | 'chunk' | 'latest' | 'operators' | 'rollup' | 'slashes';
+export type DataFileKind =
+  | 'manifest'
+  | 'chunk'
+  | 'latest'
+  | 'operators'
+  | 'rollup'
+  | 'slashes'
+  | 'eraIndex';
 
 interface KindMap {
   manifest: Manifest;
@@ -34,6 +49,7 @@ interface KindMap {
   operators: OperatorRegistry;
   rollup: Rollup;
   slashes: Slashes;
+  eraIndex: EraIndexFile;
 }
 
 export class SchemaMismatchError extends Error {
@@ -76,6 +92,7 @@ function assertShape(kind: DataFileKind, body: unknown): void {
     operators: '',
     rollup: 'weekStart',
     slashes: 'events',
+    eraIndex: 'start',
   };
 
   const field = required[kind];
@@ -104,6 +121,7 @@ export async function validateData<K extends DataFileKind>(
       operators: schemas.OperatorRegistrySchema,
       rollup: schemas.RollupSchema,
       slashes: schemas.SlashesSchema,
+      eraIndex: schemas.EraIndexSchema,
     }[kind];
 
     return schema.parse(body) as KindMap[K];

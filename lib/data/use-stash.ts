@@ -4,7 +4,13 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { parseAsString, useQueryState } from 'nuqs';
 import { useCallback, useState } from 'react';
 import { resolveIndexerUrl, resolveNetwork, resolveRpcUrl } from '@/config/networks';
-import { fetchRewards, type RewardEvent } from '@/lib/indexer/rewards';
+import {
+  fetchRewardTotals,
+  fetchRewards,
+  type RewardEvent,
+  type RewardTotals,
+} from '@/lib/indexer/rewards';
+import { earnedEraForReward, type EraIndex } from './era-index';
 import { connectWallet, normaliseAddress, type WalletAccount } from '@/lib/chain/wallet';
 import type { StashPosition } from '@/lib/chain/stash';
 
@@ -133,16 +139,49 @@ export interface RewardHistory {
 }
 
 /**
- * Reward history from the indexer.
+ * Lifetime total and payout count, in one request.
+ *
+ * Split out from the detail walk deliberately. The endpoint caps a page at 100
+ * rows — a server limit, not a setting — so an account with 11,858 payouts is
+ * 119 sequential round trips, and every one of them was being spent just to
+ * print a total the indexer will compute itself. This asks it to.
+ *
+ * Verified against a full walk on a real stash: identical count and sum, one
+ * request instead of eighteen.
+ */
+export function useRewardTotals(stash: string): UseQueryResult<RewardTotals> {
+  return useQuery({
+    queryKey: ['reward-totals', stash],
+    enabled: stash !== '',
+    staleTime: 60 * 60_000,
+    queryFn: ({ signal }) =>
+      fetchRewardTotals(stash, { signal, endpoint: resolveIndexerUrl(resolveNetwork()) }),
+  });
+}
+
+/**
+ * Reward history from the indexer, event by event.
  *
  * No Polkadot dependency at all — this is plain `fetch` — so a pasted address
  * shows its payout history without any of the chain stack loading. In practice
  * that means the most useful half of this page works at almost no cost.
+ *
+ * **`enabled` is a real choice, not a formality.** This is the expensive query;
+ * `useRewardTotals` answers the headline questions for one request, so the walk
+ * only runs when a reader asks for the chart or the CSV. Passing an era index
+ * fills in which era each payout was earned in — without it, that column is
+ * blank, because the indexer records a block and not an era.
  */
-export function useRewardHistory(stash: string): UseQueryResult<RewardHistory> {
+export function useRewardHistory(
+  stash: string,
+  { enabled = true, eraIndex }: { enabled?: boolean; eraIndex?: EraIndex | undefined } = {},
+): UseQueryResult<RewardHistory> {
   return useQuery({
-    queryKey: ['rewards', stash],
-    enabled: stash !== '',
+    // The era index is part of the key: the same events resolve to different
+    // era numbers once it loads, and a cached copy keyed only by stash would
+    // keep serving the version with a blank era column.
+    queryKey: ['rewards', stash, eraIndex == null ? 'no-eras' : eraIndex.lastEra],
+    enabled: enabled && stash !== '',
     // Payouts land at most once an era; an hour is generous and the query can
     // be dozens of sequential requests for a long-lived account.
     staleTime: 60 * 60_000,
@@ -150,6 +189,12 @@ export function useRewardHistory(stash: string): UseQueryResult<RewardHistory> {
     // whole walk three times turns one slow failure into a very slow one.
     retry: 1,
     queryFn: ({ signal }) =>
-      fetchRewards(stash, { signal, endpoint: resolveIndexerUrl(resolveNetwork()) }),
+      fetchRewards(stash, {
+        signal,
+        endpoint: resolveIndexerUrl(resolveNetwork()),
+        ...(eraIndex
+          ? { earnedEra: (block: number) => earnedEraForReward(eraIndex, block) }
+          : {}),
+      }),
   });
 }

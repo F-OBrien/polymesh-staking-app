@@ -375,8 +375,58 @@ export const RollupSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Era index
+// ---------------------------------------------------------------------------
+
+/**
+ * Every era on chain, with the block and moment it began. All of them, not just
+ * the ones we hold chunks for.
+ *
+ * This exists because three separate problems turned out to be the same
+ * problem — "what era was this reward paid for", "what date is era 1403", and
+ * "which block should the backfill read era N at" — and none of them can be
+ * answered from chunk data, which covers ~85 eras against a chain that has run
+ * for over 1,700.
+ *
+ * **It cannot be arithmetic.** An era is nominally 24h, so `firstStart + era ×
+ * 86400` is tempting. Measured against the chain, era 0 began at 17:26 UTC and
+ * era 1748 began at 13:26 — four hours of drift, because blocks do not arrive
+ * at exactly 6s forever. A computed date would be up to half a day out at the
+ * far end, silently, on a page people use for tax reporting.
+ *
+ * Built from the indexer, which records every era transition as a
+ * `staking.EraPayout` event (eras 0–1120) or `staking.EraPaid` (1121 onward) —
+ * the pallet renamed it, and querying only one loses most of history.
+ *
+ * Columnar and contiguous: eras run `firstEra` to `firstEra + block.length - 1`
+ * with no gaps, so the era index is the array index plus `firstEra`.
+ */
+export const EraIndexSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    generatedAt: z.iso.datetime(),
+    /** The era `block[0]` and `start[0]` describe. Zero on mainnet. */
+    firstEra: EraIndex,
+    /** Block the era-transition event was recorded in. */
+    block: z.array(z.number().int().nonnegative()),
+    /** Unix seconds of that block. */
+    start: z.array(z.number().int().nonnegative()),
+  })
+  .refine((value) => value.block.length === value.start.length, {
+    message: 'block and start must be the same length',
+  })
+  .refine(
+    (value) => value.start.every((v, i) => i === 0 || v >= (value.start[i - 1] ?? 0)),
+    // A non-monotonic series means the pages came back out of order, which is
+    // the failure that produced shuffled reward history once already.
+    { message: 'era start times must be non-decreasing' },
+  );
+
+// ---------------------------------------------------------------------------
 // Inferred types — always derive from the schema, never hand-write alongside
 // ---------------------------------------------------------------------------
+
+export type EraIndexFile = z.infer<typeof EraIndexSchema>;
 
 export type EraSource = z.infer<typeof EraSourceSchema>;
 export type ExposureShape = z.infer<typeof ExposureShapeSchema>;

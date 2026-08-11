@@ -19,12 +19,14 @@ import { dirname, join } from 'node:path';
 import type { z } from 'zod';
 import {
   ChunkSchema,
+  EraIndexSchema,
   LatestSchema,
   ManifestSchema,
   OperatorRegistrySchema,
   RollupSchema,
   SlashesSchema,
   type Chunk,
+  type EraIndexFile,
   type Latest,
   type Manifest,
   type OperatorRegistry,
@@ -38,6 +40,7 @@ export const LATEST_FILE = 'latest.json';
 export const OPERATORS_FILE = 'operators.json';
 export const ROLLUP_FILE = 'rollup-weekly.json';
 export const SLASHES_FILE = 'slashes.json';
+export const ERA_INDEX_FILE = 'era-index.json';
 
 export class DataStore {
   constructor(private readonly root: string) {}
@@ -112,6 +115,14 @@ export class DataStore {
 
   writeRollup(rollup: Rollup): Promise<number> {
     return this.writeJson(ROLLUP_FILE, RollupSchema, rollup);
+  }
+
+  readEraIndex(): Promise<EraIndexFile | null> {
+    return this.readJson(ERA_INDEX_FILE, EraIndexSchema);
+  }
+
+  writeEraIndex(index: EraIndexFile): Promise<number> {
+    return this.writeJson(ERA_INDEX_FILE, EraIndexSchema, index);
   }
 
   readSlashes(): Promise<Slashes | null> {

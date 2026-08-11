@@ -21,7 +21,7 @@ file is only *where we are* and *what to watch out for*.
 | 6 | `/compare`, `/calculator`, `/slashing`; slash ingestion + `slashes.json`; penalty-curve maths; numeric-x chart |
 | 7 | `/my-staking`; indexer client; lazy wallet + refcounted chain connection; tier-4 Live; `npm run assert:lazy` |
 
-376 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
+418 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
 and the lazy-load assertion.
 
 **After Phase 7, on a machine with chain egress:** the reward query, stash
@@ -56,10 +56,12 @@ bug that review did not:
 | `npm run probe:slashes` | that slash storage exists and is genuinely empty |
 | `npm run probe:slashing-switch` | `validators.slashingAllowedFor` |
 | `npm run probe:payouts` | that every exposure page is actually claimed and paid |
+| `npm run probe:indexer-caps` | page-size cap, server-side aggregates, era-transition events |
+| `npm run probe:archive` | that pruned era storage still reads at a historical block |
 
-**Local data state:** `public/data` holds a real mainnet ingest, eras 1664–1746,
-86 operators, plus `latest.json` and `slashes.json` (`scope: Validator`, zero
-offences). It is gitignored. The `data` branch on GitHub is **still empty** —
+**Local data state:** `public/data` holds a real mainnet ingest, eras 1664–1748,
+86 operators, plus `latest.json`, `slashes.json` (`scope: Validator`, zero
+offences) and `era-index.json` (all 1,749 eras, 34 KB). It is gitignored. The `data` branch on GitHub is **still empty** —
 nothing is deployed yet. Populating it is either the `Ingest era` workflow once
 this is merged to `main`, or a deliberate push of `public/data` to that branch.
 That decision is the user's; it has not been made.
@@ -68,13 +70,22 @@ That decision is the user's; it has not been made.
 
 **Nothing written against a chain without running it against that chain was
 correct.** Three of four items flagged "unverified" in Phase 7 turned out to be
-wrong, two of them silently — a lexicographic sort on a String block id, and a
-renamed event enum that dropped 30% of reward history while still looking
-plausible. Then `/slashing` was found to be stating the opposite of Polymesh's
-actual slashing policy.
+wrong, one of them silently: a renamed event enum that dropped 30% of reward
+history while still looking plausible. Then `/slashing` was found to be stating
+the opposite of Polymesh's actual slashing policy, and `/operators` to be
+warning people off the most-nominated nodes on a false premise.
 
 If you write chain-facing code here, run it against mainnet before believing
 it. Add a probe if one does not exist.
+
+**And the corollary, learned the hard way twice:** a *fix* made without running
+it against the chain is no safer than the bug. This file previously recorded
+that ordering the reward query by `CREATED_BLOCK_ID_ASC` shuffled history
+lexicographically, and it was "fixed" to `DATETIME_ASC` on that reasoning.
+Both halves were wrong — the block id is deliberately zero-padded so a string
+sort is a numeric sort, and `datetime` is the field that is *not* fixed-width.
+The "fix" moved the query onto the less safe key and nobody noticed, because
+the two orders agree on today's data.
 
 ---
 
@@ -182,6 +193,79 @@ sitting in a chart of its own.
 Still open from the original request: a **points-accruing-now chart** rather
 than a column, if watching the race block by block turns out to matter. The data
 is already wired; it is a chart, not a pipeline change.
+
+### Era index, indexer cost, and what is still open
+
+Three of the six things raised after the `/operators` review are done. The
+research behind them is in the probes above; run those before trusting any of
+it again.
+
+**`data/era-index.json` — every era's start block and time, all 1,749 of them,
+34 KB.** Built from indexer era-transition events by `npm run ingest:era-index`
+(~18 requests, no RPC). Verified against chain-sourced chunk data: all 85
+overlapping eras match exactly. This one artefact answers three separate
+questions — which era a reward was earned in, what date an era was, and which
+block the backfill should read an era at.
+
+It is **not** on any critical path: chunks already carry `eraStart` for the eras
+they hold, so `useEraIndex(enabled)` is opt-in and currently loads only
+alongside the reward detail on `/my-staking`.
+
+**Reward history is now two queries, not 119.** The headline total and payout
+count come from one server-side aggregate; the event walk is behind an explicit
+"Load full payout history" button that states its own cost. Measured on a real
+stash: the page went from 19 requests to 2, and the walk still agrees with the
+aggregate to the base unit.
+
+**The era column in the reward CSV is populated.** It used to be blank for
+almost every row — the block→era map came from our ~85 chunks. Payouts from
+November 2021 now resolve to eras 8, 9, 10, … The attribution is block-based
+(exact integer) rather than timestamp-based, and rests on one documented
+inference: Polymesh pays automatically as soon as an era closes, so a payout
+belongs to the era before the one it landed in. Measured at 14 blocks in 2026
+and 6 seconds in 2021.
+
+### Still open from that review
+
+- **The cumulative rewards chart is still a `Sparkline`** with no axis or
+  values. A monotonic cumulative line always slopes up and to the right, so it
+  shows a shape without a quantity. The design doc's C23 is the fix: per-period
+  bars on a shared axis with the cumulative line over them.
+- **Price history** — deferred deliberately, to be assessed separately.
+  Research done: CoinGecko has POLYX (`id: polymesh`) keyless but caps the free
+  tier at 365 days rolling (366 points, 6 KB); CoinMarketCap needs a paid plan
+  for history. The pattern that fits this codebase is to accumulate daily into
+  `data/prices.json` the way eras accumulate, and value rewards at the price on
+  the day received.
+- **Backfill is proven viable but not written.** `npm run ingest:backfill` is a
+  dangling script entry — `scripts/ingest/backfill.ts` does not exist. See
+  below.
+
+### Backfill: verified possible, deliberately not run
+
+`npm run probe:archive` reads pruned era storage at a historical block for eras
+0, 100, 500, 1000, 1500 and 1660 — every one succeeds, decoding correctly across
+spec versions 3000 → 7004001. Exposures read `clipped` throughout; paged arrives
+with v8.
+
+The operator counts are the reason this matters, and they are exactly the
+`firstSeenEra` complaint:
+
+| Era | Date | Spec | Operators |
+|---|---|---|---|
+| 0 | 2021-10-29 | 3000 | 3 |
+| 500 | 2023-03-11 | 5002001 | 40 |
+| 1000 | 2024-07-23 | 6003020 | 63 |
+| 1500 | 2025-12-05 | 7003003 | 100 |
+
+Reads took ~8s each, almost all of it metadata fetch, so **caching metadata per
+spec version is what makes a full run practical** — roughly an hour rather than
+four. The era index already supplies every read block, so no binary search over
+`activeEra` is needed.
+
+Run it **once, by hand, offline**, at concurrency ≤ 2 with checkpointing. It is
+~1,749 eras against someone else's public node, and it is the heaviest thing in
+the whole design (§6.5).
 
 ### Requested by the user, not yet built — do this before the polish work
 
@@ -542,7 +626,26 @@ several contradict what a reasonable person would assume from Substrate.
   `components/decentralisation.tsx` now says so.
 - **`staking.payee` is an `Option<RewardDestination>`**, not a bare enum.
 - **The indexer's `EventIdEnum` carries both `Reward` and `Rewarded`.** Query
-  both or lose the older ~30% of any reward history.
+  both or lose the older ~30% of any reward history. **The same trap applies to
+  era transitions**: `staking.EraPayout` covers eras 0–1120 and `staking.EraPaid`
+  1121 onward. 1,121 + 628 = 1,749, contiguous from era 0.
+- **An era transition event is tagged with the era that *ended*.** So
+  `start(N) = transition(N-1)`. Verified against our own ingest: era 1748 started
+  2026-08-09T13:26:12 and `EraPaid(1748)` fired exactly one era later. Getting
+  this backwards mislabels every era by a day.
+- **Eras are *not* 24h apart over the long run.** Nominal 86,400s, measured
+  86,292.9s — 52 hours of accumulated drift across 1,748 eras. Era↔date must be
+  a lookup; arithmetic lands in the wrong day at the far end.
+- **`createdBlockId` is deliberately zero-padded** to ten digits, so a string
+  sort *is* a numeric sort. `datetime` is the unsafe field — also compared as a
+  string, but not fixed-width (fractional seconds appear inconsistently). Sort
+  on `[CREATED_BLOCK_ID_ASC, ID_ASC]`; `id` is `blockId/eventIdx`, both padded.
+- **The indexer page cap is 100 and is a server limit,** not a setting: asking
+  for 500 or 1000 returns 100. But `totalCount` and `aggregates { sum { amount } }`
+  work, so a lifetime total costs one request instead of N. Verified identical to
+  a full walk on a real stash. `min`/`max` over `datetime` are *not* offered.
+- **Public RPC archive access still works, for every era including 0.** Read at
+  spec versions 3000 through 7004001, decoding correctly at each.
 - **Era is exactly 24h**: `sessionsPerEra` 6 × `epochDuration` 2400 ×
   `expectedBlockTime` 6000ms. Derived, never assumed.
 - **Zero slashes in the retained window**, and the storage genuinely exists —

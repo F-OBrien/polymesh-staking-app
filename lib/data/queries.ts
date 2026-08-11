@@ -9,9 +9,11 @@ import {
   fetchLatest,
   fetchManifest,
   fetchOperators,
+  fetchEraIndex,
   fetchRollup,
   fetchSlashes,
 } from './client';
+import { createEraIndex, type EraIndex } from './era-index';
 import { pruneCache } from './cache';
 import { stitchChunks, type StitchedSeries } from './series';
 import type { Latest, Manifest, OperatorRegistry, Rollup, Slashes } from '@/lib/schemas/data';
@@ -35,6 +37,7 @@ export const queryKeys = {
   latest: ['latest'] as const,
   rollup: ['rollup'] as const,
   slashes: ['slashes'] as const,
+  eraIndex: ['era-index'] as const,
   chunks: (hashes: readonly string[]) => ['chunks', ...hashes] as const,
 };
 
@@ -94,6 +97,25 @@ export function useSlashes(enabled = true): UseQueryResult<Slashes> {
   return useQuery({
     queryKey: queryKeys.slashes,
     queryFn: ({ signal }) => fetchSlashes({ signal }),
+    staleTime: 60 * MINUTE,
+    enabled,
+  });
+}
+
+/**
+ * Era to date, over all history.
+ *
+ * Opt-in (`enabled`) because it is 34 KB that most pages have no use for:
+ * chunks carry `eraStart` for everything they hold. This answers the same
+ * question for eras outside that window — a reward paid in 2022, say.
+ *
+ * Immutable in practice: a past era's start never changes, and a new one is
+ * appended once a day. An hour of staleness costs nothing.
+ */
+export function useEraIndex(enabled = true): UseQueryResult<EraIndex> {
+  return useQuery({
+    queryKey: queryKeys.eraIndex,
+    queryFn: async ({ signal }) => createEraIndex(await fetchEraIndex({ signal })),
     staleTime: 60 * MINUTE,
     enabled,
   });

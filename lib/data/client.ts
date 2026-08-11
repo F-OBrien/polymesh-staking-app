@@ -2,6 +2,7 @@ import { dataUrl } from '@/config/site';
 import type {
   Chunk,
   ChunkRef,
+  EraIndexFile,
   Latest,
   Manifest,
   OperatorRegistry,
@@ -144,4 +145,16 @@ export function fetchRollup(options?: FetchOptions): Promise<Rollup> {
  */
 export function fetchSlashes(options?: FetchOptions): Promise<Slashes> {
   return fetchJson('slashes.json', 'slashes', options);
+}
+
+/**
+ * Every era's start block and time, for the chain's whole life.
+ *
+ * ~34 KB, and deliberately *not* fetched by default. Chunks already carry
+ * `eraStart` for the eras they hold, which covers every chart axis; this is
+ * only needed where a date is wanted for an era we hold no chunk for — which
+ * today means reward history, and later the backfill.
+ */
+export function fetchEraIndex(options?: FetchOptions): Promise<EraIndexFile> {
+  return fetchJson('era-index.json', 'eraIndex', options);
 }

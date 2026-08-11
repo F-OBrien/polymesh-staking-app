@@ -25,12 +25,15 @@
     "probe:stash": "tsx scripts/probe/stash.ts",
     "probe:slashing-switch": "tsx scripts/probe/slashing-switch.ts",
     "probe:payouts": "tsx scripts/probe/payouts.ts",
+    "probe:indexer-caps": "tsx scripts/probe/indexer-capabilities.ts",
+    "probe:archive": "tsx scripts/probe/archive.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",
     "ingest:latest": "tsx scripts/ingest/latest.ts",
     "ingest:backfill": "tsx scripts/ingest/backfill.ts",
-    "ingest:slashes": "tsx scripts/ingest/slashes.ts"
+    "ingest:slashes": "tsx scripts/ingest/slashes.ts",
+    "ingest:era-index": "tsx scripts/ingest/era-index.ts"
   },
   "dependencies": {
     "@polkadot/api": "16.5.6",
