@@ -9,6 +9,7 @@ import { useLive } from '@/lib/data/use-live';
 import {
   useRewardHistory,
   useRewardTotals,
+  useStakeAllocation,
   useStashAddress,
   useStashPosition,
   useWallet,
@@ -26,6 +27,7 @@ import { LiveToggle } from '@/components/live-toggle';
 import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
+import { idleStake } from '@/lib/chain/allocation';
 import { looksLikeAddress } from '@/lib/chain/wallet';
 import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
@@ -143,6 +145,32 @@ export function MyStakingView() {
     [nominations, operatorRows],
   );
 
+  /**
+   * What the election actually did with the bond.
+   *
+   * Distinct from the nomination list in a way that is easy to miss: Phragmén
+   * assigns a nominator's stake to a *subset* of their targets, so eight
+   * nominations commonly means backing one. And stake bonded or nominated since
+   * the last election is not in this era's exposure at all.
+   */
+  const allocation = useStakeAllocation(stash, activeEra, nominations);
+  const currentTargets = allocation.data?.current.targets;
+  const assignedByOperator = useMemo(() => {
+    const map = new Map<string, bigint>();
+    for (const target of currentTargets ?? []) map.set(target.address, target.value);
+    return map;
+  }, [currentTargets]);
+
+  const assigned = allocation.data?.current.assigned ?? null;
+  // The era the allocation was actually read at — from the chain, which can be
+  // one ahead of the snapshot's `activeEra` across a boundary. Every label in
+  // this section uses it, so the number on screen and the era named beside it
+  // can never disagree.
+  const allocationEra = allocation.data?.current.era ?? null;
+  const idle =
+    position.data && assigned != null ? idleStake(position.data.active, assigned) : null;
+  const previousAssigned = allocation.data?.previous?.assigned ?? null;
+
   // Needs the *first* payout's date to know over how long, which only the
   // detail walk provides — so this stays null until the history is loaded
   // rather than being computed against an unknown period.
@@ -224,7 +252,23 @@ export function MyStakingView() {
               emphasis
               label="Bonded and active"
               value={position.data ? formatPolyx(toPolyx(position.data.active)) : '—'}
-              hint="backing nominations right now"
+              hint="not unbonding — but see what is assigned"
+            />
+            {/* The number people assume "bonded" already means. It does not:
+                the election decides how much of a bond is actually exposed,
+                and stake bonded since the last election is exposed not at all. */}
+            <StatTile
+              label={`Assigned this era`}
+              value={assigned == null ? '—' : formatPolyx(toPolyx(assigned))}
+              hint={
+                allocation.isLoading
+                  ? 'reading exposure…'
+                  : idle != null && idle > 0n
+                    ? `${formatPolyx(toPolyx(idle))} not earning`
+                    : allocationEra != null
+                      ? `all of it, in era ${allocationEra}`
+                      : undefined
+              }
             />
             <StatTile
               label="Unbonding"
@@ -442,7 +486,26 @@ export function MyStakingView() {
             />
           </div>
         ) : (
-          <NominationsTable rows={myOperators} addresses={nominations} />
+          <>
+            <AllocationNote
+              activeEra={allocationEra}
+              assigned={assigned}
+              idle={idle}
+              previousAssigned={previousAssigned}
+              backing={
+                allocation.data?.current.targets.filter((t) => t.value > 0n).length ?? null
+              }
+              nominated={nominations.length}
+              toPolyx={toPolyx}
+            />
+            <NominationsTable
+              rows={myOperators}
+              addresses={nominations}
+              assignedByOperator={assignedByOperator}
+              toPolyx={toPolyx}
+              loading={allocation.isLoading}
+            />
+          </>
         )}
       </section>
     </>
@@ -665,12 +728,101 @@ function UnbondingTable({
  * elected, or one that quietly raised its commission — none of which announces
  * itself. §9.6 asks for exactly this.
  */
+/**
+ * Why the numbers below may not be what the nomination list implies.
+ *
+ * Two things surprise people, and neither is a fault:
+ *
+ *  - **Nominating eight operators does not mean backing eight.** The election
+ *    optimises the network's stake spread, not the nominator's, and commonly
+ *    puts a whole bond behind one target. Observed on mainnet: 2,019,000 POLYX
+ *    across eight elected operators, all of it assigned to one.
+ *  - **Rewards arriving now are for the previous era.** So a stash that was
+ *    assigned nothing last era earns nothing today, even though everything
+ *    looks correct on screen.
+ *
+ * Only rendered when there is something to say, so a straightforward position
+ * gets no lecture.
+ */
+function AllocationNote({
+  activeEra,
+  assigned,
+  idle,
+  previousAssigned,
+  backing,
+  nominated,
+  toPolyx,
+}: {
+  activeEra: number | null;
+  assigned: bigint | null;
+  idle: bigint | null;
+  previousAssigned: bigint | null;
+  backing: number | null;
+  nominated: number;
+  toPolyx: (value: bigint) => number;
+}) {
+  if (assigned == null) return null;
+
+  const notes: string[] = [];
+
+  if (backing != null && backing > 0 && backing < nominated) {
+    notes.push(
+      `The election put this stake behind ${backing} of the ${nominated} operators nominated. ` +
+        `That is normal — it optimises the network’s spread of stake, not yours — but it does mean ` +
+        `nominating more operators is not by itself diversification.`,
+    );
+  }
+
+  if (backing === 0) {
+    notes.push(
+      `None of this stake is backing an operator in the current era. That happens when a ` +
+        `nomination was made during this era, or when no nominated operator was elected.`,
+    );
+  }
+
+  if (idle != null && idle > 0n && backing !== 0) {
+    notes.push(
+      `${formatPolyx(toPolyx(idle))} POLYX is bonded but not assigned this era, so it is not ` +
+        `earning. Stake bonded after the last election joins at the next one.`,
+    );
+  }
+
+  if (previousAssigned === 0n && assigned > 0n) {
+    notes.push(
+      `Payouts landing now are for era ${activeEra == null ? 'the previous era' : activeEra - 1}, ` +
+        `when none of this stake was assigned — so expect nothing from them, even though it is ` +
+        `earning in the era now running.`,
+    );
+  }
+
+  if (notes.length === 0) return null;
+
+  return (
+    <ul
+      className="mt-4 mb-0 flex list-none flex-col gap-2 rounded-[var(--radius-md)] border p-3 text-sm"
+      style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+    >
+      {notes.map((note) => (
+        <li key={note}>
+          <span aria-hidden="true">•</span> {note}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function NominationsTable({
   rows,
   addresses,
+  assignedByOperator,
+  toPolyx,
+  loading,
 }: {
   rows: readonly OperatorRow[];
   addresses: readonly string[];
+  assignedByOperator: ReadonlyMap<string, bigint>;
+  toPolyx: (value: bigint) => number;
+  loading: boolean;
 }) {
   // An address with no row is one we hold no data for — still shown, because
   // silently dropping a nomination would misrepresent the position.
@@ -691,6 +843,11 @@ function NominationsTable({
             <th scope="col" className="p-2 text-left font-medium">
               Operator
             </th>
+            {/* The column that turns a list of intentions into a list of
+                facts: which of these operators the stake is actually behind. */}
+            <th scope="col" className="p-2 text-right font-medium">
+              Assigned this era
+            </th>
             <th scope="col" className="p-2 text-right font-medium">
               Return
             </th>
@@ -710,6 +867,17 @@ function NominationsTable({
                 <th scope="row" className="p-2 text-left font-normal">
                   <Link href={`/operators/${row.address}/`}>{row.nodeLabel}</Link>
                 </th>
+                <td className="p-2 text-right">
+                  {loading ? (
+                    <span style={{ color: 'var(--text-muted)' }}>…</span>
+                  ) : (assignedByOperator.get(row.address) ?? 0n) > 0n ? (
+                    formatPolyx(toPolyx(assignedByOperator.get(row.address)!))
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }} title="The election did not put any of this stake behind this operator for the current era">
+                      none
+                    </span>
+                  )}
+                </td>
                 <td className="p-2 text-right">{formatPercent(row.aprMean, { decimals: 2 })}</td>
                 <td className="p-2 text-right">{formatPercent(row.commission, { decimals: 2 })}</td>
                 <td className="p-2">

@@ -225,6 +225,35 @@ inference: Polymesh pays automatically as soon as an era closes, so a payout
 belongs to the era before the one it landed in. Measured at 14 blocks in 2026
 and 6 seconds in 2021.
 
+### Bonded is not assigned — `/my-staking` now says so
+
+Raised by the user: the page showed what was *bonded* and never what the
+election actually did with it. Three separate facts were invisible, and the
+first stash tested demonstrated all of them.
+
+**2,019,000 POLYX, nominating eight elected operators, 100% assigned to one.**
+Phragmén optimises the network's spread of stake, not the nominator's, so
+nominating more operators is not by itself diversification. Anyone reading the
+old nomination list would have believed they were spread across eight.
+
+**That same stash was assigned nothing in the previous era** — it nominated
+during it, and a nomination does not take effect until the next election. Since
+rewards for era N are paid during era N+1, it was earning nothing right then
+while everything on screen looked correct.
+
+`lib/chain/allocation.ts` reads both eras: one prefix scan per nomination per
+era (`erasStakersPaged` is keyed `(era, validator, page)`, and nominations cap
+at 16, so it is bounded). The page gains an "Assigned this era" tile, an
+"Assigned this era" column per nomination, and notes that fire only when there
+is something to explain.
+
+**One real bug found doing it: a tier mismatch.** The allocation read was keyed
+on `latest.json`'s `activeEra`, which lags the chain by up to fifteen minutes —
+and exposure is keyed by era. Across a boundary it read the *previous* era and
+reported a fully-assigned stash as assigned nothing. Anything read over the
+socket must ask the socket what era it is; the snapshot's era is right for
+snapshot-derived figures and wrong for these. `npm run probe:allocation -- <stash>`.
+
 ### Still open from that review
 
 - **The cumulative rewards chart is still a `Sparkline`** with no axis or

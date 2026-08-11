@@ -27,6 +27,7 @@
     "probe:payouts": "tsx scripts/probe/payouts.ts",
     "probe:indexer-caps": "tsx scripts/probe/indexer-capabilities.ts",
     "probe:archive": "tsx scripts/probe/archive.ts",
+    "probe:allocation": "tsx scripts/probe/allocation.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",

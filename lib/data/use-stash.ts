@@ -13,6 +13,7 @@ import {
 import { earnedEraForReward, type EraIndex } from './era-index';
 import { connectWallet, normaliseAddress, type WalletAccount } from '@/lib/chain/wallet';
 import type { StashPosition } from '@/lib/chain/stash';
+import type { StakeAllocation } from '@/lib/chain/allocation';
 
 /**
  * The stash under inspection, and everything hanging off it.
@@ -126,6 +127,44 @@ export function useStashPosition(
         return await readStashPosition(lease.api, stash, activeEra!);
       } finally {
         // Released in `finally` so a decoding failure cannot strand the socket.
+        lease.release();
+      }
+    },
+  });
+}
+
+/**
+ * Where this stash's stake actually sits this era, and last.
+ *
+ * A second query rather than part of `useStashPosition`, because it depends on
+ * that one's nominations and because it is the more expensive of the two — a
+ * prefix read per nomination per era. Gating on `targets.length` keeps it from
+ * running at all for an address that is bonded but not nominating.
+ */
+export function useStakeAllocation(
+  stash: string,
+  activeEra: number | undefined,
+  targets: readonly string[],
+): UseQueryResult<StakeAllocation> {
+  return useQuery({
+    // Targets are in the key: a nomination change alters the answer, and the
+    // list is short enough to key on directly.
+    queryKey: ['allocation', stash, activeEra, targets.join(',')],
+    enabled: stash !== '' && activeEra != null && targets.length > 0,
+    // Exposure is fixed for the duration of an era, so this is immutable until
+    // the next election. A minute is simply the granularity of noticing.
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const [{ acquireApi }, { readStakeAllocation }] = await Promise.all([
+        import('@/lib/chain/browser-api'),
+        import('@/lib/chain/allocation'),
+      ]);
+
+      const lease = await acquireApi(resolveRpcUrl(resolveNetwork()));
+      try {
+        return await readStakeAllocation(lease.api, stash, activeEra!, targets);
+      } finally {
         lease.release();
       }
     },
