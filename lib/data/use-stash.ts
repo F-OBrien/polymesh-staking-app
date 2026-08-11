@@ -137,9 +137,13 @@ export function useStashPosition(
  * Where this stash's stake actually sits this era, and last.
  *
  * A second query rather than part of `useStashPosition`, because it depends on
- * that one's nominations and because it is the more expensive of the two — a
- * prefix read per nomination per era. Gating on `targets.length` keeps it from
- * running at all for an address that is bonded but not nominating.
+ * that one's nominations and because it is the more expensive of the two.
+ *
+ * **Deliberately not gated on having nominations.** Two groups of bonded
+ * addresses nominate nothing and still have stake at work: a *chilled*
+ * nominator, whose exposure stands until the next election, and an *operator*,
+ * whose own self-stake is exposed directly. Skipping the read for either would
+ * report a working bond as idle.
  */
 export function useStakeAllocation(
   stash: string,
@@ -150,7 +154,7 @@ export function useStakeAllocation(
     // Targets are in the key: a nomination change alters the answer, and the
     // list is short enough to key on directly.
     queryKey: ['allocation', stash, activeEra, targets.join(',')],
-    enabled: stash !== '' && activeEra != null && targets.length > 0,
+    enabled: stash !== '' && activeEra != null,
     // Exposure is fixed for the duration of an era, so this is immutable until
     // the next election. A minute is simply the granularity of noticing.
     staleTime: 60_000,

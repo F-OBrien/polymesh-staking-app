@@ -29,10 +29,10 @@ import {
   rewardsToCsv,
   summariseRewards,
 } from '@/lib/indexer/rewards';
+import { LazyChart, LazyTimeBarChart } from '@/components/charts/lazy-chart';
 import { LiveToggle } from '@/components/live-toggle';
 import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
-import { Sparkline } from '@/components/charts/sparkline';
 import { idleStake, type TargetAllocation } from '@/lib/chain/allocation';
 import { buildLabeller } from '@/lib/data/operator-label';
 import { CopyAddress } from '@/components/copy-address';
@@ -185,6 +185,9 @@ export function MyStakingView() {
   const allocationEra = allocation.data?.current.era ?? null;
   const idle = position.data && assigned != null ? idleStake(position.data.active, assigned) : null;
   const previousAssigned = allocation.data?.previous?.assigned ?? null;
+  // Non-zero only when this stash is itself an elected operator: its self-stake
+  // is exposed directly rather than through anyone's nomination.
+  const ownStake = allocation.data?.current.own ?? 0n;
 
   // Needs the *first* payout's date to know over how long, which only the
   // detail walk provides — so this stays null until the history is loaded
@@ -278,11 +281,13 @@ export function MyStakingView() {
               hint={
                 allocation.isLoading
                   ? 'reading exposure…'
-                  : idle != null && idle > 0n
-                    ? `${formatPolyx(toPolyx(idle))} not earning`
-                    : allocationEra != null
-                      ? `all of it, in era ${allocationEra}`
-                      : undefined
+                  : ownStake > 0n
+                    ? `own stake as an operator, era ${allocationEra ?? '—'}`
+                    : idle != null && idle > 0n
+                      ? `${formatPolyx(toPolyx(idle))} not earning`
+                      : allocationEra != null
+                        ? `all of it, in era ${allocationEra}`
+                        : undefined
               }
             />
             <StatTile
@@ -420,31 +425,36 @@ export function MyStakingView() {
               <div className="mt-4">
                 <Skeleton height={160} label="Loading payout history" />
               </div>
-            ) : cumulative.length > 1 ? (
-              <figure
-                className="mt-4 m-0 rounded-[var(--radius-md)] border p-4"
-                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-              >
-                <figcaption className="mb-2 text-sm font-medium">
-                  Cumulative rewards
-                  <span className="ml-2 font-normal" style={{ color: 'var(--text-muted)' }}>
-                    {formatDateTime(new Date(cumulative[0]!.day * 1000).toISOString())} to today
-                  </span>
-                </figcaption>
-                {/* Still a sparkline, and still inadequate: a monotonic
-                    cumulative line with no axis always slopes up and to the
-                    right, so it shows a shape without showing a quantity.
-                    Replacing it with the design doc's C23 — per-period bars on
-                    a shared axis with the cumulative line — is the next piece
-                    of work here. */}
-                <Sparkline
-                  values={cumulative.map((point) => toPolyx(point.amount))}
-                  width={640}
-                  height={72}
-                  colour="var(--series-1)"
-                  strokeWidth={2}
-                />
-              </figure>
+            ) : daily.length > 0 ? (
+              <div className="mt-4">
+                {/* Was an axis-less `Sparkline` of the running total. A
+                    monotonic cumulative line always slopes up and to the right,
+                    so it showed a shape and never a quantity — and it hid the
+                    thing worth seeing, which is *when* the payouts came and
+                    whether any stopped. Bars are the per-day amount; the
+                    cumulative total sits under them on a shared x axis rather
+                    than on a second y axis (§8.1 rule 2). */}
+                <LazyChart height={300} label="Rewards received">
+                  <LazyTimeBarChart
+                    title="Rewards received"
+                    subtitle="What arrived, and when. Gaps are days with no payout."
+                    coverage={`${formatNumber(daily.length)} days · ${formatDateTime(
+                      new Date(daily[0]!.day * 1000).toISOString(),
+                    )} to today`}
+                    times={daily.map((point) => point.day)}
+                    values={daily.map((point) => toPolyx(point.amount))}
+                    yLabel="POLYX per day"
+                    format={(v) => (v == null ? '—' : formatPolyx(v))}
+                    tickFormat={(v) => formatPolyx(v, { compact: true })}
+                    companion={{
+                      values: cumulative.map((point) => toPolyx(point.amount)),
+                      label: 'Cumulative',
+                      format: (v) => (v == null ? '—' : formatPolyx(v, { compact: true })),
+                    }}
+                    height={300}
+                  />
+                </LazyChart>
+              </div>
             ) : null}
 
             {rewards.data?.truncated ? (

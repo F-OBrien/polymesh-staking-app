@@ -21,8 +21,14 @@ file is only *where we are* and *what to watch out for*.
 | 6 | `/compare`, `/calculator`, `/slashing`; slash ingestion + `slashes.json`; penalty-curve maths; numeric-x chart |
 | 7 | `/my-staking`; indexer client; lazy wallet + refcounted chain connection; tier-4 Live; `npm run assert:lazy` |
 
-418 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
+458 unit tests. Every phase green on typecheck, lint, test, knip, build, budget
 and the lazy-load assertion.
+
+**But "phase done" has meant "page exists", not "phase acceptance met".** An
+audit of the §8.3 chart catalogue against the code found nine of twenty-four
+charts absent and three in the wrong form — including every chart the
+`/calculator` page was supposed to have. See §"What is actually still missing"
+before planning any cleanup work.
 
 **After Phase 7, on a machine with chain egress:** the reward query, stash
 decoding and slashing policy were all corrected against real mainnet, and
@@ -333,21 +339,73 @@ the second is `staking.currentEra`, which runs one ahead once the next era is
 planned. The panel uses `activeEra` and mentions the planned era only when they
 differ.
 
-### Still open from that review
+## What is actually still missing
 
-- **The cumulative rewards chart is still a `Sparkline`** with no axis or
-  values. A monotonic cumulative line always slopes up and to the right, so it
-  shows a shape without a quantity. The design doc's C23 is the fix: per-period
-  bars on a shared axis with the cumulative line over them.
-- **Price history** — deferred deliberately, to be assessed separately.
-  Research done: CoinGecko has POLYX (`id: polymesh`) keyless but caps the free
-  tier at 365 days rolling (366 points, 6 KB); CoinMarketCap needs a paid plan
-  for history. The pattern that fits this codebase is to accumulate daily into
-  `data/prices.json` the way eras accumulate, and value rewards at the price on
-  the day received.
-- **Backfill is proven viable but not written.** `npm run ingest:backfill` is a
-  dangling script entry — `scripts/ingest/backfill.ts` does not exist. See
-  below.
+Audited against §8.3 and §9 of the design doc by reading the code, not the
+phase log. Phases were marked done when the *page* existed; several of their
+charts never landed.
+
+### Chart catalogue — 12 built, 3 in the wrong form, 9 absent
+
+| # | Chart | Page | State |
+|---|---|---|---|
+| C2 | Staking ratio vs the 70% ideal — gauge | Home, Network | **absent** — a stat tile and a sentence stand in |
+| C3 | Reward & inflation curve | Network, Calculator | **absent** — `curveInflation` exists, nothing draws it |
+| C6 | Rewards per era | Network | wrong form — a line, specced as a bar |
+| C10 | Top-N stake share, stacked area | Network | **absent** |
+| C15 | Cumulative deviation from average | Operators, Detail | **absent** — three legacy charts were to fold into this |
+| C17 | Current-era stake by operator | Operators | **absent** |
+| C18 | Current-era points by operator | Operators | **absent** |
+| C19 | Operator consistency, box/beeswarm | Detail | **absent** |
+| C20 | Nominator distribution histogram | Detail | **absent** |
+| C21 | Slashing timeline | Slashing | partial — a table and the penalty curves, no timeline |
+| C22 | Reward projection | Calculator | **absent — the page has no chart at all** |
+| C23 | My rewards over time | My Staking | wrong form — an axis-less `Sparkline` |
+| C24 | My operators' performance | My Staking | **absent** |
+
+**The common blocker is that no bar-chart primitive exists.** `components/charts/`
+has axes, a banded line, an xy line, a sparkline, a legend and a table — nothing
+that draws a bar. C6, C17, C18, C22 and C23 all need one, so building it first
+unblocks five of the thirteen.
+
+### Features specced and never built
+
+- **Home: "recent activity"** (§9.1) — last five commission changes, new
+  operators, slashes.
+- **`/operators`: column-visibility control and density toggle** (§9.3).
+- **`/operators/[address]`: nominator table and event history** (§9.4). The
+  table needs `data/eras/{era}.json`, and **the pipeline never generates that
+  file** — the whole optional per-era detail artefact from §6.4 is missing.
+
+### §12 quality gates that do not exist
+
+`playwright` is a devDependency, but there is **no config, no spec file, no e2e
+directory, no `@axe-core/playwright` and no visual-regression baseline**. §12
+requires e2e, visual regression and axe-on-every-route; Phase 8's acceptance
+criterion is "zero axe violations". This is build work, not an audit.
+
+### Carried unknowns, still unverified
+
+- **The wallet extension handshake** and **the tier-4 subscription names**. Both
+  need a browser with a wallet. Every other unverified item in this project
+  turned out to be wrong, so do these before launch.
+- The **v7.4→v8.0 staking changelog** is still unread, and
+  `validators.validatorCommissionCap`, `validators.currentPayoutEra` and
+  `validators.pendingPayouts` have still never been read despite being directly
+  relevant to how payouts work.
+- **`/slashing` has no offence-type column** — `validatorSlashInEra` does not
+  record one, but the indexer's `offences` events do. Do not infer it from the
+  fraction; the ranges overlap.
+
+### Deferred by decision
+
+- **Price history** — the user deferred this to assess separately. Research is
+  done: CoinGecko has POLYX (`id: polymesh`) keyless but caps the free tier at
+  365 days rolling (366 points, 6 KB); CoinMarketCap needs a paid plan. The
+  pattern that fits is to accumulate daily into `data/prices.json` the way eras
+  accumulate, and value rewards at the price on the day received.
+- **A points-accruing-now chart.** The column and Live toggle cover the need;
+  a chart is only worth it if watching the race block by block matters.
 
 ### Backfill: verified possible, deliberately not run
 
@@ -375,10 +433,10 @@ Run it **once, by hand, offline**, at concurrency ≤ 2 with checkpointing. It i
 ~1,749 eras against someone else's public node, and it is the heaviest thing in
 the whole design (§6.5).
 
-### Requested by the user, not yet built — do this before the polish work
+### Reference
 
-**Two charts from the legacy site that the user relied on regularly.** In their
-words:
+The user's original ask, now met by the three return columns and the Live
+toggle on `/operators`:
 
 > from the legacy site two charts I regularly used were the live node points per
 > era and total Polyx assigned to nodes. The first confirmed they were still
@@ -387,51 +445,15 @@ words:
 > portal showed the returns for the last era so combining this information we
 > have both recent and forward looking estimations that were live/semi live.
 
-Read that as one need, not two: **is my operator working right now, and what am
-I likely to earn next.** The current `/operators` table answers neither — it
-shows a *historical mean* return over the selected era range, not this era's
-implied return from current exposure.
+Read as one need, not two: **is my operator working right now, and what am I
+likely to earn next.** Answered by This era (est.) / Last era / Mean, plus the
+Points column, all of which upgrade to per-block under Live.
 
-The data already exists; this is mostly assembly:
+Docs still worth reading, listed here so they are not lost:
 
-| Piece | Source |
-|---|---|
-| Points this era, per operator | `latest.json` `operators[].points` (tier 2, 15 min) |
-| Same, live per block | tier 4 already subscribes to `staking.erasRewardPoints(activeEra)` — see `lib/chain/live.ts`, it is in `LiveState.eraPoints` |
-| Stake per operator, this era | `latest.json` `operators[].totalStake` |
-| Era reward to divide up | `curveInflation` / `stakingReturns` in `lib/metrics/staking.ts`, or the previous era's `validatorReward` from the last chunk |
-
-Suggested shape, **but confirm the framing with the user first** — it is their
-workflow: a "This era" section pairing points-accruing-now against
-estimated-return-from-current-stake, with the existing `LiveToggle`. That gives
-recent and forward-looking side by side, which is what they described
-assembling manually from two sites.
-
-`components/live-toggle.tsx` and `lib/data/use-live.ts` are ready to use.
-Live must stay opt-in and must never gate first paint (§6.6a).
-
-**Read the v7.4→v8.0 changelog before building it.** Not yet read, and today's
-record suggests not guessing:
-<https://developers.polymesh.network/development/changelogs/v7.4-to-v8.0/staking-and-validators.md>
-Also unexamined, and likely relevant to how Polymesh actually pays out:
-`validators.validatorCommissionCap`, `validators.currentPayoutEra` and
-`validators.pendingPayouts` — spotted on the pallet, never read.
-
-Reference docs the user pointed at:
-<https://developers.polymesh.network/polyx/staking.md> ·
-<https://developers.polymesh.network/polyx/tokenomics.md>
-
-### Carried into Phase 8 from earlier phases
-
-- **`/slashing` has no offence-type column**, because `validatorSlashInEra`
-  does not record one (see the note in `lib/schemas/data.ts`). The indexer
-  client now exists, so the real type can come from `offences` events. Do not
-  infer it from the fraction — the ranges overlap.
-- **Two things remain unverified against reality:** the wallet extension
-  handshake, and whether the tier-4 subscription names match the current
-  runtime. Both need a browser with a wallet installed — ten minutes of
-  `npm run dev`. Given that every other unverified item turned out to be wrong,
-  do this before launch.
+- <https://developers.polymesh.network/development/changelogs/v7.4-to-v8.0/staking-and-validators.md>
+- <https://developers.polymesh.network/polyx/staking.md>
+- <https://developers.polymesh.network/polyx/tokenomics.md>
 
 ## Phase 7 against real mainnet — what the first run found
 
@@ -443,9 +465,12 @@ obviously correct on paper.
 ### 1. The reward query — three bugs, two of them silent · **fixed**
 
 - `blockId` does not exist; the field is `createdBlockId`. This one 400s.
-- Ordering by `CREATED_BLOCK_ID_ASC` sorts **lexicographically** — that column
-  is a String, so block "10" precedes block "9" and history comes back shuffled
-  with no error. Now `DATETIME_ASC`.
+- ~~Ordering by `CREATED_BLOCK_ID_ASC` sorts lexicographically, so history comes
+  back shuffled. Now `DATETIME_ASC`.~~ **This was wrong in both directions and
+  has been reverted** — `createdBlockId` is deliberately zero-padded to ten
+  digits, so a string sort *is* a numeric sort, and `datetime` is the field
+  whose width is not fixed. The query now orders by
+  `[CREATED_BLOCK_ID_ASC, ID_ASC]`. See the corollary at the top of this file.
 - `eventId` matched only `Rewarded`. The enum carries **both** `Reward` and
   `Rewarded`; Polymesh renamed the event across a runtime upgrade. Measured on
   one operator stash: **626 `Rewarded`, 273 `Reward`** — filtering on the new
@@ -507,16 +532,17 @@ which hid both regressions below completely. `scripts/budget.ts` gzips what each
 exported HTML file actually references, and exits non-zero on a breach.
 
 ```
- ok     184.8 KB  /kitchen-sink/       loads every chart primitive by design
- ok     164.9 KB  /operators/
- ok     164.1 KB  /compare/
- ok     163.8 KB  /operators/[address]/
- ok     163.4 KB  /calculator/
- ok     161.9 KB  /network/
- ok     159.0 KB  /slashing/
- ok     155.7 KB  /
+ ok     185.5 KB  /kitchen-sink/       loads every chart primitive by design
+ ok     174.2 KB  /my-staking/
+ ok     173.5 KB  /operators/
+ ok     167.4 KB  /compare/
+ ok     165.7 KB  /network/
+ ok     165.5 KB  /operators/[address]/
  ok     147.1 KB  /about/              ← shared floor
 ```
+
+Re-measure rather than trusting this table; it is a snapshot and drifts with
+every feature. The floor has been stable at 147.1 KB throughout.
 
 **The floor is 147.1 KB** — React 19, the Next 16 runtime, the app shell, the
 query client and nuqs. A data-driven page adds 12–18 KB on top, comfortably
@@ -821,13 +847,23 @@ npm run assert:lazy  # the chain stack must not load before a user connects
 npm run ingest:era -- --full
 npm run ingest:latest
 npm run ingest:slashes
+npm run ingest:era-index   # indexer only, no RPC; ~18 requests for all 1,749 eras
 
 # Re-validate chain-facing code against mainnet. Each has already caught a bug.
-npm run probe:indexer
-npm run probe:stash
-npm run probe:slashes
-npm run probe:slashing-switch
+npm run probe:indexer          # the reward query against the live schema
+npm run probe:indexer-caps     # page cap, server-side aggregates, era transitions
+npm run probe:stash            # ledger decoding via the controller indirection
+npm run probe:slashes          # slash storage exists and is genuinely empty
+npm run probe:slashing-switch  # validators.slashingAllowedFor
+npm run probe:payouts          # every exposure page is claimed and paid
+npm run probe:session          # era/session/election machinery
+npm run probe:archive          # pruned era storage still reads at a historic block
+npm run probe:exposure-scan    # cost of a whole-era exposure search
+npm run probe:allocation -- <stash>   # where one stash's stake actually sits
 ```
+
+**`npm run ingest:backfill` is a dangling script** — `scripts/ingest/backfill.ts`
+does not exist. Writing it is open work, not a broken install.
 
 `budget` and `assert:lazy` read `out/`, so run `npm run build` first.
 

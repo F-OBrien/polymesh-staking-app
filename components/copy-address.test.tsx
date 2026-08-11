@@ -86,7 +86,6 @@ describe('CopyAddress', () => {
     mockClipboard();
     const onParentClick = vi.fn();
     render(
-      // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
       <div onClick={onParentClick}>
         <CopyAddress address={ADDRESS} />
       </div>,

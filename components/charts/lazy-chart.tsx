@@ -41,8 +41,14 @@ const XyLineChartImpl = dynamic(() => import('./xy-line-chart').then((m) => m.Xy
   loading: () => null,
 });
 
+const TimeBarChartImpl = dynamic(() => import('./time-bar-chart').then((m) => m.TimeBarChart), {
+  ssr: false,
+  loading: () => null,
+});
+
 export type { EraSeriesChartProps } from './era-series-chart';
 export type { XyLineChartProps, XySeries } from './xy-line-chart';
+export type { TimeBarChartProps } from './time-bar-chart';
 
 /**
  * Wraps a chart so it mounts only once scrolled near.
@@ -110,3 +116,6 @@ export const LazyEraSeriesChart = EraSeriesChartImpl;
 
 /** As above, for the numeric-x chart used by the slashing penalty curves. */
 export const LazyXyLineChart = XyLineChartImpl;
+
+/** Bars over a time axis, with an optional companion panel. Code-split. */
+export const LazyTimeBarChart = TimeBarChartImpl;

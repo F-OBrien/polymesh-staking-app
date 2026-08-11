@@ -53,6 +53,11 @@ export interface EraAllocation {
   assigned: bigint;
   /** Stake sitting with operators the stash no longer nominates. */
   unnominated: bigint;
+  /**
+   * This stash's own validator self-stake, when the stash is itself an elected
+   * operator. Zero for a plain nominator. Included in `assigned`.
+   */
+  own: bigint;
   targets: TargetAllocation[];
 }
 
@@ -125,13 +130,32 @@ async function readEraBacking(api: ApiLike, stash: string, era: number): Promise
   return backing;
 }
 
-/** Which operators were in the active set for an era. */
-async function readElected(api: ApiLike, era: number): Promise<Set<string>> {
+/**
+ * Each elected operator's exposure overview for an era, keyed by address.
+ *
+ * Needed for two things. Obviously: which operators were elected, so a
+ * nomination can be reported as "not elected" rather than "not backing you".
+ * Less obviously: **an operator's own self-stake lives here, in `own`, and not
+ * in the `others` list a nominator appears in.** Without this, an operator
+ * viewing their own stash sees "assigned: nothing" while their own bond is
+ * fully at work — the same class of wrong answer as the nomination-list bug,
+ * for a different group of users.
+ */
+async function readOverviews(
+  api: ApiLike,
+  era: number,
+): Promise<Map<string, { own: bigint }>> {
   try {
     const overviews: any[] = await api.query.staking.erasStakersOverview.entries(era);
-    return new Set(overviews.map(([key]) => String(key.args[1])));
+    const byAddress = new Map<string, { own: bigint }>();
+    for (const [key, overview] of overviews) {
+      const address = String(key.args[1]);
+      const value = overview?.isSome === true ? overview.unwrap() : overview;
+      byAddress.set(address, { own: toBigInt(value?.own) });
+    }
+    return byAddress;
   } catch {
-    return new Set();
+    return new Map();
   }
 }
 
@@ -153,9 +177,9 @@ export async function readEraAllocation(
   era: number,
   targets: readonly string[],
 ): Promise<EraAllocation> {
-  const [backing, elected] = await Promise.all([
+  const [backing, overviews] = await Promise.all([
     readEraBacking(api, stash, era),
-    readElected(api, era),
+    readOverviews(api, era),
   ]);
 
   const byOperator = new Map<string, { value: bigint; page: number }>();
@@ -179,15 +203,21 @@ export async function readEraAllocation(
       address,
       value: held?.value ?? 0n,
       page: held?.page ?? null,
-      elected: elected.has(address),
+      elected: overviews.has(address),
       nominated: nominatedSet.has(address),
     };
   });
 
+  // The stash's own validator stake, if it is itself an elected operator.
+  const own = overviews.get(stash)?.own ?? 0n;
+
   return {
     era,
-    assigned: allocations.reduce((sum, a) => sum + a.value, 0n),
+    // Own stake counts as assigned: it is exposed and earning, and excluding it
+    // would tell an operator their bond was idle.
+    assigned: allocations.reduce((sum, a) => sum + a.value, own),
     unnominated: allocations.reduce((sum, a) => (a.nominated ? sum : sum + a.value), 0n),
+    own,
     targets: allocations,
   };
 }

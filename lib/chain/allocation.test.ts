@@ -30,7 +30,11 @@ type Era = Record<string, { who: string; value: bigint }[][]>;
  * must not depend on being told which operators to look at, because the
  * nomination list is exactly what can be wrong.
  */
-function fakeApi(eras: Record<number, Era>, activeEra = 10): ApiLike {
+function fakeApi(
+  eras: Record<number, Era>,
+  activeEra = 10,
+  selfStake: Record<string, number> = {},
+): ApiLike {
   return {
     query: {
       staking: {
@@ -50,7 +54,10 @@ function fakeApi(eras: Record<number, Era>, activeEra = 10): ApiLike {
         erasStakersOverview: {
           entries: (era: number) =>
             Promise.resolve(
-              Object.keys(eras[era] ?? {}).map((operator) => [key(era, operator, 0), {}]),
+              Object.keys(eras[era] ?? {}).map((operator) => [
+                key(era, operator, 0),
+                { own: { toString: () => String(selfStake[operator] ?? 0) } },
+              ]),
             ),
         },
       },
@@ -190,6 +197,31 @@ describe('readStakeAllocation', () => {
     const api = fakeApi({ 10: { alice: [[{ who: STASH, value: 77n }]] } });
     const result = await readStakeAllocation(api, STASH, 10, []);
     expect(result.current.assigned).toBe(77n);
+  });
+});
+
+describe('an operator viewing their own stash', () => {
+  it('counts self-stake, which lives in `own` and not in `others`', async () => {
+    // A validator does not appear in its own `others` list — that holds its
+    // nominators. Scanning only `others` reported an operator's fully-exposed
+    // bond as idle: the same class of wrong answer as the nomination-list bug,
+    // for a different group of users.
+    const api = fakeApi({ 10: { alice: [[{ who: OTHER, value: 50n }]] } }, 10, { alice: 900 });
+    const result = await readEraAllocation(api, 'alice', 10, []);
+
+    expect(result.own).toBe(900n);
+    expect(result.assigned).toBe(900n);
+  });
+
+  it('keeps self-stake out of the un-nominated total', async () => {
+    // Own stake is not "sitting with an operator you dropped"; it is yours.
+    const api = fakeApi({ 10: { alice: [[{ who: OTHER, value: 1n }]] } }, 10, { alice: 500 });
+    expect((await readEraAllocation(api, 'alice', 10, [])).unnominated).toBe(0n);
+  });
+
+  it('reports zero own stake for a plain nominator', async () => {
+    const api = fakeApi({ 10: { alice: [[{ who: STASH, value: 10n }]] } }, 10, { alice: 900 });
+    expect((await readEraAllocation(api, STASH, 10, ['alice'])).own).toBe(0n);
   });
 });
 
