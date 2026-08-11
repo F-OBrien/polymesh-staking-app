@@ -2,6 +2,7 @@ import {
   fetchAllPages,
   graphql,
   INDEXER_PAGE_SIZE,
+  parseIndexerDate,
   type GraphQlOptions,
   type Page,
 } from './client';
@@ -29,21 +30,28 @@ import {
  */
 export interface RewardEvent {
   /**
-   * The era whose work earned this reward, or null if it cannot be established.
+   * The era whose work **earned** this reward — not the era it was paid in.
+   *
+   * The distinction is real and easy to get backwards, because a payout is
+   * always made *after* the era it pays for has closed. A reward at block
+   * 129,434 landed one block into era 9, and is payment for era 8. Both are
+   * carried here, and both are exported, because "era" alone is ambiguous
+   * enough that it should not appear unqualified in a file someone reconciles.
    *
    * Null used to be the *normal* case rather than an edge case: the indexer
    * records a block and not an era, and the block→era mapping came from our own
-   * chunks — about 85 eras, against reward histories running for years. So the
-   * era column in an exported CSV was blank for almost every row.
-   *
-   * It is now filled from `era-index.json`, which carries every era's start
-   * block for the chain's whole life. Null is reserved for what it should
-   * always have meant: a reward genuinely outside the known range. An earlier
-   * revision defaulted this to `0`, which exported as a confident "era 0" in a
-   * file people use for tax reporting.
+   * chunks — about 85 eras, against reward histories running for years. It is
+   * now filled from `era-index.json`, which covers the chain's whole life, so
+   * null means what it should always have meant: genuinely outside the known
+   * range. An earlier revision defaulted it to `0`, which exported as a
+   * confident "era 0" in a file people use for tax reporting.
    */
-  era: number | null;
+  earnedEra: number | null;
+  /** The era this payout landed in. Always `earnedEra + 1` when both are known. */
+  paidEra: number | null;
   blockNumber: number;
+  /** Index of the event within its block. Addresses the event on an explorer. */
+  eventIndex: number;
   /** Unix seconds. */
   datetime: number;
   amount: string;
@@ -185,7 +193,7 @@ export async function fetchRewards(
  */
 const REWARD_SUMMARY_QUERY = `
   query RewardSummaryForStash($stash: String!) {
-    stakingEvents(
+    totals: stakingEvents(
       filter: {
         stashAccount: { equalTo: $stash }
         eventId: { in: [Reward, Rewarded] }
@@ -194,14 +202,43 @@ const REWARD_SUMMARY_QUERY = `
       totalCount
       aggregates { sum { amount } }
     }
+    first: stakingEvents(
+      filter: {
+        stashAccount: { equalTo: $stash }
+        eventId: { in: [Reward, Rewarded] }
+      }
+      orderBy: [CREATED_BLOCK_ID_ASC, ID_ASC]
+      first: 1
+    ) {
+      nodes { id createdBlockId amount datetime }
+    }
+    last: stakingEvents(
+      filter: {
+        stashAccount: { equalTo: $stash }
+        eventId: { in: [Reward, Rewarded] }
+      }
+      orderBy: [CREATED_BLOCK_ID_DESC, ID_DESC]
+      first: 1
+    ) {
+      nodes { id createdBlockId amount datetime }
+    }
   }
 `;
 
+interface SummaryNode {
+  id: string;
+  createdBlockId: string;
+  amount: string | number | null;
+  datetime: string;
+}
+
 interface SummaryResponse {
-  stakingEvents: {
+  totals: {
     totalCount: number;
     aggregates: { sum: { amount: string | number | null } | null } | null;
   };
+  first: { nodes: SummaryNode[] };
+  last: { nodes: SummaryNode[] };
 }
 
 export interface RewardTotals {
@@ -209,17 +246,35 @@ export interface RewardTotals {
   total: bigint;
   /** Number of payout events. Drives whether the detail walk is worth it. */
   count: number;
+  /** Oldest payout. Needed to know over what period a return was realised. */
+  first: RewardEvent | null;
+  /** Newest payout. */
+  last: RewardEvent | null;
 }
 
-/** Lifetime total and payout count, without downloading the payouts. */
+/**
+ * Lifetime total, count, and the first and last payout — without downloading
+ * the payouts.
+ *
+ * All four in **one** request, via three aliased selections. The endpoint will
+ * sum server-side but offers no `min`/`max` over `datetime`, so the date range
+ * comes from asking for exactly one row at each end of the block ordering
+ * instead. That is what lets "realised return" and "last payout" render from
+ * the cheap query rather than waiting on a walk of every event.
+ */
 export async function fetchRewardTotals(
   stash: string,
-  options: GraphQlOptions = {},
+  { earnedEra, ...options }: FetchRewardsOptions = {},
 ): Promise<RewardTotals> {
   const data = await graphql<SummaryResponse>(REWARD_SUMMARY_QUERY, { stash }, options);
+  const edge = (nodes: SummaryNode[]) =>
+    nodes[0] ? toRewardEvent(nodes[0], earnedEra) : null;
+
   return {
-    total: BigInt(toBaseUnits(data.stakingEvents.aggregates?.sum?.amount)),
-    count: data.stakingEvents.totalCount,
+    total: BigInt(toBaseUnits(data.totals.aggregates?.sum?.amount)),
+    count: data.totals.totalCount,
+    first: edge(data.first.nodes),
+    last: edge(data.last.nodes),
   };
 }
 
@@ -244,6 +299,7 @@ export function pagesFor(count: number): number {
  */
 export function toRewardEvent(
   node: {
+    id?: string;
     createdBlockId: string;
     amount: string | number | null;
     datetime: string;
@@ -252,14 +308,25 @@ export function toRewardEvent(
 ): RewardEvent {
   const blockNumber = Number.parseInt(node.createdBlockId, 10);
   const safeBlock = Number.isFinite(blockNumber) ? blockNumber : 0;
-  const parsed = Date.parse(node.datetime);
+  const earned = earnedEra?.(safeBlock) ?? null;
 
   return {
-    era: earnedEra?.(safeBlock) ?? null,
+    earnedEra: earned,
+    paidEra: earned == null ? null : earned + 1,
     blockNumber: safeBlock,
-    datetime: Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0,
+    eventIndex: parseEventIndex(node.id),
+    datetime: parseIndexerDate(node.datetime),
     amount: toBaseUnits(node.amount),
   };
+}
+
+/**
+ * The event's position within its block, from the indexer's `blockId/eventIdx`
+ * id. Both halves are zero-padded, which is what makes the id sortable.
+ */
+export function parseEventIndex(id: string | undefined): number {
+  const index = Number.parseInt(id?.split('/')[1] ?? '', 10);
+  return Number.isFinite(index) ? index : 0;
 }
 
 /**
@@ -393,9 +460,28 @@ export function realisedApr({
  * block number and the exact base-unit amount alongside the human-readable
  * POLYX — enough to reconcile any row against a block explorer.
  */
-export function rewardsToCsv(events: readonly RewardEvent[], tokenDecimals: number): string {
-  const header = ['date_utc', 'era', 'block', 'amount_polyx', 'amount_base_units'];
+export function rewardsToCsv(
+  events: readonly RewardEvent[],
+  tokenDecimals: number,
+  /** Injected so this module stays free of network config. */
+  eventUrl?: (blockNumber: number, eventIndex: number) => string,
+): string {
+  const header = [
+    'date_utc',
+    // Never a bare `era` column: a payout is made after the era it pays for has
+    // closed, so the two differ by one and the unqualified name is ambiguous
+    // exactly where it matters most.
+    'era_earned',
+    'era_paid_in',
+    'block',
+    'event_index',
+    'event_id',
+    'amount_polyx',
+    'amount_base_units',
+    ...(eventUrl ? ['explorer_url'] : []),
+  ];
   const divisor = 10 ** tokenDecimals;
+  const pad = (value: number) => String(value).padStart(10, '0');
 
   const lines = events.map((event) =>
     [
@@ -403,10 +489,15 @@ export function rewardsToCsv(events: readonly RewardEvent[], tokenDecimals: numb
       // Blank rather than 0 when the era is unknown: this file gets reconciled
       // against block explorers and filed for reporting, so an invented era
       // index is worse than an empty cell.
-      event.era == null ? '' : String(event.era),
+      event.earnedEra == null ? '' : String(event.earnedEra),
+      event.paidEra == null ? '' : String(event.paidEra),
       String(event.blockNumber),
+      String(event.eventIndex),
+      // The indexer's own id, so a row can be matched back to the source.
+      `${pad(event.blockNumber)}/${pad(event.eventIndex)}`,
       (Number(event.amount) / divisor).toFixed(tokenDecimals),
       event.amount,
+      ...(eventUrl ? [eventUrl(event.blockNumber, event.eventIndex)] : []),
     ].join(','),
   );
 

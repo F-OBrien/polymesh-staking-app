@@ -27,7 +27,7 @@ import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
 import { looksLikeAddress } from '@/lib/chain/wallet';
-import { explorerAccountUrl } from '@/config/networks';
+import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
   formatDateTime,
   formatNumber,
@@ -78,7 +78,17 @@ export function MyStakingView() {
    * the cheap query.
    */
   const totals = useRewardTotals(stash);
-  const [showHistory, setShowHistory] = useState(false);
+
+  /**
+   * Which address the reader asked for full history on — not a boolean.
+   *
+   * A plain `showHistory` flag stayed true when the address changed, so pasting
+   * a second stash silently kicked off a 119-request walk nobody asked for.
+   * Storing the address it was granted for makes the reset structural rather
+   * than something an effect has to remember.
+   */
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const showHistory = historyFor === stash && stash !== '';
 
   // 34 KB, fetched only alongside the detail: it is what fills in which era
   // each payout was earned in, and it is useless without the events.
@@ -101,6 +111,10 @@ export function MyStakingView() {
   // has run. The two are verified to agree exactly on real data.
   const lifetimeTotal = totals.data?.total ?? summary.total;
   const payoutCount = totals.data?.count ?? summary.count;
+  // The first and last payout come back with the totals, in the same request,
+  // so neither of these has to wait on the full walk.
+  const firstPayout = totals.data?.first ?? summary.first;
+  const lastPayout = totals.data?.last ?? summary.last;
 
   const daily = useMemo(() => rewardsByDay(rewards.data?.events ?? []), [rewards.data]);
   const cumulative = useMemo(() => cumulativeRewards(daily), [daily]);
@@ -134,11 +148,11 @@ export function MyStakingView() {
   // rather than being computed against an unknown period.
   const realised = useMemo(() => {
     const bonded = position.data?.active;
-    const first = summary.first?.datetime;
+    const first = firstPayout?.datetime;
     if (bonded == null || first == null || first === 0) return null;
     const days = Math.max(1, (now / 1000 - first) / DAY);
-    return realisedApr({ rewards: summary.total, bonded, days });
-  }, [position.data, summary, now]);
+    return realisedApr({ rewards: lifetimeTotal, bonded, days });
+  }, [position.data, firstPayout, lifetimeTotal, now]);
 
   if (stash === '') {
     return <Disconnected wallet={wallet} onUseAddress={setStash} onPickAccount={setStash} />;
@@ -259,9 +273,6 @@ export function MyStakingView() {
         <h2 id="earned" className="m-0 text-[22px] leading-7 font-semibold tracking-tight">
           What this address has earned
         </h2>
-        <p className="mt-2 mb-0 max-w-[68ch] text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Every payout actually received, from the chain&rsquo;s event history — not an estimate.
-        </p>
 
         {totals.isError || rewards.isError ? (
           <div className="mt-4">
@@ -304,11 +315,7 @@ export function MyStakingView() {
               <StatTile
                 label="Realised return"
                 value={realised == null ? '—' : formatPercent(realised, { decimals: 2 })}
-                hint={
-                  showHistory
-                    ? 'earned so far, against what is bonded now'
-                    : 'needs the full history below'
-                }
+                hint="earned so far, against what is bonded now"
               />
               <StatTile
                 label="Network average"
@@ -319,13 +326,13 @@ export function MyStakingView() {
               <StatTile
                 label="Last payout"
                 value={
-                  summary.last?.datetime
-                    ? formatRelativeTime(new Date(summary.last.datetime * 1000).toISOString())
+                  lastPayout?.datetime
+                    ? formatRelativeTime(new Date(lastPayout.datetime * 1000).toISOString())
                     : '—'
                 }
                 hint={
-                  summary.last?.datetime
-                    ? formatDateTime(new Date(summary.last.datetime * 1000).toISOString())
+                  lastPayout?.datetime
+                    ? formatDateTime(new Date(lastPayout.datetime * 1000).toISOString())
                     : undefined
                 }
               />
@@ -339,7 +346,7 @@ export function MyStakingView() {
               <div className="mt-4">
                 <button
                   type="button"
-                  onClick={() => setShowHistory(true)}
+                  onClick={() => setHistoryFor(stash)}
                   className="rounded-[var(--radius-sm)] border px-3 py-2 text-sm"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
                 >
@@ -393,7 +400,9 @@ export function MyStakingView() {
               <div className="mt-4">
                 <ExportButton
                   stash={stash}
-                  csv={() => rewardsToCsv(rewards.data?.events ?? [], tokenDecimals)}
+                  csv={() =>
+                    rewardsToCsv(rewards.data?.events ?? [], tokenDecimals, explorerEventUrl)
+                  }
                 />
               </div>
             ) : null}

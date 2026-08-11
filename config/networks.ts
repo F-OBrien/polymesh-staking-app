@@ -83,3 +83,19 @@ export function explorerAccountUrl(
 ): string {
   return `${network.explorer}account/${address}`;
 }
+
+/**
+ * Subscan page for a single event, addressed as `{block}-{eventIndex}`.
+ *
+ * The indexer gives us both halves in its `id` field (`blockId/eventIdx`), so
+ * every exported reward row can be opened on a block explorer and checked. On a
+ * regulated-asset chain, a figure filed for reporting that cannot be traced back
+ * to its source event is of limited use.
+ */
+export function explorerEventUrl(
+  blockNumber: number,
+  eventIndex: number,
+  network: NetworkConfig = resolveNetwork(),
+): string {
+  return `${network.explorer}event/${blockNumber}-${eventIndex}`;
+}

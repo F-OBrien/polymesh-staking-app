@@ -110,6 +110,28 @@ export async function graphql<T>(
   return body.data;
 }
 
+/**
+ * Parses an indexer timestamp to unix seconds.
+ *
+ * The endpoint emits UTC without a zone marker (`2021-11-06T17:26:18`), and
+ * `Date.parse` treats a bare datetime as *local* time — so on any machine east
+ * or west of UTC every reward would shift by hours, which on a daily era is
+ * enough to land in the wrong one. Appending `Z` fixes that, but only when the
+ * string does not already carry a zone, or the result is `…ZZ` and `NaN`.
+ *
+ * Widths vary too — fractional seconds appear inconsistently — which is the
+ * same reason this field must never be used as a sort key.
+ *
+ * Returns 0 for anything unreadable, matching the "one bad row must not blank
+ * a whole history" rule the callers follow.
+ */
+export function parseIndexerDate(datetime: string | null | undefined): number {
+  if (!datetime) return 0;
+  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/.test(datetime) ? datetime : `${datetime}Z`;
+  const parsed = Date.parse(zoned);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+}
+
 export interface Page<T> {
   nodes: T[];
   hasNextPage: boolean;

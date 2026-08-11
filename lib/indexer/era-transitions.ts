@@ -1,4 +1,4 @@
-import { graphql, INDEXER_PAGE_SIZE, type GraphQlOptions } from './client';
+import { graphql, INDEXER_PAGE_SIZE, parseIndexerDate, type GraphQlOptions } from './client';
 
 /**
  * Every era transition the chain has ever recorded.
@@ -115,11 +115,10 @@ export async function fetchEraTransitions(
 export function toTransition(node: RawEvent): EraTransition | null {
   const era = Number.parseInt(node.eventArg0 ?? '', 10);
   const block = Number.parseInt(node.blockId, 10);
-  // The indexer's datetimes carry no zone marker but are UTC.
-  const parsed = node.block?.datetime ? Date.parse(`${node.block.datetime}Z`) : NaN;
+  const at = parseIndexerDate(node.block?.datetime);
 
-  if (!Number.isFinite(era) || !Number.isFinite(block) || !Number.isFinite(parsed)) return null;
-  return { era, block, at: Math.floor(parsed / 1000) };
+  if (!Number.isFinite(era) || !Number.isFinite(block) || at === 0) return null;
+  return { era, block, at };
 }
 
 export interface EraIndexBuild {

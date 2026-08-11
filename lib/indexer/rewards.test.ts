@@ -15,8 +15,10 @@ import {
 const DAY = 86_400;
 
 const event = (overrides: Partial<RewardEvent> = {}): RewardEvent => ({
-  era: 1,
+  earnedEra: 1,
+  paidEra: 2,
   blockNumber: 100,
+  eventIndex: 0,
   datetime: DAY * 100,
   amount: '1000000',
   ...overrides,
@@ -173,12 +175,27 @@ describe('toRewardEvent', () => {
     expect(result.datetime).toBe(Math.floor(Date.parse('2026-08-08T12:00:00.000Z') / 1000));
   });
 
-  it('maps a block to an era when a mapper is supplied', () => {
+  it('records both the era earned and the era paid in', () => {
+    // A payout is made after the era it pays for has closed, so the two always
+    // differ by one. Exporting a bare "era" column would be ambiguous exactly
+    // where it matters — see `rewardsToCsv`.
     const result = toRewardEvent(
-      { createdBlockId: '900', amount: '1', datetime: '2026-01-01T00:00:00Z' },
+      { createdBlockId: '900', amount: '1', datetime: '2026-01-01T00:00:00' },
       (block) => Math.floor(block / 100),
     );
-    expect(result.era).toBe(9);
+    expect(result.earnedEra).toBe(9);
+    expect(result.paidEra).toBe(10);
+  });
+
+  it('reads the event index out of the indexer id', () => {
+    const result = toRewardEvent({
+      id: '0000129434/0000000007',
+      createdBlockId: '0000129434',
+      amount: '1',
+      datetime: '2026-01-01T00:00:00',
+    });
+    expect(result.blockNumber).toBe(129_434);
+    expect(result.eventIndex).toBe(7);
   });
 
   it('survives a null amount rather than blanking the whole history', () => {
@@ -190,15 +207,15 @@ describe('toRewardEvent', () => {
     expect(result.amount).toBe('0');
   });
 
-  it('leaves the era null when nothing can map the block to one', () => {
-    // The normal case: reward histories run for years, chunks cover ~84 eras.
+  it('leaves both eras null when nothing can map the block to one', () => {
     // This defaulted to 0, which exported as a confident "era 0" in the CSV.
     const result = toRewardEvent({
       createdBlockId: '900',
       amount: '1',
-      datetime: '2026-01-01T00:00:00Z',
+      datetime: '2026-01-01T00:00:00',
     });
-    expect(result.era).toBeNull();
+    expect(result.earnedEra).toBeNull();
+    expect(result.paidEra).toBeNull();
   });
 
   it('survives an unparseable block or date', () => {
@@ -384,17 +401,45 @@ describe('rewardsToCsv', () => {
   it('keeps the exact base-unit amount alongside the readable one', () => {
     // Reconciliation against a block explorer is the point; a rounded POLYX
     // figure alone cannot be checked.
-    const csv = rewardsToCsv([event({ amount: '1234567', era: 42, blockNumber: 99 })], 6);
+    const csv = rewardsToCsv(
+      [event({ amount: '1234567', earnedEra: 42, paidEra: 43, blockNumber: 99, eventIndex: 3 })],
+      6,
+    );
     const [header, row] = csv.split('\n');
-    expect(header).toBe('date_utc,era,block,amount_polyx,amount_base_units');
+    expect(header).toBe(
+      'date_utc,era_earned,era_paid_in,block,event_index,event_id,amount_polyx,amount_base_units',
+    );
     expect(row).toContain('1.234567');
     expect(row).toContain('1234567');
-    expect(row).toContain(',42,99,');
+    expect(row).toContain(',42,43,99,3,');
+    // The indexer's own id, so a row can be matched back to its source.
+    expect(row).toContain('0000000099/0000000003');
   });
 
-  it('leaves the era cell blank when the era is unknown', () => {
-    const csv = rewardsToCsv([event({ era: null })], 6);
-    expect(csv.split('\n')[1]!.split(',')[1]).toBe('');
+  it('never emits a bare "era" column', () => {
+    // A payout lands in the era *after* the one it pays for, so an unqualified
+    // "era" heading is ambiguous in a file people reconcile and file.
+    const header = rewardsToCsv([event()], 6).split('\n')[0]!.split(',');
+    expect(header).not.toContain('era');
+    expect(header).toContain('era_earned');
+    expect(header).toContain('era_paid_in');
+  });
+
+  it('adds an explorer link only when a URL builder is supplied', () => {
+    const withUrl = rewardsToCsv([event({ blockNumber: 99, eventIndex: 3 })], 6, (b, i) =>
+      `https://example.test/event/${b}-${i}`,
+    );
+    expect(withUrl.split('\n')[0]).toContain('explorer_url');
+    expect(withUrl.split('\n')[1]).toContain('https://example.test/event/99-3');
+
+    expect(rewardsToCsv([event()], 6).split('\n')[0]).not.toContain('explorer_url');
+  });
+
+  it('leaves the era cells blank when the era is unknown', () => {
+    const csv = rewardsToCsv([event({ earnedEra: null, paidEra: null })], 6);
+    const cells = csv.split('\n')[1]!.split(',');
+    expect(cells[1]).toBe('');
+    expect(cells[2]).toBe('');
   });
 
   it('emits a header even with no rows', () => {
