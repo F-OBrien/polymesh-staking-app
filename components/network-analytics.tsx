@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useEraSeries, useLatest, useManifest } from '@/lib/data/queries';
+import { useLatest, useManifest, useNetworkSeries } from '@/lib/data/queries';
 import { useResolvedRange, EraRangeControl } from '@/components/era-range-control';
 import dynamic from 'next/dynamic';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
@@ -58,7 +58,21 @@ export function NetworkAnalytics() {
   const manifest = useManifest();
   const latest = useLatest();
   const range = useResolvedRange(manifest.data);
-  const { series, isLoading, isError, error, isFetching } = useEraSeries(range);
+  const { series, isLoading, isError, error, isFetching, resolution } = useNetworkSeries(range);
+
+  /**
+   * Stated, not implied.
+   *
+   * Past a year the network charts are drawn from `rollup-weekly.json` rather
+   * than the chunks — one small file against fifty-five. A reader must be told,
+   * because a point on the chart stops being an era and becomes a week, and a
+   * chart that changes its own granularity in silence is a chart that gets
+   * misread.
+   */
+  const grain =
+    resolution === 'week'
+      ? 'Weekly averages — daily detail is available over a year or less.'
+      : null;
 
   const chartError = isError ? ((error as Error | null) ?? new Error('Unknown error')) : null;
 
@@ -244,9 +258,14 @@ export function NetworkAnalytics() {
               format={polyx}
               tickFormat={(v) => formatPolyx(v, { compact: true })}
               yLabel="POLYX"
-              note={axisRangeNote(series?.network.validatorReward ?? [], (v) =>
-                formatPolyx(v, { compact: true }),
-              )}
+              note={[
+                grain,
+                axisRangeNote(series?.network.validatorReward ?? [], (v) =>
+                  formatPolyx(v, { compact: true }),
+                ),
+              ]
+                .filter(Boolean)
+                .join(' ')}
               height={260}
               loading={isLoading}
               error={chartError}
@@ -357,7 +376,12 @@ export function NetworkAnalytics() {
                 // on a rescaled axis defeat the whole point of rescaling it.
                 tickFormat={(v) => formatNumber(v)}
                 yLabel="points"
-                note={axisRangeNote(series?.network.totalPoints ?? [], (v) => formatNumber(v))}
+                note={[
+                  grain,
+                  axisRangeNote(series?.network.totalPoints ?? [], (v) => formatNumber(v)),
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 height={260}
                 loading={isLoading}
                 error={chartError}
@@ -379,7 +403,12 @@ export function NetworkAnalytics() {
                 format={count}
                 tickFormat={(v) => formatNumber(v)}
                 yLabel="operators"
-                note={axisRangeNote(series?.network.activeOperators ?? [], (v) => formatNumber(v))}
+                note={[
+                  grain,
+                  axisRangeNote(series?.network.activeOperators ?? [], (v) => formatNumber(v)),
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 height={240}
                 loading={isLoading}
                 error={chartError}

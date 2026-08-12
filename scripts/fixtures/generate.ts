@@ -23,6 +23,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { CHUNK_SIZE } from '../../config/site';
 import { chunkPath, groupErasByChunk, isChunkComplete } from '../../lib/data/chunking';
 import {
@@ -121,7 +122,13 @@ function parseArgs(argv: readonly string[]): Options {
     eras: get('--eras', 200),
     operators: get('--operators', 100),
     seed: get('--seed', 42),
-    outDir: join(process.cwd(), 'public', 'data'),
+    // Overridable so the generator can be run against a scratch directory.
+    // Without it the only way to exercise it is to point it at `public/data`,
+    // which is exactly what `guardRealData` exists to prevent.
+    outDir: (() => {
+      const i = argv.indexOf('--out');
+      return i === -1 ? join(process.cwd(), 'public', 'data') : (argv[i + 1] ?? '');
+    })(),
     force: argv.includes('--force'),
   };
 }
@@ -544,8 +551,18 @@ async function guardRealData(outDir: string, force: boolean): Promise<void> {
   );
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+/**
+ * Generates the dataset. Exported so a test can run it.
+ *
+ * Every artefact goes through the same Zod schemas as real data, so a field
+ * added to a schema breaks this immediately — which is the whole point, and
+ * which is also why it needs a test. `fixedYearlyReward` was added to
+ * `LatestSchema` and the five band and commission columns to `RollupSchema`,
+ * and both broke `npm run fixtures` without anything failing until CI ran. CI
+ * is not the place to find out: the Pages workflow falls back to fixtures when
+ * the data branch is empty, so a broken generator blocks the deploy too.
+ */
+export async function generate(options: Options): Promise<void> {
   const rng = makeRng(options.seed);
 
   // Anchor on a fixed date so output is reproducible run to run.
@@ -635,6 +652,11 @@ async function main(): Promise<void> {
       electionPhase: 'Off',
     },
     totalIssuance: (BigInt(Math.round(last.totalIssuance)) * BASE).toString(),
+    // The chain constant behind the inflation ceiling. `RewardCurve` reads it
+    // to work out where the cap starts to bite, so a fixture without it makes
+    // the reward-curve chart untestable against synthetic data — and the schema
+    // rejects the file outright, which is how CI has been failing.
+    fixedYearlyReward: (BigInt(FIXED_YEARLY_REWARD) * BASE).toString(),
     totalStaked: (BigInt(Math.round(last.totalStaked)) * BASE).toString(),
     stakingRatio: round(stakingRatio),
     inflation: round(FIXED_YEARLY_REWARD / last.totalIssuance),
@@ -681,6 +703,16 @@ async function main(): Promise<void> {
     totalPoints: weeks.map((w) => Math.round(avg(w.map((s) => s.totalPoints)))),
     avgApr: weeks.map((w) => round(avg(w.map((s) => s.avgApr)))),
     activeOperators: weeks.map((w) => Math.round(avg(w.map((s) => s.active.length)))),
+    // The columns that let a weekly chart show what a daily one shows — the
+    // distribution band and the commission line. Without them, switching
+    // resolution would change what the chart displays, not just how finely.
+    nominatorCount: weeks.map((w) =>
+      Math.round(avg(w.map((s) => s.active.reduce((sum, a) => sum + a.nominatorCount, 0)))),
+    ),
+    avgCommission: weeks.map((w) => round(avg(w.map((s) => s.avgCommission)))),
+    aprP10: weeks.map((w) => round(avg(w.map((s) => s.aprP10)))),
+    aprP50: weeks.map((w) => round(avg(w.map((s) => s.aprP50)))),
+    aprP90: weeks.map((w) => round(avg(w.map((s) => s.aprP90)))),
   });
   await writeJson(join(outDir, 'rollup-weekly.json'), rollup);
 
@@ -715,7 +747,15 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+async function main(): Promise<void> {
+  await generate(parseArgs(process.argv.slice(2)));
+}
+
+// Only when run as a script. Importing this module — which the test does —
+// must not write a dataset over whatever `public/data` currently holds.
+if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

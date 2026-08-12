@@ -396,6 +396,20 @@ export const RollupSchema = z.object({
   totalPoints: z.array(z.number()),
   avgApr: z.array(Ratio),
   activeOperators: z.array(z.number()),
+  /**
+   * Enough of `NetworkSeries` to draw the same charts at week resolution.
+   *
+   * Without these a five-year view of the return would lose its distribution
+   * band and its commission line, so switching resolution would quietly change
+   * what the chart *shows* rather than only how finely. Five numbers a week is
+   * nothing — the whole file stays well under a hundred kilobytes for all of
+   * history.
+   */
+  nominatorCount: z.array(z.number()),
+  avgCommission: z.array(Ratio),
+  aprP10: z.array(Ratio),
+  aprP50: z.array(Ratio),
+  aprP90: z.array(Ratio),
 });
 
 // ---------------------------------------------------------------------------

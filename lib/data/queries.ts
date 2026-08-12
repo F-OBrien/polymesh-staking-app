@@ -4,6 +4,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { DEFAULT_ERA_WINDOW } from '@/config/site';
 import { chunksForRange } from './chunking';
+import { prefersRollup, rollupToSeries } from './rollup-series';
 import {
   fetchChunks,
   fetchLatest,
@@ -167,16 +168,27 @@ export interface SeriesResult {
  * Keyed by chunk hash, so the cache entry for a range is shared with any other
  * range covering the same chunks.
  */
-export function useEraSeries(requested?: Partial<EraRange>): SeriesResult {
+export function useEraSeries(
+  requested?: Partial<EraRange>,
+  /**
+   * Set false to resolve the range but fetch nothing.
+   *
+   * `useNetworkSeries` needs this: hooks cannot be called conditionally, so the
+   * chunk query is always constructed even when the rollup is serving the
+   * range — and without a way to say so it would download fifty-five chunk
+   * files that nothing reads.
+   */
+  { enabled = true }: { enabled?: boolean } = {},
+): SeriesResult {
   const manifest = useManifest();
   const range = resolveRange(manifest.data, requested);
 
   const refs = useMemo(
     () =>
-      manifest.data && range
+      manifest.data && range && enabled
         ? chunksForRange(manifest.data.chunks, range.fromEra, range.toEra)
         : [],
-    [manifest.data, range?.fromEra, range?.toEra], // eslint-disable-line react-hooks/exhaustive-deps
+    [manifest.data, range?.fromEra, range?.toEra, enabled], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const chunks = useQuery({
@@ -205,4 +217,51 @@ export function useEraSeries(requested?: Partial<EraRange>): SeriesResult {
     isError: manifest.isError || chunks.isError,
     error: (manifest.error ?? chunks.error) as Error | null,
   };
+}
+
+
+/**
+ * The network series for a range, at whatever resolution that range warrants.
+ *
+ * Below the threshold this is the chunk data, era by era. Above it the weekly
+ * rollup, which is one small file rather than a chunk per thirty-two eras —
+ * "All" over the chain's life is around fifty-five chunk files, and nobody
+ * reads a five-year chart for a single era's value.
+ *
+ * The switch is reported, never hidden: the caller puts `resolution` in the
+ * chart's coverage line, because a chart that silently changes its own
+ * granularity is a chart that can be misread.
+ *
+ * Chunks are still fetched for a long range only if the rollup is unavailable,
+ * so a missing `rollup-weekly.json` degrades to slow rather than to blank.
+ */
+export function useNetworkSeries(requested?: Partial<EraRange>): SeriesResult & {
+  resolution: 'era' | 'week';
+} {
+  const manifest = useManifest();
+  const range = resolveRange(manifest.data, requested);
+  const wantsRollup = prefersRollup(range);
+
+  const rollup = useRollup(wantsRollup);
+  const weekly = useMemo(() => rollupToSeries(rollup.data, range), [rollup.data, range]);
+
+  // Chunks are the fallback, so the query is only suppressed once the rollup
+  // has actually produced a series — a missing or unreadable
+  // `rollup-weekly.json` degrades to slow, never to blank. `useEraSeries`
+  // caches by chunk hash, so stepping 90d -> All -> 90d pays for chunks once.
+  const eraSeries = useEraSeries(requested, { enabled: !(wantsRollup && weekly) });
+
+  if (wantsRollup && weekly) {
+    return {
+      series: weekly,
+      range,
+      isLoading: manifest.isLoading || rollup.isLoading,
+      isFetching: manifest.isFetching || rollup.isFetching,
+      isError: manifest.isError,
+      error: manifest.error as Error | null,
+      resolution: 'week',
+    };
+  }
+
+  return { ...eraSeries, resolution: 'era' };
 }

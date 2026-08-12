@@ -31,6 +31,11 @@ interface EraRow {
   totalPoints: number;
   avgApr: number;
   activeOperators: number;
+  nominatorCount: number;
+  avgCommission: number;
+  aprP10: number;
+  aprP50: number;
+  aprP90: number;
 }
 
 /**
@@ -81,6 +86,11 @@ export async function buildRollup(
         totalPoints: chunk.network.totalPoints[i] ?? 0,
         avgApr: chunk.network.avgApr[i] ?? 0,
         activeOperators: chunk.network.activeOperators[i] ?? 0,
+        nominatorCount: chunk.network.nominatorCount[i] ?? 0,
+        avgCommission: chunk.network.avgCommission[i] ?? 0,
+        aprP10: chunk.network.aprP10[i] ?? 0,
+        aprP50: chunk.network.aprP50[i] ?? 0,
+        aprP90: chunk.network.aprP90[i] ?? 0,
       });
     }
   }
@@ -112,6 +122,14 @@ export async function buildRollup(
     totalPoints: buckets.map((b) => Math.round(mean(b.map((r) => r.totalPoints)))),
     avgApr: buckets.map((b) => round(mean(b.map((r) => r.avgApr)), 5)),
     activeOperators: buckets.map((b) => Math.round(mean(b.map((r) => r.activeOperators)))),
+    nominatorCount: buckets.map((b) => Math.round(mean(b.map((r) => r.nominatorCount)))),
+    avgCommission: buckets.map((b) => round(mean(b.map((r) => r.avgCommission)), 5)),
+    // The band is averaged per percentile, not recomputed across the week. A
+    // week's true 10th percentile would need every operator's every era, which
+    // is the chunk data this file exists to avoid loading.
+    aprP10: buckets.map((b) => round(mean(b.map((r) => r.aprP10)), 5)),
+    aprP50: buckets.map((b) => round(mean(b.map((r) => r.aprP50)), 5)),
+    aprP90: buckets.map((b) => round(mean(b.map((r) => r.aprP90)), 5)),
   };
 
   const bytes = await store.writeRollup(rollup);
