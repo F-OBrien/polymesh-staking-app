@@ -48,20 +48,54 @@ describe('stitchChunks', () => {
   it('concatenates chunks into one ascending era axis', () => {
     const series = stitchChunks([
       chunk(0, [0, 1], { alice: [1, 2] }),
-      chunk(32, [32, 33], { alice: [3, 4] }),
+      chunk(2, [2, 3], { alice: [3, 4] }),
     ]);
 
-    expect(series.eras).toEqual([0, 1, 32, 33]);
+    expect(series.eras).toEqual([0, 1, 2, 3]);
     expect(series.operators.alice!.points).toEqual([1, 2, 3, 4]);
   });
 
   it('orders output regardless of input chunk order', () => {
     const series = stitchChunks([
-      chunk(32, [32, 33], { alice: [3, 4] }),
+      chunk(2, [2, 3], { alice: [3, 4] }),
       chunk(0, [0, 1], { alice: [1, 2] }),
     ]);
-    expect(series.eras).toEqual([0, 1, 32, 33]);
+    expect(series.eras).toEqual([0, 1, 2, 3]);
     expect(series.operators.alice!.points).toEqual([1, 2, 3, 4]);
+  });
+
+  it('fills eras no chunk covers with nulls rather than skipping them', () => {
+    // Reported from the site: a line ran straight through a stretch of missing
+    // history with no break. The axis is a *time* scale, so dropping an era
+    // leaves its neighbours at their true dates and the line simply spans the
+    // hole — no gap, no marker, nothing to say a month is absent. Only a null
+    // at every missing era makes it a gap in every series.
+    const series = stitchChunks([
+      chunk(0, [0, 1], { alice: [1, 2] }),
+      chunk(32, [32, 33], { alice: [3, 4] }),
+    ]);
+
+    expect(series.eras).toHaveLength(34);
+    expect(series.eras[0]).toBe(0);
+    expect(series.eras.at(-1)).toBe(33);
+    expect(series.operators.alice!.points.slice(0, 2)).toEqual([1, 2]);
+    // Everything between the two chunks is a gap, not a value.
+    expect(series.operators.alice!.points.slice(2, 32).every((v) => v === null)).toBe(true);
+    expect(series.network.avgApr.slice(2, 32).every((v) => v === null)).toBe(true);
+  });
+
+  it('interpolates the timestamps of eras it has no record for', () => {
+    // Left unfilled they would sit at the epoch and drag the whole time axis
+    // back to 1970. Nothing is drawn at these positions — every column there is
+    // null — but the axis still has to place them, and it must stay monotonic.
+    const series = stitchChunks([
+      chunk(0, [0, 1], { alice: [1, 2] }),
+      chunk(32, [32, 33], { alice: [3, 4] }),
+    ]);
+
+    for (let i = 1; i < series.eraStart.length; i += 1) {
+      expect(series.eraStart[i]!).toBeGreaterThan(series.eraStart[i - 1]!);
+    }
   });
 
   it('pads an operator absent from one chunk instead of misaligning it', () => {
@@ -70,7 +104,7 @@ describe('stitchChunks', () => {
     // earlier and produce a chart that looks plausible and is wrong.
     const series = stitchChunks([
       chunk(0, [0, 1], { alice: [1, 2] }),
-      chunk(32, [32, 33], { alice: [3, 4], bob: [7, 8] }),
+      chunk(2, [2, 3], { alice: [3, 4], bob: [7, 8] }),
     ]);
 
     expect(series.operators.bob!.points).toEqual([null, null, 7, 8]);

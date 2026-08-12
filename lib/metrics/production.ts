@@ -1,4 +1,5 @@
-import type { NetworkSeries, OperatorSeries } from '@/lib/schemas/data';
+import type { OperatorSeries } from '@/lib/schemas/data';
+import type { NullableNetwork } from './derive';
 
 /**
  * Block production measured against what the authorship lottery predicts.
@@ -117,7 +118,7 @@ export interface ProductionSummary {
 
 export interface ProductionInput {
   eras: readonly number[];
-  network: Pick<NetworkSeries, 'totalPoints' | 'activeOperators'>;
+  network: NullableNetwork<'totalPoints' | 'activeOperators'>;
   operators: Readonly<Record<string, Pick<OperatorSeries, 'points'>>>;
   /**
    * Drop operators present for less than this fraction of the range.

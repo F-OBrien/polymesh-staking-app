@@ -1,4 +1,17 @@
 import type { Chunk, NetworkSeries, OperatorSeries } from '@/lib/schemas/data';
+
+/**
+ * Network columns as a *stitched* range supplies them.
+ *
+ * A stored chunk always has a value for every era it lists, so the schema is
+ * non-nullable. A stitched range can span an era no chunk covers, which must
+ * carry null rather than be dropped — see `StitchedSeries.eras`. Every
+ * function here already treats a missing value as a gap; this only makes the
+ * signature admit what the caller actually holds.
+ */
+export type NullableNetwork<K extends keyof NetworkSeries> = {
+  [P in K]: readonly (number | null)[];
+};
 import { aprToApy, apportionReward, portionAfterCommission } from './staking';
 
 /**
@@ -31,7 +44,7 @@ function toScaledBigInt(polyx: number): bigint {
  */
 export function deriveOperatorRewards(
   operator: Pick<OperatorSeries, 'points'>,
-  network: Pick<NetworkSeries, 'validatorReward' | 'totalPoints'>,
+  network: NullableNetwork<'validatorReward' | 'totalPoints'>,
 ): (number | null)[] {
   return operator.points.map((points, i) => {
     const eraReward = network.validatorReward[i];
@@ -63,7 +76,7 @@ export interface DerivedApr {
  */
 export function deriveOperatorApr(
   operator: OperatorSeries,
-  network: Pick<NetworkSeries, 'validatorReward' | 'totalPoints'>,
+  network: NullableNetwork<'validatorReward' | 'totalPoints'>,
   erasPerYear: number,
 ): DerivedApr {
   const rewards = deriveOperatorRewards(operator, network);
@@ -206,7 +219,7 @@ export function deriveSelfStakeRatio(operator: OperatorSeries): (number | null)[
  */
 export function derivePointsShare(
   operator: Pick<OperatorSeries, 'points'>,
-  network: Pick<NetworkSeries, 'totalPoints'>,
+  network: NullableNetwork<'totalPoints'>,
 ): (number | null)[] {
   return operator.points.map((points, i) => {
     const total = network.totalPoints[i];

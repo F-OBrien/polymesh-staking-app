@@ -116,9 +116,12 @@ export function NetworkAnalytics() {
     const network = series?.network;
     if (!network || series.eras.length < 2) return null;
 
-    const change = (column: readonly number[]) => {
-      const first = column[0];
-      const last = column.at(-1);
+    // First and last *recorded* values, not first and last slots. A range whose
+    // ends fall in eras no chunk covers now carries nulls there, and reading
+    // them as the endpoints would report "no change" for a window that changed.
+    const change = (column: readonly (number | null)[]) => {
+      const first = column.find((v) => v != null);
+      const last = [...column].reverse().find((v) => v != null);
       if (first == null || last == null || first === 0) return null;
       return (last - first) / first;
     };

@@ -1,5 +1,5 @@
-import { deriveOperatorApr } from './derive';
-import type { NetworkSeries, OperatorSeries } from '@/lib/schemas/data';
+import { deriveOperatorApr, type NullableNetwork } from './derive';
+import type { OperatorSeries } from '@/lib/schemas/data';
 
 /**
  * What backing *these* operators is worth, against backing the average one.
@@ -44,7 +44,7 @@ export interface OperatorPick {
 
 export interface ChoiceInput {
   eras: readonly number[];
-  network: Pick<NetworkSeries, 'validatorReward' | 'totalPoints'>;
+  network: NullableNetwork<'validatorReward' | 'totalPoints'>;
   operators: Readonly<Record<string, OperatorSeries>>;
   picks: readonly OperatorPick[];
   erasPerYear: number;

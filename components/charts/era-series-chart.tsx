@@ -169,6 +169,19 @@ export function EraSeriesChart({
         colour: 'var(--text-secondary)',
       });
     }
+
+    // Only when something is actually missing. A tinted column in an operator's
+    // own colour needs saying once; listing it on every chart, including the
+    // ones with no gaps, would be chrome explaining nothing.
+    if (operators.some((op) => op.values.some((v) => v == null || !Number.isFinite(v)))) {
+      items.push({
+        id: '__gaps',
+        label: 'Shaded: that operator was not in the set, so earned nothing',
+        variant: 'band',
+        colour: 'var(--series-other-alpha)',
+      });
+    }
+
     return items;
   }, [operators, band, reference, onRemoveOperator]);
 

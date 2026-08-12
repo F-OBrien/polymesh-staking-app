@@ -15,11 +15,31 @@ import type { Chunk, NetworkSeries, OperatorSeries } from '@/lib/schemas/data';
  * against the merged era axis, padding absent stretches with `null`.
  */
 
+/**
+ * Network columns as *stitched*, which is not the same as stored.
+ *
+ * A stored chunk always has a value for every era it lists, so
+ * `NetworkSeriesSchema` is rightly non-nullable. A stitched range is different:
+ * it can span an era no chunk covers, and that era has to carry `null` rather
+ * than be dropped. See the note on the era axis below.
+ */
+export type StitchedNetwork = {
+  [K in keyof NetworkSeries]: (number | null)[];
+};
+
 export interface StitchedSeries {
-  /** Ascending, de-duplicated, gap-free within each chunk's coverage. */
+  /**
+   * Every era in the range, contiguous — including ones no chunk covers.
+   *
+   * Contiguity is load-bearing. The axis is a *time* scale, so a skipped era
+   * leaves its neighbours at their true dates and the line simply stretches
+   * across the hole: no break, no marker, nothing to say a month of history is
+   * missing. Filling the hole with nulls makes it a gap in every series, which
+   * is what it is.
+   */
   eras: number[];
   eraStart: number[];
-  network: NetworkSeries;
+  network: StitchedNetwork;
   operators: Record<string, OperatorSeries>;
 }
 
@@ -63,13 +83,27 @@ export function stitchChunks(
       eraSet.add(era);
     }
   }
-  const eras = [...eraSet].sort((a, b) => a - b);
+  const present = [...eraSet].sort((a, b) => a - b);
+
+  // The axis runs over every era between the ends, not only the ones we hold.
+  // See `StitchedSeries.eras`: skipping a missing era does not draw a gap, it
+  // draws a line straight across it.
+  const eras: number[] = [];
+  const first = present[0];
+  const last = present.at(-1);
+  if (first != null && last != null) {
+    for (let era = first; era <= last; era += 1) eras.push(era);
+  }
   const indexOfEra = new Map(eras.map((era, i) => [era, i]));
 
   const eraStart = new Array<number>(eras.length).fill(0);
+  // Which slots a chunk actually supplied. A sentinel value cannot do this job:
+  // zero is a real Unix timestamp, and a test fixture starting at era 0 has a
+  // genuine `eraStart` of 0 — which a zero-means-unknown check then "fills in".
+  const known = new Array<boolean>(eras.length).fill(false);
   const network = Object.fromEntries(
-    NETWORK_KEYS.map((key) => [key, new Array<number>(eras.length).fill(0)]),
-  ) as unknown as NetworkSeries;
+    NETWORK_KEYS.map((key) => [key, new Array<number | null>(eras.length).fill(null)]),
+  ) as unknown as StitchedNetwork;
 
   const addresses = new Set<string>();
   for (const chunk of chunks) {
@@ -89,8 +123,9 @@ export function stitchChunks(
       if (target == null) continue; // outside the requested range
 
       eraStart[target] = chunk.eraStart[sourceIndex] ?? 0;
+      known[target] = true;
       for (const key of NETWORK_KEYS) {
-        network[key][target] = chunk.network[key][sourceIndex] ?? 0;
+        network[key][target] = chunk.network[key][sourceIndex] ?? null;
       }
 
       for (const address of addresses) {
@@ -103,7 +138,44 @@ export function stitchChunks(
     }
   }
 
+  // A missing era has no recorded start, and leaving it at zero would place it
+  // at the epoch and drag the whole time axis back to 1970. Interpolating
+  // between the eras either side keeps the axis proportional; nothing is drawn
+  // at these positions anyway, since every column there is null.
+  fillMissingEraStarts(eraStart, known);
+
   return { eras, eraStart, network, operators };
+}
+
+/** Linear interpolation across the era starts no chunk supplied. */
+function fillMissingEraStarts(eraStart: number[], known: readonly boolean[]): void {
+  let previous = -1;
+  for (let i = 0; i < eraStart.length; i += 1) {
+    if (!known[i]) continue;
+    if (previous >= 0 && i - previous > 1) {
+      const from = eraStart[previous] as number;
+      const step = ((eraStart[i] as number) - from) / (i - previous);
+      for (let k = previous + 1; k < i; k += 1) {
+        eraStart[k] = Math.round(from + step * (k - previous));
+      }
+    }
+    previous = i;
+  }
+
+  // A run of unknowns at either end has nothing to interpolate between, so it
+  // extends the nearest known era by a nominal day. Only reachable when a range
+  // clips outside every chunk, which the manifest should prevent.
+  const DAY = 86_400;
+  const firstKnown = known.indexOf(true);
+  if (firstKnown > 0) {
+    for (let i = firstKnown - 1; i >= 0; i -= 1) eraStart[i] = (eraStart[i + 1] as number) - DAY;
+  }
+  const lastKnown = known.lastIndexOf(true);
+  if (lastKnown >= 0) {
+    for (let i = lastKnown + 1; i < eraStart.length; i += 1) {
+      eraStart[i] = (eraStart[i - 1] as number) + DAY;
+    }
+  }
 }
 
 /**

@@ -48,6 +48,33 @@ import { useChartHeight } from './chart-frame';
  * rendering of the same data. Colour is never the only channel.
  */
 
+/**
+ * Narrowest a gap marker may be drawn.
+ *
+ * A missing era is 0.74px wide at full history, which is nothing. The marker
+ * is chrome saying "no data here", not a data mark whose width encodes a
+ * quantity, so a floor is honest — and without one the thing it exists to make
+ * visible is invisible.
+ */
+const MIN_GAP_MARK = 3;
+
+/** Contiguous runs of missing values, as inclusive index ranges. */
+function gapRuns(values: readonly (number | null)[]): { from: number; to: number }[] {
+  const runs: { from: number; to: number }[] = [];
+  let start: number | null = null;
+
+  for (let i = 0; i <= values.length; i += 1) {
+    const value = i < values.length ? values[i] : undefined;
+    const missing = i < values.length && (value == null || !Number.isFinite(value));
+    if (missing && start == null) start = i;
+    if (!missing && start != null) {
+      runs.push({ from: start, to: i - 1 });
+      start = null;
+    }
+  }
+  return runs;
+}
+
 export interface NamedSeries {
   /** Stable identity — the operator address. Colour follows this, not rank. */
   id: string;
@@ -368,6 +395,33 @@ export function BandedLineChart({
               />
             ) : null}
 
+            {/* 3b — where a series has no data at all.
+              Butt caps recover five pixels of gap, and that is still not
+              enough: at 1,749 eras across 1,300px one era is 0.74px, so no
+              break in a line can be seen however it is capped. A marker can
+              be, and "this operator recorded nothing here" is worth seeing at
+              every zoom — it is usually an outage. Drawn in the series' own
+              colour, under the lines, with a floor on its width. */}
+            {capped.map((s, index) =>
+              gapRuns(s.values).map((run: { from: number; to: number }) => {
+                const from = xs[run.from] ?? 0;
+                const to = xs[run.to] ?? from;
+                const width = Math.max(MIN_GAP_MARK, to - from);
+                return (
+                  <rect
+                    key={`${s.id}-gap-${run.from}`}
+                    x={from + (to - from) / 2 - width / 2}
+                    y={0}
+                    width={width}
+                    height={box.innerHeight}
+                    fill={SERIES_TOKENS[index]}
+                    opacity={0.12}
+                    aria-hidden="true"
+                  />
+                );
+              }),
+            )}
+
             {/* 4 — named series. Drawn last so they sit above the context. */}
             {capped.map((s, index) => {
               const colour = SERIES_TOKENS[index]!;
@@ -386,9 +440,16 @@ export function BandedLineChart({
                     fill="none"
                     stroke="var(--surface-1)"
                     strokeWidth={5}
-                    strokeLinecap="round"
+                    // Butt, not round. A round cap extends half the stroke
+                    // past the last point, so the 5px casing added 2.5px at
+                    // each side of every break — swallowing five pixels of
+                    // gap. Measured, that closed a two-era outage completely
+                    // at full history and left a one-era outage at 2px over a
+                    // year: the line looked continuous through an era the
+                    // operator produced nothing in.
+                    strokeLinecap="butt"
                   />
-                  <path d={d} fill="none" stroke={colour} strokeWidth={2} strokeLinecap="round" />
+                  <path d={d} fill="none" stroke={colour} strokeWidth={2} strokeLinecap="butt" />
                 </g>
               );
             })}
