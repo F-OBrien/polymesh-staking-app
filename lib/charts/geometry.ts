@@ -103,6 +103,18 @@ export interface ValueScaleOptions {
   padding?: number;
   /** Hard floor, e.g. 0 for a quantity that cannot be negative. */
   min?: number;
+  /**
+   * Hard ceiling, for a series with an outlier that would otherwise own the
+   * axis.
+   *
+   * The network's average APR over the chain's whole life is the case this
+   * exists for: its first week paid 12,564%, because 0.08% of supply was
+   * staked across three validators. That is real, and it sets a 15,000% axis
+   * that compresses the other 249 weeks — every one of them between 15% and
+   * 90% — into a flat line on the floor. Callers that set this must say so;
+   * marks above it are clipped, not dropped.
+   */
+  max?: number;
 }
 
 /**
@@ -119,7 +131,7 @@ export interface ValueScaleOptions {
 export function valueScale(
   series: readonly (readonly (number | null)[])[],
   innerHeight: number,
-  { includeZero = false, padding = 0.08, min }: ValueScaleOptions = {},
+  { includeZero = false, padding = 0.08, min, max }: ValueScaleOptions = {},
 ): LinearScale {
   let lo = Number.POSITIVE_INFINITY;
   let hi = Number.NEGATIVE_INFINITY;
@@ -150,10 +162,14 @@ export function valueScale(
     hi += nudge;
   }
 
-  const pad = (hi - lo) * padding;
+  // Clamp before padding, or the pad is computed from the outlier's extent and
+  // the ceiling ends up nowhere near where the caller asked for it.
+  const cappedHi = max != null ? Math.min(hi, max) : hi;
+  const pad = (cappedHi - lo) * padding;
   let domainMin = lo - pad;
-  const domainMax = hi + pad;
+  let domainMax = cappedHi + pad;
   if (min != null) domainMin = Math.max(domainMin, min);
+  if (max != null) domainMax = Math.min(domainMax, max);
 
   return scaleLinear<number, number>()
     .domain([domainMin, domainMax])

@@ -11,7 +11,7 @@ import { RewardCurve, RewardCurveReading } from '@/components/reward-curve';
 import { HeadingWithTip } from '@/components/info-tip';
 import { AsOf, ErrorState } from '@/components/states';
 import { Sparkline } from '@/components/charts/sparkline';
-import { axisRangeNote } from '@/lib/charts/notes';
+import { axisRangeNote, outlierCap } from '@/lib/charts/notes';
 import { REWARD_CURVE } from '@/lib/metrics/staking';
 import {
   formatBaseUnits,
@@ -71,8 +71,31 @@ export function NetworkAnalytics() {
    */
   const grain =
     resolution === 'week'
-      ? 'Weekly averages — daily detail is available over a year or less.'
+      ? `Weekly averages across eras ${formatNumber(range?.fromEra)}–${formatNumber(range?.toEra)}. ` +
+        'Daily detail is available over a year or less.'
       : null;
+  const pointNoun = resolution === 'week' ? 'weeks' : 'eras';
+
+  /**
+   * The return chart over the chain's whole life needs a ceiling.
+   *
+   * Its band and its average both run through the bootstrap weeks, so the cap
+   * is taken across all three series rather than the average alone — capping to
+   * the average's range while the p90 still reached 12,000% would clip the band
+   * to a solid block against the top of the plot.
+   */
+  const aprCap = useMemo(
+    () =>
+      outlierCap(
+        [
+          ...(series?.network.avgApr ?? []),
+          ...(series?.network.aprP90 ?? []),
+          ...(series?.network.aprP10 ?? []),
+        ],
+        (v) => formatPercent(v, { decimals: 0 }),
+      ),
+    [series],
+  );
 
   const chartError = isError ? ((error as Error | null) ?? new Error('Unknown error')) : null;
 
@@ -221,6 +244,9 @@ export function NetworkAnalytics() {
             <LazyChart height={320} label="Average return">
               <LazyEraSeriesChart
                 title="Average return over time"
+                pointNoun={pointNoun}
+                yMax={aprCap?.max}
+                note={[grain, aprCap?.note].filter(Boolean).join(' ') || null}
                 subtitle="Stake-weighted, after commission — what the network actually paid."
                 series={series}
                 operators={[]}
@@ -248,6 +274,7 @@ export function NetworkAnalytics() {
           <LazyChart height={260} label="Rewards paid">
             <LazyEraSeriesChart
               title="Rewards paid each era"
+              pointNoun={pointNoun}
               subtitle="Total validator payout, before commission is deducted."
               series={series}
               operators={
@@ -296,6 +323,8 @@ export function NetworkAnalytics() {
           <LazyChart height={280} label="Total staked">
             <LazyEraSeriesChart
               title="Total staked over time"
+              pointNoun={pointNoun}
+              note={grain}
               subtitle="Is the network attracting or losing stake?"
               series={series}
               operators={
@@ -376,6 +405,7 @@ export function NetworkAnalytics() {
                 // on a rescaled axis defeat the whole point of rescaling it.
                 tickFormat={(v) => formatNumber(v)}
                 yLabel="points"
+                pointNoun={pointNoun}
                 note={[
                   grain,
                   axisRangeNote(series?.network.totalPoints ?? [], (v) => formatNumber(v)),
@@ -403,6 +433,7 @@ export function NetworkAnalytics() {
                 format={count}
                 tickFormat={(v) => formatNumber(v)}
                 yLabel="operators"
+                pointNoun={pointNoun}
                 note={[
                   grain,
                   axisRangeNote(series?.network.activeOperators ?? [], (v) => formatNumber(v)),

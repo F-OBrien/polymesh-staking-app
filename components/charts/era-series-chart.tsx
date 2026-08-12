@@ -52,6 +52,16 @@ export interface EraSeriesChartProps {
    * pass the helper's result straight through.
    */
   note?: string | null | undefined;
+  /**
+   * What one point on the x axis is, when it is not an era.
+   *
+   * The weekly rollup feeds this chart 250 buckets spanning 1,749 eras, and the
+   * coverage line read "250 eras" — understating the history fivefold while
+   * looking authoritative. The caller knows the resolution; the chart cannot.
+   */
+  pointNoun?: string | undefined;
+  /** Hard ceiling for the y axis; see `BandedLineChartProps.yMax`. */
+  yMax?: number | undefined;
   loading?: boolean | undefined;
   error?: Error | null | undefined;
   onRetry?: (() => void) | undefined;
@@ -73,6 +83,8 @@ export function EraSeriesChart({
   height = 320,
   includeZero = false,
   note,
+  pointNoun = 'eras',
+  yMax,
   loading,
   error,
   onRetry,
@@ -93,9 +105,9 @@ export function EraSeriesChart({
     if (eras.length === 0) return note ?? undefined;
     const from = formatEraDate(eraStart[0], { withYear: true });
     const to = formatEraDate(eraStart.at(-1), { withYear: true });
-    const span = `${eras.length} eras · ${from} – ${to}`;
+    const span = `${eras.length} ${pointNoun} · ${from} – ${to}`;
     return note ? `${span}. ${note}` : span;
-  }, [eras.length, eraStart, note]);
+  }, [eras.length, eraStart, note, pointNoun]);
 
   const legendItems = useMemo<LegendItem[]>(() => {
     const items: LegendItem[] = operators.slice(0, MAX_NAMED_SERIES).map((op) => ({
@@ -190,6 +202,7 @@ export function EraSeriesChart({
           yLabel={yLabel}
           height={height}
           includeZero={includeZero}
+          yMax={yMax}
         />
         {/* A second, visually-hidden copy of the table, so a screen reader
             reaches the data without having to find and operate the tab. */}

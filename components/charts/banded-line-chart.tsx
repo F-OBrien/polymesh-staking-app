@@ -70,6 +70,14 @@ export interface BandedLineChartProps {
   height?: number;
   includeZero?: boolean;
   /**
+   * Hard ceiling for the y axis. Marks above it are clipped, not dropped.
+   *
+   * For a series with a bootstrap outlier that would otherwise own the axis —
+   * see `ValueScaleOptions.max`. A caller setting this must say so in the
+   * chart's coverage line, and the table view still carries the real values.
+   */
+  yMax?: number | undefined;
+  /**
    * Terser formatter for axis ticks. Falls back to `format`, but an axis wants
    * "20%" where a tooltip wants "19.81%" — the extra digits are noise repeated
    * down the gutter.
@@ -87,6 +95,7 @@ export function BandedLineChart({
   yLabel,
   height: requestedHeight = 320,
   includeZero = false,
+  yMax,
   tickFormat,
 }: BandedLineChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -116,8 +125,11 @@ export function BandedLineChart({
     const columns: (readonly (number | null)[])[] = series.map((s) => s.values);
     if (band) columns.push(band.lo, band.hi);
     if (reference) columns.push(reference.values);
-    return valueScale(columns, box.innerHeight, { includeZero });
-  }, [series, band, reference, box.innerHeight, includeZero]);
+    return valueScale(columns, box.innerHeight, {
+      includeZero,
+      ...(yMax != null ? { max: yMax } : {}),
+    });
+  }, [series, band, reference, box.innerHeight, includeZero, yMax]);
 
   const xs = useMemo(() => eraStart.map((seconds) => x(new Date(seconds * 1000))), [eraStart, x]);
 
@@ -207,88 +219,106 @@ export function BandedLineChart({
       >
         <title id={titleId}>{summary}</title>
 
+        {/* A clip, so a capped axis crops the marks at the plot edge instead
+            of letting them draw up through the title. Only defined when a cap
+            is in force — an unclipped plot is the normal case, and direct
+            labels in the right gutter must not be cropped. */}
+        {yMax != null ? (
+          <defs>
+            <clipPath id={`${titleId}-clip`}>
+              <rect x={0} y={0} width={box.innerWidth} height={box.innerHeight} />
+            </clipPath>
+          </defs>
+        ) : null}
+
         <g transform={`translate(${margin.left}, ${margin.top})`}>
           <Grid box={box} yScale={y} />
 
-          {/* 1 — distribution band */}
-          {band ? (
-            <path
-              d={bandPath(
-                eras
-                  .map((_, i) => ({
+          {/* Layers 1-4 are the only things a y-axis cap may crop. The axis
+              labels sit in the left gutter and the direct labels in the right,
+              both outside the plot box, so clipping the whole group would
+              erase the chart's own annotations along with the outlier. */}
+          <g {...(yMax != null ? { clipPath: `url(#${titleId}-clip)` } : {})}>
+            {/* 1 — distribution band */}
+            {band ? (
+              <path
+                d={bandPath(
+                  eras
+                    .map((_, i) => ({
+                      x: xs[i] ?? 0,
+                      lo: band.lo[i] ?? null,
+                      hi: band.hi[i] ?? null,
+                    }))
+                    .map((p) => ({
+                      x: p.x,
+                      lo: p.lo == null ? null : y(p.lo),
+                      hi: p.hi == null ? null : y(p.hi),
+                    })),
+                )}
+                fill="var(--band-fill)"
+                aria-hidden="true"
+              />
+            ) : null}
+
+            {/* 2 — median */}
+            {band ? (
+              <path
+                d={linePath(
+                  eras.map((_, i) => ({
                     x: xs[i] ?? 0,
-                    lo: band.lo[i] ?? null,
-                    hi: band.hi[i] ?? null,
-                  }))
-                  .map((p) => ({
-                    x: p.x,
-                    lo: p.lo == null ? null : y(p.lo),
-                    hi: p.hi == null ? null : y(p.hi),
+                    y: band.mid[i] == null ? null : y(band.mid[i]!),
                   })),
-              )}
-              fill="var(--band-fill)"
-              aria-hidden="true"
-            />
-          ) : null}
+                )}
+                fill="none"
+                stroke="var(--series-other)"
+                strokeWidth={1.5}
+                strokeDasharray="2 4"
+                aria-hidden="true"
+              />
+            ) : null}
 
-          {/* 2 — median */}
-          {band ? (
-            <path
-              d={linePath(
+            {/* 3 — reference */}
+            {reference ? (
+              <path
+                d={linePath(
+                  eras.map((_, i) => ({
+                    x: xs[i] ?? 0,
+                    y: reference.values[i] == null ? null : y(reference.values[i]!),
+                  })),
+                )}
+                fill="none"
+                stroke="var(--text-secondary)"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                aria-hidden="true"
+              />
+            ) : null}
+
+            {/* 4 — named series. Drawn last so they sit above the context. */}
+            {capped.map((s, index) => {
+              const colour = SERIES_TOKENS[index]!;
+              const d = linePath(
                 eras.map((_, i) => ({
                   x: xs[i] ?? 0,
-                  y: band.mid[i] == null ? null : y(band.mid[i]!),
+                  y: s.values[i] == null ? null : y(s.values[i]!),
                 })),
-              )}
-              fill="none"
-              stroke="var(--series-other)"
-              strokeWidth={1.5}
-              strokeDasharray="2 4"
-              aria-hidden="true"
-            />
-          ) : null}
-
-          {/* 3 — reference */}
-          {reference ? (
-            <path
-              d={linePath(
-                eras.map((_, i) => ({
-                  x: xs[i] ?? 0,
-                  y: reference.values[i] == null ? null : y(reference.values[i]!),
-                })),
-              )}
-              fill="none"
-              stroke="var(--text-secondary)"
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              aria-hidden="true"
-            />
-          ) : null}
-
-          {/* 4 — named series. Drawn last so they sit above the context. */}
-          {capped.map((s, index) => {
-            const colour = SERIES_TOKENS[index]!;
-            const d = linePath(
-              eras.map((_, i) => ({
-                x: xs[i] ?? 0,
-                y: s.values[i] == null ? null : y(s.values[i]!),
-              })),
-            );
-            return (
-              <g key={s.id} aria-hidden="true">
-                {/* A surface-coloured casing under each line, so crossings read
+              );
+              return (
+                <g key={s.id} aria-hidden="true">
+                  {/* A surface-coloured casing under each line, so crossings read
                     as one line passing over another rather than merging. */}
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="var(--surface-1)"
-                  strokeWidth={5}
-                  strokeLinecap="round"
-                />
-                <path d={d} fill="none" stroke={colour} strokeWidth={2} strokeLinecap="round" />
-              </g>
-            );
-          })}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="var(--surface-1)"
+                    strokeWidth={5}
+                    strokeLinecap="round"
+                  />
+                  <path d={d} fill="none" stroke={colour} strokeWidth={2} strokeLinecap="round" />
+                </g>
+              );
+            })}
+          </g>
 
           {/* Crosshair */}
           {active != null ? (

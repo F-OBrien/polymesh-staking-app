@@ -521,8 +521,9 @@ spec version is what makes a full 1,749-era run practical. In practice a
 300-era slice spanning three spec versions took **3 minutes** at concurrency 2,
 so the whole chain is roughly twenty.
 
-**Run so far: eras 1360-1749 are stored** — 390 eras against the 90 the
-retained window allowed. The payoff is measurable on the production chart,
+**Run: the whole chain is stored, eras 1-1749** — 55 chunks, 3.8 MB on disk,
+16.8 minutes at concurrency 2, crossing every spec version from 3000 to
+7004001. Against the 84-era window the incremental ingest could reach. The payoff is measurable on the production chart,
 which is entirely about separating signal from slot luck:
 
 | Window | Field spread | Of which luck | Genuine | Operators beyond 2 sigma |
@@ -543,6 +544,34 @@ existing registry. Deriving matters as much as the per-operator part: a
 min-merge alone can never *raise* a too-low value, so a wrong one would have
 been permanent. Rebuilt, the field has ten distinct first-seen eras — 86
 operators from 1360 and 22 arriving later.
+
+### Long ranges are served from the rollup
+
+`rollup-weekly.json` was built in Phase 1c for exactly this and then never
+consumed — `useRollup` had no caller and every range went to the chunks. That
+was invisible at 84 eras and stopped being invisible the moment the whole chain
+landed. `useNetworkSeries` now switches above a year:
+
+| Range | Files | Chunks | Transferred |
+|---|---|---|---|
+| 90d | 6 | 4 | 99 KB |
+| 1y | 14 | 12 | 187 KB |
+| All (1,749 eras) | 3 | **0** | **31 KB** |
+
+Network series only — the rollup has no per-operator columns and should not.
+Operator comparison stays on the chunks. The switch is stated in each chart's
+coverage line, and points are labelled `weeks` rather than `eras`: the chart
+read "250 eras" for 250 buckets spanning 1,749, understating the history
+fivefold while looking authoritative.
+
+**The chain's first week paid 12,564%.** 0.08% of supply staked across three
+validators — real, and it set a 15,000% axis that flattened the other 249 weeks
+into a line on the floor. `outlierCap` now caps the axis at the highest
+non-outlier and states in words how many points run off the top and what they
+reached; `BandedLineChart` clips the marks (not the axis or the direct labels)
+and the table view keeps the real values. It declines to cap when more than 5%
+of a series is above the line, because that is a distribution rather than an
+outlier.
 
 ### The anchors the backfill exposed
 

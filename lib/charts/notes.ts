@@ -45,3 +45,55 @@ export function axisRangeNote(
     `not to zero, so the changes are visible — read the values, not the height of the line.`
   );
 }
+
+/**
+ * A y-axis ceiling that a handful of extreme points cannot own, plus the note
+ * that has to accompany it.
+ *
+ * The case this exists for is the network's average return over the chain's
+ * whole life. Its first week paid 12,564%, because 0.08% of supply was staked
+ * across three validators — genuinely what happened, and utterly unlike the
+ * 249 weeks since, every one of which sits between 15% and 90%. Plotted
+ * honestly the axis runs to 15,000% and the last four years are a flat line on
+ * the floor.
+ *
+ * Capping is only honest if the reader is told, so this returns the note with
+ * the cap and the caller must render both. Clipped points keep their real
+ * values in the table view; nothing is dropped.
+ *
+ * Null when no cap is warranted, which is the normal case — a series without a
+ * far outlier is left entirely alone.
+ */
+export function outlierCap(
+  values: readonly (number | null | undefined)[],
+  format: (value: number) => string,
+  /** How many times the median a point may reach before it is an outlier. */
+  tolerance = 4,
+): { max: number; note: string } | null {
+  const finite = values.filter((v): v is number => v != null && Number.isFinite(v));
+  if (finite.length < 4) return null;
+
+  const sorted = [...finite].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] as number;
+  if (median <= 0) return null;
+
+  const limit = median * tolerance;
+  const above = finite.filter((v) => v > limit);
+  // Only worth capping for a genuine few. If a fifth of the series is above the
+  // line, that is the shape of the data and cutting it would be a lie.
+  if (above.length === 0 || above.length > finite.length * 0.05) return null;
+
+  // The cap sits just above the highest point that is *not* an outlier, so the
+  // legitimate range fills the plot.
+  const highestKept = Math.max(...finite.filter((v) => v <= limit));
+  const max = highestKept * 1.05;
+  const peak = Math.max(...above);
+
+  return {
+    max,
+    note:
+      `${above.length === 1 ? 'One point runs' : `${above.length} points run`} off the top of ` +
+      `this axis, peaking at ${format(peak)} in the chain's earliest weeks when almost nothing ` +
+      `was staked. The axis is capped so the rest is legible; the table has the real values.`,
+  };
+}
