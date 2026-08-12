@@ -26,8 +26,14 @@ export function StatTile({
   // `| undefined` is explicit throughout: under exactOptionalPropertyTypes an
   // optional property is not the same as one that accepts undefined, and these
   // are routinely fed values that are absent while data loads.
-  /** Short clarifier under the value, e.g. "of total supply". */
-  hint?: string | undefined;
+  /**
+   * Short clarifier under the value, e.g. "of total supply".
+   *
+   * A node rather than a string, so a tile can carry an interactive clarifier —
+   * the operator's DID is shown here and needs the same copy button its stash
+   * address has.
+   */
+  hint?: ReactNode | undefined;
   delta?: { value: string; direction: 'up' | 'down' | 'flat'; label?: string } | undefined;
   /** Freshness stamp or similar. */
   footer?: ReactNode | undefined;

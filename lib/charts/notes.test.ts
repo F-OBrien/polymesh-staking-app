@@ -6,14 +6,14 @@ const plain = (v: number) => String(v);
 describe('axisRangeNote', () => {
   it('states the observed range and that the axis is not zero-based', () => {
     const note = axisRangeNote([10, 4, 7], plain);
-    expect(note).toContain('Between 4 and 10');
-    expect(note).toContain('not to zero');
+    expect(note).toContain('4–10');
+    expect(note).toContain('not zero');
   });
 
   it('ignores gaps rather than treating them as zero', () => {
     // An operator absent from an era did not score nothing, and a note claiming
     // the series reached zero would contradict the chart, which breaks the line.
-    expect(axisRangeNote([5, null, 9, undefined], plain)).toContain('Between 5 and 9');
+    expect(axisRangeNote([5, null, 9, undefined], plain)).toContain('5–9');
   });
 
   it('says nothing about a series that never moves', () => {
@@ -40,7 +40,7 @@ describe('outlierCap', () => {
     const values = [125.6, ...Array.from({ length: 60 }, () => 0.2)];
     const cap = outlierCap(values, pct);
     expect(cap?.max).toBeLessThan(1);
-    expect(cap?.note).toContain('One point runs');
+    expect(cap?.note).toContain('1 above');
     expect(cap?.note).toContain('12560%');
   });
 

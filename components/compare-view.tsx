@@ -197,11 +197,7 @@ export function CompareView() {
           ...(series?.network.avgApr ?? []),
         ],
         (v) => formatPercent(v, { decimals: 0 }),
-        {
-          because:
-            "in an operator's first era, or the chain's own first weeks — both times when very " +
-            'little stake was backing a full share of the rewards',
-        },
+        { because: 'in a first era' },
       ),
     [aprSeries, series],
   );

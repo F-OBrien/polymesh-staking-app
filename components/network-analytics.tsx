@@ -71,8 +71,7 @@ export function NetworkAnalytics() {
    */
   const grain =
     resolution === 'week'
-      ? `Weekly averages across eras ${formatNumber(range?.fromEra)}–${formatNumber(range?.toEra)}. ` +
-        'Daily detail is available over a year or less.'
+      ? `weekly averages, eras ${formatNumber(range?.fromEra)}–${formatNumber(range?.toEra)}`
       : null;
   const pointNoun = resolution === 'week' ? 'weeks' : 'eras';
 
@@ -93,7 +92,7 @@ export function NetworkAnalytics() {
           ...(series?.network.aprP10 ?? []),
         ],
         (v) => formatPercent(v, { decimals: 0 }),
-        { because: "in the chain's first weeks, when almost none of the supply was staked" },
+        { because: 'in the chain’s first weeks' },
       ),
     [series],
   );

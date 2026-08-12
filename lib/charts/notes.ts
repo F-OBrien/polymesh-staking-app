@@ -40,10 +40,11 @@ export function axisRangeNote(
 
   if (!Number.isFinite(lo) || lo === hi) return null;
 
-  return (
-    `Between ${format(lo)} and ${format(hi)} over this range. The axis is scaled to that, ` +
-    `not to zero, so the changes are visible — read the values, not the height of the line.`
-  );
+  // Terse on purpose. This sits in a one-line coverage strip beside the frame's
+  // controls, and a long sentence there wraps the header and shifts the buttons
+  // down the card — the reader loses the control they were reaching for to gain
+  // a sentence they had already read.
+  return `Axis spans ${format(lo)}–${format(hi)}, not zero.`;
 }
 
 /**
@@ -78,7 +79,7 @@ export function outlierCap(
      * earliest weeks", which was right for the network chart and plainly wrong
      * on an operator page, where the spike is that validator's own first era.
      */
-    because = 'when little was staked against them',
+    because = '',
   }: { tolerance?: number; because?: string } = {},
 ): { max: number; note: string } | null {
   const finite = values.filter((v): v is number => v != null && Number.isFinite(v));
@@ -102,9 +103,8 @@ export function outlierCap(
 
   return {
     max,
-    note:
-      `${above.length === 1 ? 'One point runs' : `${above.length} points run`} off the top of ` +
-      `this axis, peaking at ${format(peak)} ${because}. The axis is capped so the rest is ` +
-      `legible; the table has the real values, and Log shows them in place.`,
+    // Kept to one clause for the same reason as `axisRangeNote`. The full
+    // explanation is `because`, which callers keep short too.
+    note: `${above.length} above ${format(max)} clipped, peaking at ${format(peak)} ${because}.`,
   };
 }

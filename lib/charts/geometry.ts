@@ -220,7 +220,7 @@ export function valueScale(
 export function logValueScale(
   series: readonly (readonly (number | null)[])[],
   innerHeight: number,
-  { padding = 0.08 }: { padding?: number } = {},
+  { padding = 0.08, max }: { padding?: number; max?: number } = {},
 ): LogScale {
   let lo = Number.POSITIVE_INFINITY;
   let hi = Number.NEGATIVE_INFINITY;
@@ -238,6 +238,14 @@ export function logValueScale(
     lo = 1;
     hi = 10;
   }
+  // A ceiling applies here exactly as it does on a linear axis. It was left
+  // out at first on the theory that log could absorb any spike — it cannot: a
+  // series running 1% to 38,000% puts four and a half decades on the plot and
+  // squashes the settled range into the bottom fifth, which is no better than
+  // the linear chart the cap exists to rescue.
+  if (max != null) hi = Math.min(hi, max);
+  if (!(hi > lo)) hi = lo * 2;
+
   if (lo === hi) {
     lo /= 2;
     hi *= 2;
@@ -248,7 +256,7 @@ export function logValueScale(
   const factor = (hi / lo) ** padding;
 
   return scaleLog<number, number>()
-    .domain([lo / factor, hi * factor])
+    .domain([lo / factor, max != null ? Math.min(hi * factor, max) : hi * factor])
     .range([innerHeight, 0]);
 }
 

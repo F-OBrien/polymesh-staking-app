@@ -120,8 +120,14 @@ export function ChartFrame({
   const collapse = () => setExpandedHeight(null);
 
   const header = (
-    <figcaption className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
+    // Not `flex-wrap`. The coverage line varies in length with the range, the
+    // scale and whether a cap is in force, and wrapping let a longer one push
+    // the controls onto their own row — so the Expand and scale buttons moved
+    // around the card as the reader changed the very things those buttons
+    // control. `flex-1 min-w-0` lets the text column shrink and wrap inside
+    // itself instead, which keeps the controls anchored top-right.
+    <figcaption className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
         <h3 id={titleId} className="m-0 text-[17px] leading-6 font-semibold tracking-tight">
           {title}
         </h3>

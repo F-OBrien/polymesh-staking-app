@@ -90,11 +90,7 @@ export function OperatorDetail({ address }: { address: string }) {
           ...(series?.network.avgApr ?? []),
         ],
         (v) => formatPercent(v, { decimals: 0 }),
-        {
-          because:
-            "in an operator's first era, or the chain's own first weeks — both times when very " +
-            'little stake was backing a full share of the rewards',
-        },
+        { because: 'in a first era' },
       ),
     [derived, series],
   );
@@ -273,7 +269,19 @@ export function OperatorDetail({ address }: { address: string }) {
                 label="Identity"
                 value={record?.name ?? 'Unregistered'}
                 hint={
-                  record?.did ? truncateAddress(record.did, 8, 6) : 'no on-chain identity found'
+                  // Copyable, like the stash address above. A DID is 66
+                  // characters of hex that nobody retypes correctly, and it is
+                  // what every Polymesh tool asks for.
+                  record?.did ? (
+                    <CopyAddress
+                      address={record.did}
+                      head={8}
+                      tail={6}
+                      label={`${label} identity`}
+                    />
+                  ) : (
+                    'no on-chain identity found'
+                  )
                 }
                 loading={registry.isLoading}
               />

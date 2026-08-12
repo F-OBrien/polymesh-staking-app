@@ -157,7 +157,9 @@ export function BandedLineChart({
     if (reference) columns.push(reference.values);
 
     const scale = logarithmic
-      ? logValueScale(columns, provisional.innerHeight)
+      ? logValueScale(columns, provisional.innerHeight, {
+          ...(yMax != null ? { max: yMax } : {}),
+        })
       : valueScale(columns, provisional.innerHeight, {
           includeZero,
           ...(yMax != null ? { max: yMax } : {}),

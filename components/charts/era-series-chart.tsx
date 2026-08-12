@@ -128,13 +128,13 @@ export function EraSeriesChart({
     const span = `${eras.length} ${pointNoun} · ${from} – ${to}`;
     // A log axis has to be declared. Equal vertical distances are equal
     // *ratios*, so a reader who assumes linear will misread every gap on it.
-    const parts = [
-      span,
-      note,
-      // Only while the cap is actually in force.
-      scaleType === 'linear' ? cap?.note : 'Logarithmic scale — every point is in place.',
-    ].filter(Boolean);
-    return parts.join('. ').replace(/\.\./g, '.');
+    // Joined with a separator, trailing full stops stripped, so the line reads
+    // as a list of facts rather than a paragraph. It sits beside the frame's
+    // controls, and every extra line it wraps to pushes the plot further down.
+    return [span, note, cap?.note, scaleType === 'log' ? 'Log scale' : null]
+      .filter(Boolean)
+      .map((part) => String(part).trim().replace(/\.$/, ''))
+      .join(' · ');
   }, [eras.length, eraStart, note, pointNoun, scaleType, cap]);
 
   const legendItems = useMemo<LegendItem[]>(() => {
@@ -268,7 +268,7 @@ export function EraSeriesChart({
           yLabel={yLabel}
           height={height}
           includeZero={includeZero}
-          yMax={scaleType === 'linear' ? cap?.max : undefined}
+          yMax={cap?.max}
           scaleType={scaleType}
         />
         {/* A second, visually-hidden copy of the table, so a screen reader

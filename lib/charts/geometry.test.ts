@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bandPath,
+  logValueScale,
   linePath,
   nearestIndex,
   plotBox,
@@ -300,5 +301,34 @@ describe('valueScale and negative space', () => {
     // 19-22% APR chart is the thing `includeZero` defaults to false to avoid.
     const [lo] = valueScale([[0.19, 0.22]], 100).domain();
     expect(lo).toBeGreaterThan(0.1);
+  });
+});
+
+describe('logValueScale', () => {
+  it('spans the positive data', () => {
+    const [lo, hi] = logValueScale([[0.2, 2, 20]], 100).domain() as [number, number];
+    expect(lo).toBeLessThanOrEqual(0.2);
+    expect(hi).toBeGreaterThanOrEqual(20);
+  });
+
+  it('ignores zeros and negatives, which have no log', () => {
+    // They become gaps in the line rather than points; see `positiveOrNull`.
+    const [lo] = logValueScale([[0, -5, 0.5, 5]], 100).domain() as [number, number];
+    expect(lo).toBeGreaterThan(0);
+  });
+
+  it('honours a ceiling, as a linear axis does', () => {
+    // Left out at first on the theory that log absorbs any spike. It does not:
+    // 1% to 38,000% is four and a half decades, and the settled range ends up
+    // squashed into the bottom fifth — no better than the linear chart the cap
+    // exists to rescue.
+    const domain = logValueScale([[0.15, 0.2, 30]], 100, { max: 0.6 }).domain();
+    expect(domain[1] as number).toBeLessThanOrEqual(0.6);
+  });
+
+  it('survives a series with nothing positive in it', () => {
+    const [lo, hi] = logValueScale([[0, null, -1]], 100).domain() as [number, number];
+    expect(lo).toBeGreaterThan(0);
+    expect(hi).toBeGreaterThan(lo);
   });
 });
