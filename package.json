@@ -32,12 +32,14 @@
     "probe:session": "tsx scripts/probe/session.ts",
     "probe:nominators": "tsx scripts/probe/nominators.ts",
     "probe:era-operator": "tsx scripts/probe/era-operator.ts",
+    "probe:offences": "tsx scripts/probe/offences.ts",
     "check": "npm run typecheck && npm run lint && npm run test",
     "fixtures": "tsx scripts/fixtures/generate.ts",
     "ingest:era": "tsx scripts/ingest/era.ts",
     "ingest:latest": "tsx scripts/ingest/latest.ts",
     "ingest:backfill": "tsx scripts/ingest/backfill.ts",
     "ingest:slashes": "tsx scripts/ingest/slashes.ts",
+    "ingest:offences": "tsx scripts/ingest/offences.ts",
     "ingest:era-index": "tsx scripts/ingest/era-index.ts"
   },
   "dependencies": {

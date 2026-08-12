@@ -7,6 +7,7 @@ import { BandedLineChart, type NamedSeries } from './banded-line-chart';
 import { Legend, type LegendItem } from './legend';
 import { SeriesTable, type SeriesTableColumn } from './series-table';
 import { EmptyState } from '@/components/states';
+import { interiorGaps } from '@/lib/charts/geometry';
 import { formatEraDate } from '@/lib/format';
 import type { StitchedSeries } from '@/lib/data/series';
 
@@ -170,13 +171,16 @@ export function EraSeriesChart({
       });
     }
 
-    // Only when something is actually missing. A tinted column in an operator's
+    // Only when something is actually drawn. A tinted column in an operator's
     // own colour needs saying once; listing it on every chart, including the
-    // ones with no gaps, would be chrome explaining nothing.
-    if (operators.some((op) => op.values.some((v) => v == null || !Number.isFinite(v)))) {
+    // ones with no gaps, would be chrome explaining nothing. The test is
+    // `interiorGaps`, the same one the plot marks from — asking merely whether
+    // any value is null described a legend entry for eras before an operator
+    // existed, which the chart quite rightly does not mark.
+    if (operators.some((op) => interiorGaps(op.values).length > 0)) {
       items.push({
         id: '__gaps',
-        label: 'Shaded: that operator was not in the set, so earned nothing',
+        label: 'Shaded: that operator dropped out of the set, so earned nothing',
         variant: 'band',
         colour: 'var(--series-other-alpha)',
       });

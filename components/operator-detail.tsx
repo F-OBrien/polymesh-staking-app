@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useEraSeries, useLatest, useManifest, useOperators } from '@/lib/data/queries';
+import {
+  useEraSeries,
+  useLatest,
+  useManifest,
+  useOffences,
+  useOperators,
+} from '@/lib/data/queries';
 import { useSelectedOperators } from '@/lib/data/use-selection';
 import { useResolvedRange, EraRangeControl } from '@/components/era-range-control';
 import { buildOperatorRows } from '@/lib/data/operator-rows';
@@ -13,6 +19,7 @@ import { AsOf, EmptyState, ErrorState } from '@/components/states';
 import { explorerAccountUrl } from '@/config/networks';
 import { CopyAddress } from '@/components/copy-address';
 import { axisRangeNote, outlierCap } from '@/lib/charts/notes';
+import { summariseAvailability } from '@/lib/metrics/availability';
 import {
   formatNumber,
   formatPercent,
@@ -60,6 +67,29 @@ export function OperatorDetail({ address }: { address: string }) {
       selfStake: deriveSelfStakeRatio(columns),
     };
   }, [series, columns, erasPerYear]);
+
+  /**
+   * How much of its own history this operator was in the set for.
+   *
+   * Over the range on screen, not over all time. Loading every chunk to answer
+   * it would cost 3.8 MB on a page that has already decided what it is showing,
+   * and the range control is how this site says "over what period" everywhere
+   * else. The tile names the era it counts from so the figure is never read as
+   * a lifetime record when it is not.
+   */
+  const availability = useMemo(
+    () =>
+      series && columns
+        ? summariseAvailability({ eras: series.eras, points: columns.points })
+        : null,
+    [series, columns],
+  );
+
+  const offences = useOffences();
+  const ownOffences = useMemo(
+    () => offences.data?.reports.filter((report) => report.address === address) ?? [],
+    [offences.data, address],
+  );
 
   const label = record?.name ?? truncateAddress(address);
   const pinned = selectedSet.has(address);
@@ -264,6 +294,43 @@ export function OperatorDetail({ address }: { address: string }) {
                 value={record ? `Era ${formatNumber(record.firstSeenEra)}` : '—'}
                 hint={record ? `last seen era ${formatNumber(record.lastSeenEra)}` : undefined}
                 loading={registry.isLoading}
+              />
+              {/* Absence, not "uptime". A percentage near 100 is exactly the
+                  kind of figure that gets read as a service-level promise; the
+                  count of eras is what a reader can check against the charts
+                  immediately above, and it does not round eleven outages away
+                  to "99%". */}
+              <StatTile
+                label="Eras out of the set"
+                value={availability ? formatNumber(availability.missed) : '—'}
+                hint={
+                  availability
+                    ? [
+                        `of ${formatNumber(availability.window)} since era ${formatNumber(availability.fromEra)}`,
+                        // An elected validator with a dead node still fills
+                        // every column, with zero points. It leaves no gap in
+                        // the line, so this is the only place it shows.
+                        availability.blank > 0
+                          ? `${formatNumber(availability.blank)} elected but scored nothing`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : undefined
+                }
+                loading={isLoading}
+              />
+              <StatTile
+                label="Offences reported"
+                value={offences.data ? formatNumber(ownOffences.length) : '—'}
+                hint={
+                  !offences.data
+                    ? undefined
+                    : ownOffences.length === 0
+                      ? 'none in the chain’s history'
+                      : `most recently era ${formatNumber(ownOffences[0]!.era)}`
+                }
+                loading={offences.isLoading}
               />
               <StatTile
                 label="Identity"

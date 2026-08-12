@@ -573,6 +573,28 @@ and the table view keeps the real values. It declines to cap when more than 5%
 of a series is above the line, because that is a distribution rather than an
 outlier.
 
+### A gap is an outage, not a birth date
+
+Three separate things could hide a missing era, and all three are now closed:
+round line caps swallowing five pixels of every break, one era being 0.74px wide
+at full history, and `stitchChunks` building its axis from the eras it *held*
+rather than the contiguous range. The last is the structural one — a hole in
+coverage was skipped, so on a time axis the line simply spanned it.
+
+Then the opposite problem. Marking *every* null run put a "no data here" tint
+over four and a half years of `/operators` at full history, because the default
+selection is the five highest-returning operators and three of them joined this
+year. Those eras are not missing data; the operator did not exist. `interiorGaps`
+is the single rule — a run touching either end of a series is not a gap — and
+the plot marks, the legend entry and `summariseAvailability` all read from it, so
+the chart and the figures beside it cannot disagree.
+
+**The reported 1632–1659 and 1344–1359 hole is not in the data.** Checked three
+ways: both chunks carry 32 contiguous eras with 91 and 86 operators reporting
+points, no era anywhere in `public/data` has every operator null (the worst is
+six of 131, at era 430), and the weekly rollup has no era hole either. What
+covered those eras on screen was the shading above.
+
 ### The anchors the backfill exposed
 
 `ingest:era` recorded two approximations that were invisible until a second
@@ -661,6 +683,35 @@ the retained window. That distinction mattered: `readEraSlashes` returns `[]`
 when the storage item is absent, so "no offences" and "we are reading the wrong
 map" would have looked identical. **`npm run probe:slashes`** tells them apart
 by asking for every key in the map at once.
+
+### 3a. Offences did happen — the *slash* record is what is empty
+
+Following on from the above. Slash storage being empty is not the same as no
+operator ever having misbehaved, and reading the page that way flatters every
+node that has ever been offline. The reports exist, in the indexer:
+
+- **`staking.SlashReported`** — 145 events over the chain's life, carrying the
+  offending validator's public key, the fraction, and the era the offence
+  occurred in. Grouped per (operator, era) that is **36 incidents across 21
+  operators**, every one of them with a zero penalty because
+  `slashingAllowedFor` means nothing is taken.
+- **`imOnline.SomeOffline` returns zero rows**, as do `offences.Offence` and
+  `staking.Slashed`. The indexer does not carry those modules — which is worth
+  knowing, because `SomeOffline` is the obvious source and the one the block
+  explorer shows. `staking.Chilled` is carried (166 rows) but its argument is
+  not always a validator stash, so it is not used.
+- **Filter on `moduleIdText`/`eventIdText`, or use the enum literals.**
+  `moduleId` and `eventId` are GraphQL enums (`ModuleIdEnum`, `EventIdEnum`);
+  binding a `String!` variable to them is a 400 before the query runs.
+
+The eras line up with what the chunks already show, which is the check that
+matters. Calico Capital (`2GXMe4KZ…`) is reported in era 1130 and its points
+column is null for 1131–1137; it is reported again in era 1670, where its points
+fell from ~3,200 to 180 before it left the set for 1671–1672. The offence
+records the outage the charts draw.
+
+`npm run probe:offences` re-runs the introspection; `npm run ingest:offences`
+writes `offences.json` in two requests.
 
 ### 4. Still unproven
 

@@ -25,6 +25,7 @@ import type {
   EraIndexFile,
   Latest,
   Manifest,
+  Offences,
   OperatorRegistry,
   Rollup,
   Slashes,
@@ -40,6 +41,7 @@ export type DataFileKind =
   | 'operators'
   | 'rollup'
   | 'slashes'
+  | 'offences'
   | 'eraIndex';
 
 interface KindMap {
@@ -49,6 +51,7 @@ interface KindMap {
   operators: OperatorRegistry;
   rollup: Rollup;
   slashes: Slashes;
+  offences: Offences;
   eraIndex: EraIndexFile;
 }
 
@@ -92,6 +95,7 @@ function assertShape(kind: DataFileKind, body: unknown): void {
     operators: '',
     rollup: 'weekStart',
     slashes: 'events',
+    offences: 'reports',
     eraIndex: 'start',
   };
 
@@ -121,6 +125,7 @@ export async function validateData<K extends DataFileKind>(
       operators: schemas.OperatorRegistrySchema,
       rollup: schemas.RollupSchema,
       slashes: schemas.SlashesSchema,
+      offences: schemas.OffencesSchema,
       eraIndex: schemas.EraIndexSchema,
     }[kind];
 

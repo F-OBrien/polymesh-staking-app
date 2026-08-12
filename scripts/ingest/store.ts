@@ -22,6 +22,7 @@ import {
   EraIndexSchema,
   LatestSchema,
   ManifestSchema,
+  OffencesSchema,
   OperatorRegistrySchema,
   RollupSchema,
   SlashesSchema,
@@ -29,6 +30,7 @@ import {
   type EraIndexFile,
   type Latest,
   type Manifest,
+  type Offences,
   type OperatorRegistry,
   type Rollup,
   type Slashes,
@@ -40,6 +42,7 @@ export const LATEST_FILE = 'latest.json';
 export const OPERATORS_FILE = 'operators.json';
 export const ROLLUP_FILE = 'rollup-weekly.json';
 export const SLASHES_FILE = 'slashes.json';
+export const OFFENCES_FILE = 'offences.json';
 export const ERA_INDEX_FILE = 'era-index.json';
 
 export class DataStore {
@@ -131,6 +134,10 @@ export class DataStore {
 
   writeSlashes(slashes: Slashes): Promise<number> {
     return this.writeJson(SLASHES_FILE, SlashesSchema, slashes);
+  }
+
+  writeOffences(offences: Offences): Promise<number> {
+    return this.writeJson(OFFENCES_FILE, OffencesSchema, offences);
   }
 }
 

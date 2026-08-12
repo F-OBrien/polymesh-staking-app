@@ -23,6 +23,16 @@ export interface NetworkConfig {
   readonly restApi: string;
   /** Block explorer base; always ends with a slash. */
   readonly explorer: string;
+  /**
+   * SS58 prefix, for turning a raw public key into an address.
+   *
+   * The indexer hands back 32-byte hex for the offender in a `SlashReported`
+   * event, and everything downstream joins on SS58. Both Polymesh chains use
+   * 12, but it belongs here rather than as a literal at the call site — an
+   * address encoded under the wrong prefix is a valid-looking string that
+   * matches no operator, which is the hardest kind of wrong to notice.
+   */
+  readonly ss58Format: number;
 }
 
 export const NETWORKS: Readonly<Record<NetworkName, NetworkConfig>> = {
@@ -34,6 +44,7 @@ export const NETWORKS: Readonly<Record<NetworkName, NetworkConfig>> = {
     indexer: 'https://mainnet-graphql.polymesh.network/',
     restApi: 'https://mainnet-restapi.polymesh.network/',
     explorer: 'https://polymesh.subscan.io/',
+    ss58Format: 12,
   },
   testnet: {
     name: 'testnet',
@@ -43,6 +54,7 @@ export const NETWORKS: Readonly<Record<NetworkName, NetworkConfig>> = {
     indexer: 'https://testnet-graphql.polymesh.live/',
     restApi: 'https://testnet-restapi.polymesh.live/',
     explorer: 'https://polymesh-testnet.subscan.io/',
+    ss58Format: 12,
   },
 };
 
@@ -98,4 +110,19 @@ export function explorerEventUrl(
   network: NetworkConfig = resolveNetwork(),
 ): string {
   return `${network.explorer}event/${blockNumber}-${eventIndex}`;
+}
+
+/**
+ * Subscan page for a block.
+ *
+ * An offence report is a claim about an operator's conduct, and the block it
+ * was emitted in is the only way a reader can check it. The event index is not
+ * carried in `offences.json` — a single incident is several events across
+ * several blocks — so this addresses the first of them.
+ */
+export function explorerBlockUrl(
+  blockNumber: number,
+  network: NetworkConfig = resolveNetwork(),
+): string {
+  return `${network.explorer}block/${blockNumber}`;
 }

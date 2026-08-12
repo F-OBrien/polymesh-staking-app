@@ -295,6 +295,53 @@ export function linePath(points: readonly PathPoint[]): string {
   return generator(points) ?? '';
 }
 
+/** An inclusive index range. */
+export interface Run {
+  from: number;
+  to: number;
+}
+
+/**
+ * Runs of missing values **inside** a series, as inclusive index ranges.
+ *
+ * Interior is the operative word. A run that reaches either end of the array is
+ * not a gap in the operator's record — it is the operator not existing yet, or
+ * having left, and there is nothing missing about an era before an operator
+ * joined the chain.
+ *
+ * Treating those the same was visible on `/operators` over full history: the
+ * default selection is the five highest-returning operators, three of which
+ * joined this year, so the "no data here" tint covered four and a half years of
+ * a five-year chart. The plot was a grey rectangle with a few lines at the right
+ * edge. `firstSeenEra` is not consulted — the series itself already says where
+ * it starts, and a lookup could only disagree with what is drawn.
+ */
+export function interiorGaps(values: readonly (number | null)[]): Run[] {
+  const defined = (i: number) => {
+    const value = values[i];
+    return value != null && Number.isFinite(value);
+  };
+
+  let first = 0;
+  while (first < values.length && !defined(first)) first += 1;
+  let last = values.length - 1;
+  while (last >= 0 && !defined(last)) last -= 1;
+
+  const runs: Run[] = [];
+  let start: number | null = null;
+  for (let i = first; i <= last; i += 1) {
+    if (!defined(i)) {
+      start ??= i;
+      continue;
+    }
+    if (start != null) {
+      runs.push({ from: start, to: i - 1 });
+      start = null;
+    }
+  }
+  return runs;
+}
+
 export interface BandPoint {
   x: number;
   lo: number | null;

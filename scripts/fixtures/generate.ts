@@ -32,10 +32,12 @@ import {
   ManifestSchema,
   OperatorRegistrySchema,
   RollupSchema,
+  OffencesSchema,
   SlashesSchema,
   type Chunk,
   type ChunkRef,
   type NominatorSlashTotal,
+  type OffenceReport,
   type OperatorRecord,
   type OperatorSeries,
   type SlashEvent,
@@ -456,6 +458,49 @@ function buildChunk(
  * so a uniform draw would produce values the chain could never actually
  * produce.
  */
+/**
+ * Offence reports, both the ones that cost something and the ones that did not.
+ *
+ * Mainnet's whole record is zero-penalty reports — slashing is switched off —
+ * so a fixture containing only the slashed ones would never exercise the
+ * "reported, cost nothing" row that is the only kind production actually has.
+ */
+function buildOffences(
+  rng: () => number,
+  operators: readonly SyntheticOperator[],
+  slashes: readonly SlashEvent[],
+  firstEra: number,
+  lastEra: number,
+): OffenceReport[] {
+  const byKey = new Map<string, OffenceReport>();
+
+  const add = (era: number, address: string, fraction: number) => {
+    const key = `${address}:${era}`;
+    if (byKey.has(key)) return;
+    byKey.set(key, {
+      era,
+      address,
+      fraction: round(fraction, 9),
+      // One report per session until the era ends: up to six on mainnet.
+      count: Math.max(1, Math.round(between(rng, 1, 6))),
+      block: Math.max(0, Math.round(era * 14_400)),
+    });
+  };
+
+  for (const slash of slashes) add(slash.era, slash.address, slash.fraction);
+
+  // Free reports, at roughly four times the rate of slashed ones.
+  const count = Math.max(4, Math.round((lastEra - firstEra) / 12));
+  for (let i = 0; i < count; i += 1) {
+    const era = Math.floor(between(rng, firstEra, lastEra));
+    const operator = operators[Math.floor(rng() * operators.length)]!;
+    if (era < operator.joinEra || era > operator.leaveEra) continue;
+    add(era, operator.address, 0);
+  }
+
+  return [...byKey.values()].sort((a, b) => b.era - a.era || a.address.localeCompare(b.address));
+}
+
 function buildSlashes(
   rng: () => number,
   operators: readonly SyntheticOperator[],
@@ -734,6 +779,21 @@ export async function generate(options: Options): Promise<void> {
   });
   await writeJson(join(outDir, 'slashes.json'), slashes);
 
+  // --- offences.json ---
+  // Every slash in the fixture is also an offence report, plus the reports that
+  // cost nothing — which on mainnet is all of them. Derived from the slash
+  // events rather than drawn separately, so the two files agree: a fixture
+  // where an operator was slashed in an era it was never reported in would
+  // exercise a state the chain cannot produce.
+  const reports = buildOffences(rng, operators, events, firstEra, lastCompleteEra);
+  const offences = OffencesSchema.parse({
+    schemaVersion: 1,
+    generatedAt: new Date(anchor * 1000).toISOString(),
+    lastEra: reports[0]?.era ?? null,
+    reports,
+  });
+  await writeJson(join(outDir, 'offences.json'), offences);
+
   const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
   console.log(
     [
@@ -742,6 +802,7 @@ export async function generate(options: Options): Promise<void> {
       `  operators  ${operators.length}`,
       `  chunks     ${chunkRefs.length} (${kb(chunkBytes)} raw, ~${kb(chunkBytes / 6)} brotli est.)`,
       `  slashes    ${events.length} event(s) across ${nominatorTotals.length} era(s)`,
+      `  offences   ${reports.length} incident(s) reported`,
       `  seed       ${options.seed} — rerun with the same seed for identical output`,
     ].join('\n'),
   );

@@ -80,6 +80,15 @@ jobs:
           POLYMESH_NETWORK: mainnet
         run: npm run ingest:slashes
 
+      # Two indexer requests for the chain's whole history, so it is rebuilt
+      # wholesale each run rather than accumulated. Unlike the slash records
+      # above there is nothing here that can be lost by missing a run — events
+      # are kept forever — but it is cheap and it keeps the two files in step.
+      - name: Ingest offence reports
+        env:
+          POLYMESH_NETWORK: mainnet
+        run: npm run ingest:offences
+
       - name: Commit data
         working-directory: public/data
         run: |

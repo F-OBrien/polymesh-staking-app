@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useLatest, useManifest, useOperators, useSlashes } from '@/lib/data/queries';
+import { useLatest, useManifest, useOffences, useOperators, useSlashes } from '@/lib/data/queries';
 import { LazyChart, LazyXyLineChart } from '@/components/charts/lazy-chart';
 import { StatTile } from '@/components/stat-tile';
 import { EmptyState, ErrorState, Skeleton } from '@/components/states';
@@ -12,18 +12,23 @@ import {
   unresponsivenessPenalty,
 } from '@/lib/metrics/slashing';
 import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
-import type { SlashEvent, SlashingScope } from '@/lib/schemas/data';
+import { explorerBlockUrl } from '@/config/networks';
+import type { OffenceReport, SlashEvent, SlashingScope } from '@/lib/schemas/data';
 
 /**
  * Offences, and the penalty model behind them.
  *
- * Two halves, in this order deliberately.
+ * Three parts, in this order deliberately.
  *
- * **What happened** comes first, because that is what a nominator came to check
- * — and because for Polymesh the answer is usually "very little", which is
- * itself the most useful thing the page can say.
+ * **What was reported** comes first, because it is the record of conduct and it
+ * is not empty: 36 incidents against 21 operators over the chain's life.
  *
- * **What could happen** comes second: the two penalty curves the previous app
+ * **What it cost** comes second, and on Polymesh the answer is nothing at all.
+ * That ordering matters. Built from `validatorSlashInEra`, the cost record is
+ * empty — and led on its own it reads as "no operator has ever done anything
+ * wrong", which flatters every node that has ever been offline.
+ *
+ * **What could happen** comes last: the two penalty curves the previous app
  * showed as `FineCurves`, unlabelled, in the Overview tab, where they were easy
  * to mistake for history. They are worth keeping because both penalties are
  * superlinear in how many operators fail *together* — the reason spreading
@@ -79,16 +84,21 @@ export function SlashingView() {
 
   return (
     <>
-      <section aria-labelledby="record" className="mt-8">
+      <ReportedOffences />
+
+      <section aria-labelledby="record" className="mt-14">
         <h2 id="record" className="m-0 text-[22px] leading-7 font-semibold tracking-tight">
-          What has happened
+          What those offences cost
         </h2>
+        <p className="mt-2 mb-0 max-w-[68ch]" style={{ color: 'var(--text-secondary)' }}>
+          What was actually taken, read from the chain&rsquo;s own slash records rather than from
+          the reports above.
+        </p>
         <CoverageNote />
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile
-            emphasis
-            label="Offences on record"
+            label="Slashes on record"
             value={formatNumber(events.length)}
             hint={
               totals.operators > 0
@@ -139,8 +149,8 @@ export function SlashingView() {
             <Skeleton height={220} label="Loading offences" />
           ) : events.length === 0 ? (
             <EmptyState
-              title="No offences in the recorded window"
-              message="No operator has been slashed in the eras we hold. That is the normal state of the network, not a gap in the data — but see the coverage note above for how far back it applies."
+              title="Nothing has been slashed in the recorded window"
+              message="No operator has lost stake in the eras we hold. That is not the same as no offence having occurred — the reports above show otherwise — it is what happens when a network switches slashing off. See the coverage note for how far back this applies."
             />
           ) : (
             <OffenceTable events={events} nameOf={nameOf} />
@@ -253,6 +263,178 @@ export function SlashingView() {
       </p>
     );
   }
+}
+
+/**
+ * Offences the chain *reported*, as opposed to slashes it charged for.
+ *
+ * These are two different records and the difference is the point of this
+ * section. The table above is built from `validatorSlashInEra` — what was
+ * actually taken — and on Polymesh that is empty, because slashing is switched
+ * off. Read alone it says nothing has ever gone wrong, which is not true: the
+ * chain has reported 36 incidents against 21 operators, every one of them free.
+ *
+ * So this is the record of conduct, and the section above is the record of
+ * cost. Presenting only the second would flatter every operator that has ever
+ * been offline.
+ */
+function ReportedOffences() {
+  const offences = useOffences();
+  const registry = useOperators();
+  const nameOf = (address: string) => registry.data?.[address]?.name ?? truncateAddress(address);
+
+  const reports = useMemo(() => offences.data?.reports ?? [], [offences.data]);
+  const operators = useMemo(() => new Set(reports.map((r) => r.address)).size, [reports]);
+  const charged = useMemo(() => reports.filter((r) => r.fraction > 0).length, [reports]);
+
+  // An error here must not take the page down: the section above is the one a
+  // nominator came for, and this file is a separate fetch.
+  if (offences.isError) return null;
+
+  return (
+    <section aria-labelledby="reported" className="mt-14">
+      <h2 id="reported" className="m-0 text-[22px] leading-7 font-semibold tracking-tight">
+        Offences reported
+      </h2>
+      <p className="mt-2 mb-0 max-w-[68ch]" style={{ color: 'var(--text-secondary)' }}>
+        An offence is reported whether or not it costs anything. These are every report the chain
+        has made against a validator, over its whole history — almost always a node that stopped
+        responding. They are the record of <em>conduct</em>; the section above is the record of{' '}
+        <em>cost</em>, and on this network the two look very different.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          emphasis
+          label="Incidents reported"
+          value={formatNumber(reports.length)}
+          hint={
+            operators > 0
+              ? `across ${formatNumber(operators)} operator${operators === 1 ? '' : 's'}`
+              : 'none in the chain’s history'
+          }
+          loading={offences.isLoading}
+        />
+        <StatTile
+          label="That cost anything"
+          value={formatNumber(charged)}
+          hint={
+            charged === 0 ? 'every report carried a zero penalty' : 'a penalty was actually applied'
+          }
+          loading={offences.isLoading}
+        />
+        <StatTile
+          label="Most recent"
+          value={
+            offences.data?.lastEra == null ? '—' : `Era ${formatNumber(offences.data.lastEra)}`
+          }
+          hint={reports[0] ? nameOf(reports[0].address) : undefined}
+          loading={offences.isLoading}
+        />
+      </div>
+
+      <div className="mt-6">
+        {offences.isLoading ? (
+          <Skeleton height={220} label="Loading reported offences" />
+        ) : reports.length === 0 ? (
+          <EmptyState
+            title="No offence has ever been reported"
+            message="No validator has been reported for an offence in the chain’s history."
+          />
+        ) : (
+          <ReportTable reports={reports} nameOf={nameOf} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The reported-offence table.
+ *
+ * **Reports, not incidents, in the count column.** One offence is re-reported
+ * each session until the era ends, so a node down for a day produces up to six
+ * events. They are grouped into one row per operator and era by the pipeline;
+ * the column says how many reports that row stands for, which is a rough
+ * measure of how long the outage lasted.
+ *
+ * No offence-kind column, for the same reason the table above has none: the
+ * event carries validator, fraction and era, and nothing that separates
+ * unresponsiveness from equivocation.
+ */
+function ReportTable({
+  reports,
+  nameOf,
+}: {
+  reports: readonly OffenceReport[];
+  nameOf: (address: string) => string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table
+        className="w-full border-collapse text-sm"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        <caption className="pb-2 text-left" style={{ color: 'var(--text-muted)' }}>
+          Every offence reported against a validator, most recent first.
+        </caption>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+            <th scope="col" className="p-2 text-left font-medium">
+              Era
+            </th>
+            <th scope="col" className="p-2 text-left font-medium">
+              Operator
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              Reports
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              Penalty
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              Source
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.map((report) => (
+            <tr
+              key={`${report.era}:${report.address}`}
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              <td className="p-2">{formatNumber(report.era)}</td>
+              {/* Name *and* address. Most Polymesh operators run three nodes
+                  under one identity and the registry deliberately does not
+                  number them, so era 1368 shows "Saxon Advisors" three times —
+                  three separate nodes that read as a duplicated row without
+                  the stash beside them. */}
+              <th scope="row" className="p-2 text-left font-normal">
+                <Link href={`/operators/${report.address}/`}>{nameOf(report.address)}</Link>{' '}
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {truncateAddress(report.address)}
+                </span>
+              </th>
+              <td className="p-2 text-right">{formatNumber(report.count)}</td>
+              <td className="p-2 text-right">
+                {report.fraction > 0 ? formatPercent(report.fraction, { decimals: 3 }) : 'None'}
+              </td>
+              <td className="p-2 text-right">
+                <a
+                  href={explorerBlockUrl(report.block)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Block {formatNumber(report.block)} ↗
+                </a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /**

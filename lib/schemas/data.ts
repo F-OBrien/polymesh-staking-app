@@ -376,6 +376,66 @@ export const SlashesSchema = z
   });
 
 // ---------------------------------------------------------------------------
+// offences.json — reported offences, over all history
+// ---------------------------------------------------------------------------
+
+/**
+ * One offence reported against one operator in one era.
+ *
+ * Sourced from the indexer's `staking.SlashReported` events, which is the only
+ * place this exists. `slashes.json` is built from `validatorSlashInEra`, and
+ * that storage records what was *taken* — on a chain with validator slashing
+ * effectively disabled it is empty, so a real outage leaves no trace in it at
+ * all. The event is emitted regardless, with a zero fraction, and it names the
+ * validator and the era directly.
+ *
+ * **`imOnline.SomeOffline` is not the source, despite being the obvious one.**
+ * Queried against mainnet it returns zero rows — the indexer does not carry it.
+ * `SlashReported` does, 145 of them, and it is the downstream record of the
+ * same offence: measured, the two reports against Calico Capital at blocks
+ * 23,901,550 and 23,903,929 land in era 1670, the era its points collapsed from
+ * ~3,200 to 180 before it dropped out of the set entirely for 1671–1672.
+ *
+ * **No offence *kind*.** The event carries validator, fraction and era, and
+ * nothing that distinguishes an unresponsiveness report from an equivocation.
+ * Labelling every zero-fraction report "offline" would be a guess printed on a
+ * page about operator misconduct, so the kind is absent here for the same
+ * reason it is absent from `SlashEventSchema`.
+ */
+export const OffenceReportSchema = z.object({
+  /** The era the offence occurred in, from the event's own `slash_era`. */
+  era: EraIndex,
+  address: Address,
+  /**
+   * Proportion of exposure the report called for, in [0,1].
+   *
+   * Zero on mainnet, because `slashingAllowedFor` is set so that nothing is
+   * actually taken. Kept because it is the difference between a report that
+   * cost the operator nothing and one that did, and that switch is
+   * governance-changeable.
+   */
+  fraction: Ratio,
+  /** How many times this was reported for this operator in this era. */
+  count: z.number().int().positive(),
+  /** Block of the first report, for a link out to an explorer. */
+  block: z.number().int().nonnegative(),
+});
+
+export const OffencesSchema = z.object({
+  schemaVersion: z.literal(1),
+  generatedAt: z.iso.datetime(),
+  /**
+   * Highest era with a report, or null when there are none.
+   *
+   * There is no `firstEra` counterpart, and the omission is deliberate: the
+   * indexer covers the chain from genesis, so unlike `slashes.json` there is no
+   * pruning window to disclaim. Absence of a report here is evidence.
+   */
+  lastEra: EraIndex.nullable(),
+  reports: z.array(OffenceReportSchema),
+});
+
+// ---------------------------------------------------------------------------
 // Weekly rollup — network metrics over all history
 // ---------------------------------------------------------------------------
 
@@ -486,3 +546,5 @@ export type SlashEvent = z.infer<typeof SlashEventSchema>;
 export type NominatorSlashTotal = z.infer<typeof NominatorSlashTotalSchema>;
 export type SlashingScope = z.infer<typeof SlashingScopeSchema>;
 export type Slashes = z.infer<typeof SlashesSchema>;
+export type OffenceReport = z.infer<typeof OffenceReportSchema>;
+export type Offences = z.infer<typeof OffencesSchema>;

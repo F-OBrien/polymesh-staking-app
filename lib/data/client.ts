@@ -5,6 +5,7 @@ import type {
   EraIndexFile,
   Latest,
   Manifest,
+  Offences,
   OperatorRegistry,
   Rollup,
   Slashes,
@@ -145,6 +146,19 @@ export function fetchRollup(options?: FetchOptions): Promise<Rollup> {
  */
 export function fetchSlashes(options?: FetchOptions): Promise<Slashes> {
   return fetchJson('slashes.json', 'slashes', options);
+}
+
+/**
+ * Offences reported against operators, over all history.
+ *
+ * Separate from `slashes.json` because the sources are different in kind: that
+ * file is built from chain state, which is pruned to ~84 eras and records only
+ * what was actually taken; this one is built from indexer events, which go back
+ * to genesis and fire whether or not anything was taken. On a chain with
+ * validator slashing switched off, this is the file with the content.
+ */
+export function fetchOffences(options?: FetchOptions): Promise<Offences> {
+  return fetchJson('offences.json', 'offences', options);
 }
 
 /**

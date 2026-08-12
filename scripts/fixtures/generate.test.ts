@@ -7,6 +7,7 @@ import {
   ChunkSchema,
   LatestSchema,
   ManifestSchema,
+  OffencesSchema,
   OperatorRegistrySchema,
   RollupSchema,
   SlashesSchema,
@@ -72,5 +73,14 @@ describe('the fixture generator', () => {
   it('writes an operator registry and a slashes file that parse', async () => {
     expect(Object.keys(OperatorRegistrySchema.parse(await read('operators.json'))).length).toBe(5);
     expect(SlashesSchema.parse(await read('slashes.json')).scope).toBe('Validator');
+  });
+
+  it('writes offence reports, including ones that cost nothing', async () => {
+    const offences = OffencesSchema.parse(await read('offences.json'));
+    expect(offences.reports.length).toBeGreaterThan(0);
+    // Mainnet's entire record is zero-penalty reports, so a fixture without one
+    // would never render the row shape production actually has.
+    expect(offences.reports.some((report) => report.fraction === 0)).toBe(true);
+    expect(offences.lastEra).toBe(offences.reports[0]!.era);
   });
 });

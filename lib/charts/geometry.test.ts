@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bandPath,
+  interiorGaps,
   logValueScale,
   linePath,
   nearestIndex,
@@ -141,6 +142,43 @@ describe('linePath', () => {
       { x: 20, y: 3 },
     ]);
     expect(path).not.toContain('NaN');
+  });
+});
+
+describe('interiorGaps', () => {
+  it('finds a run that has data on both sides', () => {
+    expect(interiorGaps([1, null, null, 4])).toEqual([{ from: 1, to: 2 }]);
+  });
+
+  it('ignores a leading run, which is the operator not existing yet', () => {
+    // Reported: on `/operators` over full history the top-five selection is
+    // mostly operators that joined this year, and marking their pre-history as
+    // missing data turned four and a half years of the plot grey.
+    expect(interiorGaps([null, null, 3, 4])).toEqual([]);
+  });
+
+  it('ignores a trailing run, which is the operator having left', () => {
+    expect(interiorGaps([1, 2, null, null])).toEqual([]);
+  });
+
+  it('finds interior runs while ignoring both ends', () => {
+    expect(interiorGaps([null, 2, null, 4, null, 6, null])).toEqual([
+      { from: 2, to: 2 },
+      { from: 4, to: 4 },
+    ]);
+  });
+
+  it('treats non-finite values as missing, as the line path does', () => {
+    expect(interiorGaps([1, Number.NaN, 3])).toEqual([{ from: 1, to: 1 }]);
+  });
+
+  it('returns nothing for a series that is entirely absent', () => {
+    expect(interiorGaps([null, null])).toEqual([]);
+    expect(interiorGaps([])).toEqual([]);
+  });
+
+  it('returns nothing for a series with no gaps at all', () => {
+    expect(interiorGaps([1, 2, 3])).toEqual([]);
   });
 });
 

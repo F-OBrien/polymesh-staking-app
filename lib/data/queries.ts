@@ -11,13 +11,21 @@ import {
   fetchManifest,
   fetchOperators,
   fetchEraIndex,
+  fetchOffences,
   fetchRollup,
   fetchSlashes,
 } from './client';
 import { createEraIndex, type EraIndex } from './era-index';
 import { pruneCache } from './cache';
 import { stitchChunks, type StitchedSeries } from './series';
-import type { Latest, Manifest, OperatorRegistry, Rollup, Slashes } from '@/lib/schemas/data';
+import type {
+  Latest,
+  Manifest,
+  Offences,
+  OperatorRegistry,
+  Rollup,
+  Slashes,
+} from '@/lib/schemas/data';
 
 /**
  * Query hooks over the generated data.
@@ -38,6 +46,7 @@ export const queryKeys = {
   latest: ['latest'] as const,
   rollup: ['rollup'] as const,
   slashes: ['slashes'] as const,
+  offences: ['offences'] as const,
   eraIndex: ['era-index'] as const,
   chunks: (hashes: readonly string[]) => ['chunks', ...hashes] as const,
 };
@@ -98,6 +107,22 @@ export function useSlashes(enabled = true): UseQueryResult<Slashes> {
   return useQuery({
     queryKey: queryKeys.slashes,
     queryFn: ({ signal }) => fetchSlashes({ signal }),
+    staleTime: 60 * MINUTE,
+    enabled,
+  });
+}
+
+/**
+ * Offences reported against operators, over all history.
+ *
+ * A few kilobytes and effectively static — a report can only appear when an era
+ * completes. Opt-in, because only the operator pages and `/slashing` have any
+ * use for it.
+ */
+export function useOffences(enabled = true): UseQueryResult<Offences> {
+  return useQuery({
+    queryKey: queryKeys.offences,
+    queryFn: ({ signal }) => fetchOffences({ signal }),
     staleTime: 60 * MINUTE,
     enabled,
   });
