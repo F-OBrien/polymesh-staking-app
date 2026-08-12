@@ -53,7 +53,7 @@ import { erasPerYear as computeErasPerYear } from '../../lib/metrics/staking';
 import type { ChunkRef } from '../../lib/schemas/data';
 import { blockForEra, buildChunk, fetchEra, readIssuanceAt, type EraRecord } from './era-build';
 import { contentHash, DataStore } from './store';
-import { buildOperatorRegistry } from './operators';
+import { buildOperatorRegistry, collectSeenEras, mergeSpans, spansFromChunks } from './operators';
 import { buildRollup } from './rollup';
 
 /**
@@ -279,9 +279,10 @@ async function main(): Promise<void> {
     const registry = await buildOperatorRegistry({
       api,
       store,
-      seenAddresses: new Set(records.flatMap((r) => r.operators.map((o) => o.address))),
-      firstEra: records[0]!.era,
-      lastEra: records.at(-1)!.era,
+      // Spans come from every chunk on disk, merged with this run's own
+      // records. Deriving rather than only accumulating is what lets a wrong
+      // `firstSeenEra` be corrected — a min-merge alone can never raise one.
+      seen: mergeSpans(await spansFromChunks(store, chunks), collectSeenEras(records)),
     });
     await store.writeOperators(registry);
 

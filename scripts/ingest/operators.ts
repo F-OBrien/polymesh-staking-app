@@ -77,9 +77,94 @@ export interface BuildRegistryOptions {
   api: ApiLike;
   store: DataStore;
   /** Stash addresses seen in the eras just ingested. */
-  seenAddresses: ReadonlySet<string>;
-  firstEra: number;
-  lastEra: number;
+  /**
+   * Per-operator era span from this run's records.
+   *
+   * Per operator, not per run. This used to be a set of addresses plus the
+   * run's own `firstEra`/`lastEra`, which stamped the run's first era onto
+   * every operator in it — so an operator that joined at era 1700 during a
+   * run covering 1660-1749 was recorded as first seen at 1660. Harmless at 84
+   * eras and badly wrong once a 300-era backfill lands: every operator would
+   * claim to have been there from the start of the slice.
+   */
+  seen: ReadonlyMap<string, { firstEra: number; lastEra: number }>;
+}
+
+/**
+ * Per-operator era spans read back from every chunk on disk.
+ *
+ * The registry used to be merge-only: each run contributed its own bounds and
+ * `Math.min`/`Math.max` accumulated them. That preserves history for eras no
+ * longer in state, which is the point — but it also means a wrong value can
+ * never be corrected, because a too-low `firstSeenEra` always wins the min.
+ * Deriving from the chunks makes the stored range self-healing, and merging
+ * the result with the existing registry still preserves anything known from
+ * eras that were never stored.
+ */
+export async function spansFromChunks(
+  store: Pick<DataStore, 'readChunk'>,
+  refs: readonly { from: number }[],
+): Promise<Map<string, { firstEra: number; lastEra: number }>> {
+  const spans = new Map<string, { firstEra: number; lastEra: number }>();
+
+  for (const ref of refs) {
+    let chunk;
+    try {
+      chunk = await store.readChunk(ref.from);
+    } catch {
+      continue;
+    }
+    if (!chunk) continue;
+
+    for (const [address, series] of Object.entries(chunk.operators)) {
+      for (const [i, era] of chunk.eras.entries()) {
+        // Null means the operator was not in the set that era — the same
+        // distinction every metric here turns on.
+        if (series.points[i] == null && series.totalStake[i] == null) continue;
+        const previous = spans.get(address);
+        spans.set(address, {
+          firstEra: Math.min(previous?.firstEra ?? era, era),
+          lastEra: Math.max(previous?.lastEra ?? era, era),
+        });
+      }
+    }
+  }
+
+  return spans;
+}
+
+/** Merges two span maps, keeping the widest range for each operator. */
+export function mergeSpans(
+  ...maps: readonly ReadonlyMap<string, { firstEra: number; lastEra: number }>[]
+): Map<string, { firstEra: number; lastEra: number }> {
+  const merged = new Map<string, { firstEra: number; lastEra: number }>();
+  for (const map of maps) {
+    for (const [address, span] of map) {
+      const previous = merged.get(address);
+      merged.set(address, {
+        firstEra: Math.min(previous?.firstEra ?? span.firstEra, span.firstEra),
+        lastEra: Math.max(previous?.lastEra ?? span.lastEra, span.lastEra),
+      });
+    }
+  }
+  return merged;
+}
+
+/** Per-operator era spans, from the records a run fetched. */
+export function collectSeenEras(
+  records: readonly { era: number; operators: readonly { address: string }[] }[],
+): Map<string, { firstEra: number; lastEra: number }> {
+  const seen = new Map<string, { firstEra: number; lastEra: number }>();
+  for (const record of records) {
+    for (const operator of record.operators) {
+      const previous = seen.get(operator.address);
+      seen.set(operator.address, {
+        firstEra: Math.min(previous?.firstEra ?? record.era, record.era),
+        lastEra: Math.max(previous?.lastEra ?? record.era, record.era),
+      });
+    }
+  }
+  return seen;
 }
 
 /**
@@ -92,10 +177,9 @@ export interface BuildRegistryOptions {
 export async function buildOperatorRegistry({
   api,
   store,
-  seenAddresses,
-  firstEra,
-  lastEra,
+  seen,
 }: BuildRegistryOptions): Promise<OperatorRegistry> {
+  const seenAddresses = new Set(seen.keys());
   const existing = (await store.readOperators()) ?? {};
   const upstreamNames = await fetchUpstreamNames();
 
@@ -138,7 +222,7 @@ export async function buildOperatorRegistry({
 
   const registry: OperatorRegistry = { ...existing };
 
-  for (const address of seenAddresses) {
+  for (const [address, span] of seen) {
     const previous = existing[address];
     const did = didByAddress.get(address) ?? null;
     const name = did == null ? truncateAddress(address) : nameForDid(did.toLowerCase());
@@ -147,8 +231,8 @@ export async function buildOperatorRegistry({
       did,
       name,
       website: previous?.website ?? null,
-      firstSeenEra: Math.min(previous?.firstSeenEra ?? firstEra, firstEra),
-      lastSeenEra: Math.max(previous?.lastSeenEra ?? lastEra, lastEra),
+      firstSeenEra: Math.min(previous?.firstSeenEra ?? span.firstEra, span.firstEra),
+      lastSeenEra: Math.max(previous?.lastSeenEra ?? span.lastEra, span.lastEra),
       status: activeSet.has(address) ? 'active' : waitingSet.has(address) ? 'waiting' : 'inactive',
     };
 

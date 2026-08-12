@@ -471,7 +471,13 @@ criterion is "zero axe violations". This is build work, not an audit.
 - **A points-accruing-now chart.** The column and Live toggle cover the need;
   a chart is only worth it if watching the race block by block matters.
 
-### Backfill: verified possible, deliberately not run
+### Backfill: built, verified, and partly run
+
+`scripts/ingest/backfill.ts` exists. `npm run ingest:backfill`, by hand, not on
+a schedule — it is thousands of prefix scans against someone else's public
+node, concurrency 2, resumable from whatever is already on disk. `--from`,
+`--to`, `--max-eras`, `--dry-run` and `--force` all work; `--force` refetches
+eras already stored, which is how the first bad run was corrected.
 
 `npm run probe:archive` reads pruned era storage at a historical block for eras
 0, 100, 500, 1000, 1500 and 1660 — every one succeeds, decoding correctly across
@@ -488,14 +494,72 @@ The operator counts are the reason this matters, and they are exactly the
 | 1000 | 2024-07-23 | 6003020 | 63 |
 | 1500 | 2025-12-05 | 7003003 | 100 |
 
-Reads took ~8s each, almost all of it metadata fetch, so **caching metadata per
-spec version is what makes a full run practical** — roughly an hour rather than
-four. The era index already supplies every read block, so no binary search over
-`activeEra` is needed.
+**Read *after* the era transition, never before.** This is the one thing that
+is easy to get wrong and looks right when it is. The first run read ten blocks
+before the transition, reasoning that era N's storage is live during era N.
+Both halves of what came back were wrong:
 
-Run it **once, by hand, offline**, at concurrency ≤ 2 with checkpointing. It is
-~1,749 eras against someone else's public node, and it is the heaviest thing in
-the whole design (§6.5).
+- `erasValidatorReward(N)` is written when era N is **paid out**, at the
+  transition. Read earlier it is `None`, so the reward decodes as zero — and
+  APR, the percentile band and the network average all follow it to zero. Four
+  eras landed with `avgApr: 0`.
+- `erasRewardPoints(N)` **accumulates** through the era. It came back short by
+  exactly 200 points: ten blocks at twenty points each.
+
+Era storage survives for `historyDepth` eras *after* the era ends, so reading
+just past the transition is both complete and safe. The script now throws if an
+era reports points but no reward, rather than writing a plausible flat line.
+
+**Backfilled eras are better than live-ingested ones**, which is not what
+anyone expected. Issuance is read at the block, and era start comes from
+`era-index.json` rather than being extrapolated. The boundary between the two
+sources is what exposed the incremental ingest stamping *today's* issuance on
+every era it wrote — see the next section.
+
+Metadata fetch dominates each read (~8s on a cold spec version), so caching per
+spec version is what makes a full 1,749-era run practical. In practice a
+300-era slice spanning three spec versions took **3 minutes** at concurrency 2,
+so the whole chain is roughly twenty.
+
+**Run so far: eras 1360-1749 are stored** — 390 eras against the 90 the
+retained window allowed. The payoff is measurable on the production chart,
+which is entirely about separating signal from slot luck:
+
+| Window | Field spread | Of which luck | Genuine | Operators beyond 2 sigma |
+|---|---|---|---|---|
+| 90 eras | ±1.4% | ±0.8% | ±1.1% | 23 of 90 |
+| 365 eras | ±1.1% | ±0.4% | ±1.0% | **37 of 91** |
+
+Luck halves as the window quadruples, exactly as it should; the genuine spread
+holds, because it is a real property of the operators. Four times the history
+means the site can distinguish 60% more operators from chance.
+
+**`firstSeenEra` was wrong, and the backfill made it obvious.** The registry
+took each *run's* first era and stamped it on every operator in it, so after a
+300-era backfill all 105 operators claimed to have arrived at era 1360 — the
+very complaint the backfill existed to fix, restated at a larger scale. Spans
+are now per operator and derived from every chunk on disk, then merged with the
+existing registry. Deriving matters as much as the per-operator part: a
+min-merge alone can never *raise* a too-low value, so a wrong one would have
+been permanent. Rebuilt, the field has ten distinct first-seen eras — 86
+operators from 1360 and 22 arriving later.
+
+### The anchors the backfill exposed
+
+`ingest:era` recorded two approximations that were invisible until a second
+source disagreed with them across a chunk boundary:
+
+- **Total issuance** has no per-era storage, so it read the value once and
+  stamped it on every era. Right for one era that just ended; across a cold
+  rebuild of 84 it is a flat line where the real series grows by a validator
+  reward a day. The staking ratio inherits it — era 1667 recorded 44.34%
+  against an actual 45.08%.
+- **Era start** was extrapolated backwards at a nominal era length, when
+  `era-index.json` has the real transition times.
+
+Both now come from the index in both entry points, at one archive round trip
+per era. Without the index the old approximations still apply and the run says
+so out loud.
 
 ### Reference
 
@@ -926,8 +990,8 @@ npm run probe:exposure-scan    # cost of a whole-era exposure search
 npm run probe:allocation -- <stash>   # where one stash's stake actually sits
 ```
 
-**`npm run ingest:backfill` is a dangling script** — `scripts/ingest/backfill.ts`
-does not exist. Writing it is open work, not a broken install.
+`npm run ingest:backfill` fills history older than the 84-era retained window.
+Run it by hand; see the backfill section above before you do.
 
 `budget` and `assert:lazy` read `out/`, so run `npm run build` first.
 
