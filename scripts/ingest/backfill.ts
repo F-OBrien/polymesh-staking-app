@@ -50,8 +50,8 @@ import {
 } from '../../lib/chain/compat';
 import { groupErasByChunk, isChunkComplete } from '../../lib/data/chunking';
 import { erasPerYear as computeErasPerYear } from '../../lib/metrics/staking';
-import type { ChunkRef, EraIndexFile } from '../../lib/schemas/data';
-import { buildChunk, fetchEra, type EraRecord } from './era-build';
+import type { ChunkRef } from '../../lib/schemas/data';
+import { blockForEra, buildChunk, fetchEra, readIssuanceAt, type EraRecord } from './era-build';
 import { contentHash, DataStore } from './store';
 import { buildOperatorRegistry } from './operators';
 import { buildRollup } from './rollup';
@@ -65,25 +65,6 @@ import { buildRollup } from './rollup';
  * shared.
  */
 const CONCURRENCY = 2;
-
-/**
- * How far *after* the era transition to read era N's storage.
- *
- * Reading inside era N looks obviously right and is wrong, which the first run
- * of this script proved against mainnet:
- *
- *  - `erasValidatorReward(N)` is written when era N is **paid out**, at the
- *    transition. Read ten blocks earlier it is `None`, so the reward decodes as
- *    zero, and every figure derived from it — APR, the percentile band, the
- *    network average — comes out zero too.
- *  - `erasRewardPoints(N)` *accumulates* through the era. Ten blocks early it
- *    was short by exactly 200 points: ten blocks at twenty points each.
- *
- * Era N's storage is retained for `historyDepth` eras after it ends, so reading
- * just after the transition is both complete and safe. A few blocks of margin
- * absorbs the transition landing across two blocks.
- */
-const BLOCKS_AFTER_TRANSITION = 10;
 
 interface Options {
   from: number | null;
@@ -132,20 +113,6 @@ async function storedEras(store: DataStore, refs: readonly ChunkRef[]): Promise<
     }
   }
   return present;
-}
-
-/** The block to read era N's storage at, from the era index. */
-function blockForEra(index: EraIndexFile, era: number): number | null {
-  // `block[i]` is the start block of era `firstEra + i`, so `block[N + 1]` is
-  // where era N ended and was paid out. Just after that is the first point at
-  // which era N's record is complete — see `BLOCKS_AFTER_TRANSITION`.
-  const next = era + 1 - index.firstEra;
-  if (next <= 0 || next >= index.block.length) {
-    // No following era recorded — this is the newest era in the index, which
-    // `ingest:era` owns anyway.
-    return null;
-  }
-  return (index.block[next] as number) + BLOCKS_AFTER_TRANSITION;
 }
 
 async function main(): Promise<void> {
@@ -230,10 +197,7 @@ async function main(): Promise<void> {
       // Read at the block, not from current state: this is the figure that
       // actually applied, and it is the reason a backfilled era's staking ratio
       // is more accurate than a live-ingested one's.
-      const issuance = BigInt(
-        (await (at.query as unknown as Record<string, Record<string, () => Promise<unknown>>>)
-          .balances!.totalIssuance!()) as unknown as string,
-      );
+      const issuance = await readIssuanceAt(at);
 
       const startSeconds = eraIndex.start[era - eraIndex.firstEra];
       if (startSeconds == null) {

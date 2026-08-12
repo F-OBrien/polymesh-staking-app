@@ -18,7 +18,7 @@
 import { join } from 'node:path';
 import { resolveNetwork, resolveRpcUrl } from '../../config/networks';
 import { CHUNK_SIZE } from '../../config/site';
-import { connect, mapWithConcurrency } from '../../lib/chain/connect';
+import { apiAt, connect, mapWithConcurrency } from '../../lib/chain/connect';
 import {
   readActiveEra,
   readCurrentEra,
@@ -28,7 +28,15 @@ import {
 import { groupErasByChunk, isChunkComplete } from '../../lib/data/chunking';
 import { erasPerYear as computeErasPerYear } from '../../lib/metrics/staking';
 import type { ChunkRef } from '../../lib/schemas/data';
-import { buildChunk, fetchEra, readStoredCoverage, type EraRecord } from './era-build';
+import {
+  blockForEra,
+  buildChunk,
+  eraStartFromIndex,
+  fetchEra,
+  readIssuanceAt,
+  readStoredCoverage,
+  type EraRecord,
+} from './era-build';
 import { contentHash, DataStore } from './store';
 import { buildOperatorRegistry } from './operators';
 import { buildRollup } from './rollup';
@@ -140,19 +148,56 @@ async function main(): Promise<void> {
         ? Math.floor(activeEra.startMs / 1000)
         : Math.floor(Date.now() / 1000);
 
-    // Total issuance is a "now" value; it is not retained per era. Recording
-    // today's figure against a historical era would be wrong, so it is only
-    // meaningful for recent eras — acceptable because the staking-ratio series
-    // is presented as approximate for backfilled history.
-    const totalIssuance = await (await import('../../lib/chain/compat')).readTotalIssuance(api);
-
-    console.log(
-      `Ingesting eras ${wanted[0]}-${wanted.at(-1)} (${wanted.length}) at concurrency ${ERA_CONCURRENCY}`,
-    );
+    /**
+     * Per-era anchors, from `era-index.json` where it is available.
+     *
+     * Both values used to be approximations, and the backfill exposed both by
+     * disagreeing with its own neighbour across the boundary:
+     *
+     *  - **Issuance** has no per-era storage, so this stamped today's figure
+     *    onto every era it wrote. Right for one era that just ended; across a
+     *    cold rebuild of eighty-four it is a flat line where the real series
+     *    grows by a reward a day, and the staking ratio derived from it drifts
+     *    with it.
+     *  - **Era start** was extrapolated backwards at a nominal era length.
+     *    Measured drift over the chain's life is large enough that
+     *    extrapolation is days out at the far end.
+     *
+     * The index makes both exact for the cost of one archive read per era.
+     * Absent, the old approximations still apply and the run says so, because
+     * a pipeline that silently degrades is worse than one that is merely
+     * approximate.
+     */
+    const eraIndex = await store.readEraIndex();
+    if (!eraIndex) {
+      console.warn(
+        'era-index.json is missing: falling back to today’s issuance and an extrapolated ' +
+          'era start for every era written. Run `npm run ingest:era-index` for exact values.',
+      );
+    }
+    const issuanceNow = await readIssuanceAt(api);
 
     const fetched = await mapWithConcurrency(wanted, ERA_CONCURRENCY, async (era) => {
-      const startSeconds = activeEraStartSeconds - (activeEra.index - era) * eraSeconds;
-      const record = await fetchEra(api, era, Math.floor(startSeconds), totalIssuance);
+      const indexedStart = eraIndex ? eraStartFromIndex(eraIndex, era) : null;
+      const startSeconds =
+        indexedStart ?? Math.floor(activeEraStartSeconds - (activeEra.index - era) * eraSeconds);
+
+      // Issuance as it stood when this era ended, where the index can point us
+      // at the block. `readIssuanceAt` on a historical view is one archive
+      // round trip; on the usual single-era incremental run that is one call.
+      let issuance = issuanceNow;
+      const block = eraIndex ? blockForEra(eraIndex, era) : null;
+      if (block != null) {
+        try {
+          const hash = (await api.rpc.chain.getBlockHash(block)).toString();
+          issuance = await readIssuanceAt(await apiAt(api, hash));
+        } catch {
+          // Fall back to today's figure rather than failing the run: a stale
+          // issuance is a small inaccuracy, a missing era is a hole.
+        }
+      }
+
+      const record = await fetchEra(api, era, startSeconds, issuance);
 
       // An era with neither points nor exposures has been pruned from state.
       // That is expected right at the edge of the history window — and the edge

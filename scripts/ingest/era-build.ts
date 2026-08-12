@@ -31,6 +31,7 @@ import { deriveOperatorApr } from '../../lib/metrics/derive';
 import { analyseCoverage } from './rollup';
 import type {
   Chunk,
+  EraIndexFile,
   ChunkRef,
   EraSource,
   ExposureShape,
@@ -327,4 +328,59 @@ export async function readStoredCoverage(
   }
 
   return analyseCoverage(eras).coverage;
+}
+
+/**
+ * How far *after* the era transition to read era N's storage.
+ *
+ * Reading inside era N looks obviously right and is wrong, which the first run
+ * of this script proved against mainnet:
+ *
+ *  - `erasValidatorReward(N)` is written when era N is **paid out**, at the
+ *    transition. Read ten blocks earlier it is `None`, so the reward decodes as
+ *    zero, and every figure derived from it — APR, the percentile band, the
+ *    network average — comes out zero too.
+ *  - `erasRewardPoints(N)` *accumulates* through the era. Ten blocks early it
+ *    was short by exactly 200 points: ten blocks at twenty points each.
+ *
+ * Era N's storage is retained for `historyDepth` eras after it ends, so reading
+ * just after the transition is both complete and safe. A few blocks of margin
+ * absorbs the transition landing across two blocks.
+ */
+export const BLOCKS_AFTER_TRANSITION = 10;
+
+/** The block to read era N's storage at, from the era index. */
+export function blockForEra(index: EraIndexFile, era: number): number | null {
+  // `block[i]` is the start block of era `firstEra + i`, so `block[N + 1]` is
+  // where era N ended and was paid out. Just after that is the first point at
+  // which era N's record is complete — see `BLOCKS_AFTER_TRANSITION`.
+  const next = era + 1 - index.firstEra;
+  if (next <= 0 || next >= index.block.length) {
+    // No following era recorded — this is the newest era in the index, which
+    // `ingest:era` owns anyway.
+    return null;
+  }
+  return (index.block[next] as number) + BLOCKS_AFTER_TRANSITION;
+}
+
+/**
+ * Total issuance as of whatever block `api` is pointed at.
+ *
+ * Split out because both entry points need it and both were getting it wrong
+ * in the same way. Issuance is a "now" value with no per-era storage, so
+ * `ingest:era` stamped today's figure onto every era it wrote. For one era
+ * that just ended that is right; across a cold rebuild of eighty-four eras it
+ * writes a flat line where the real series grows by about a reward a day, and
+ * the staking-ratio series derived from it is wrong by up to a couple of
+ * percent at the far end. The backfill made this visible by disagreeing with
+ * its own neighbour across the boundary — 1.2768bn against a frozen 1.3060bn.
+ */
+export async function readIssuanceAt(api: ApiLike): Promise<bigint> {
+  const { readTotalIssuance } = await import('../../lib/chain/compat');
+  return readTotalIssuance(api);
+}
+
+/** Era N's start time from the index, or null when it is not covered. */
+export function eraStartFromIndex(index: EraIndexFile, era: number): number | null {
+  return index.start[era - index.firstEra] ?? null;
 }
