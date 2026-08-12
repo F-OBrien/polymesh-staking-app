@@ -67,8 +67,19 @@ export function axisRangeNote(
 export function outlierCap(
   values: readonly (number | null | undefined)[],
   format: (value: number) => string,
-  /** How many times the median a point may reach before it is an outlier. */
-  tolerance = 4,
+  {
+    /** How many times the median a point may reach before it is an outlier. */
+    tolerance = 4,
+    /**
+     * Why the outliers are there, in a clause that follows "peaking at X".
+     *
+     * Caller-supplied because the reason differs by chart and getting it wrong
+     * is worse than saying nothing: this first hardcoded "in the chain's
+     * earliest weeks", which was right for the network chart and plainly wrong
+     * on an operator page, where the spike is that validator's own first era.
+     */
+    because = 'when little was staked against them',
+  }: { tolerance?: number; because?: string } = {},
 ): { max: number; note: string } | null {
   const finite = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (finite.length < 4) return null;
@@ -93,7 +104,7 @@ export function outlierCap(
     max,
     note:
       `${above.length === 1 ? 'One point runs' : `${above.length} points run`} off the top of ` +
-      `this axis, peaking at ${format(peak)} in the chain's earliest weeks when almost nothing ` +
-      `was staked. The axis is capped so the rest is legible; the table has the real values.`,
+      `this axis, peaking at ${format(peak)} ${because}. The axis is capped so the rest is ` +
+      `legible; the table has the real values, and Log shows them in place.`,
   };
 }

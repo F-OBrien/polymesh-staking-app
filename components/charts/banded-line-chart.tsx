@@ -4,11 +4,15 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import {
   bandPath,
   DIRECT_LABEL_MIN_WIDTH,
+  gutterFor,
   linePath,
+  logValueScale,
   nearestIndex,
   plotBox,
+  positiveOrNull,
   responsiveMargin,
   spreadLabels,
+  tickCount,
   timeScale,
   valueScale,
 } from '@/lib/charts/geometry';
@@ -78,6 +82,15 @@ export interface BandedLineChartProps {
    */
   yMax?: number | undefined;
   /**
+   * `log` for a series spanning orders of magnitude.
+   *
+   * A validator's first era pays a return like nothing that follows it — its
+   * own bond, no nominators, a full share of points. Linear either lets that
+   * point own the axis or clips it away; log shows it *and* the ordinary range
+   * on the same plot. Non-positive values become gaps, which is what they mean.
+   */
+  scaleType?: 'linear' | 'log' | undefined;
+  /**
    * Terser formatter for axis ticks. Falls back to `format`, but an axis wants
    * "20%" where a tooltip wants "19.81%" — the extra digits are noise repeated
    * down the gutter.
@@ -96,6 +109,7 @@ export function BandedLineChart({
   height: requestedHeight = 320,
   includeZero = false,
   yMax,
+  scaleType = 'linear',
   tickFormat,
 }: BandedLineChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -111,25 +125,83 @@ export function BandedLineChart({
    */
   const [containerRef, measuredWidth] = useMeasuredWidth<HTMLDivElement>();
   const width = measuredWidth ?? 0;
-  const margin = responsiveMargin(width);
+  const baseMargin = responsiveMargin(width);
   const showDirectLabels = width >= DIRECT_LABEL_MIN_WIDTH;
   // Taller when the frame is expanded. This is the chart that most needs it:
   // eight operators over ninety eras is a thicket in a page-width card, and
   // vertical room separates the lines as much as horizontal room does.
   const height = useChartHeight(requestedHeight);
-  const box = plotBox(width, height, margin);
 
-  const x = useMemo(() => timeScale(eraStart, box.innerWidth), [eraStart, box.innerWidth]);
+  const logarithmic = scaleType === 'log';
+  const formatTick = useMemo(() => tickFormat ?? ((v: number) => format(v)), [tickFormat, format]);
 
-  const y = useMemo(() => {
+  /**
+   * The scale and the plot box, together, because each needs the other.
+   *
+   * `innerHeight` depends only on the top and bottom margins, so the y scale
+   * can be built against a provisional box. The tick labels it then produces
+   * are what decide how wide the left gutter has to be — without that pass a
+   * "10,000%" tick renders as "0,000%", which does not merely look wrong, it
+   * reads as a different number.
+   *
+   * One memo rather than two plus loose intermediates: the React Compiler
+   * cannot preserve memoization across a plain object built mid-render, and
+   * bailed out of optimising this component entirely when it was written that
+   * way.
+   */
+  const { box, y } = useMemo(() => {
+    const provisional = plotBox(width, height, baseMargin);
+
     const columns: (readonly (number | null)[])[] = series.map((s) => s.values);
     if (band) columns.push(band.lo, band.hi);
     if (reference) columns.push(reference.values);
-    return valueScale(columns, box.innerHeight, {
-      includeZero,
-      ...(yMax != null ? { max: yMax } : {}),
-    });
-  }, [series, band, reference, box.innerHeight, includeZero, yMax]);
+
+    const scale = logarithmic
+      ? logValueScale(columns, provisional.innerHeight)
+      : valueScale(columns, provisional.innerHeight, {
+          includeZero,
+          ...(yMax != null ? { max: yMax } : {}),
+        });
+
+    const margin = {
+      ...baseMargin,
+      left: gutterFor(
+        scale.ticks(tickCount(provisional.innerHeight, 48)),
+        formatTick,
+        baseMargin.left,
+      ),
+    };
+
+    return { box: plotBox(width, height, margin), y: scale };
+  }, [
+    width,
+    height,
+    baseMargin,
+    series,
+    band,
+    reference,
+    includeZero,
+    yMax,
+    logarithmic,
+    formatTick,
+  ]);
+
+  const x = useMemo(() => timeScale(eraStart, box.innerWidth), [eraStart, box.innerWidth]);
+
+  /**
+   * Places a value on the axis, or returns null for a gap.
+   *
+   * On a log axis zero and negatives have nowhere to go — `y(0)` is -Infinity,
+   * which would drag a line off the plot rather than break it. Routing every
+   * plotted value through here keeps that decision in one place.
+   */
+  const at = useCallback(
+    (value: number | null | undefined): number | null => {
+      const usable = logarithmic ? positiveOrNull(value) : (value ?? null);
+      return usable == null ? null : y(usable);
+    },
+    [y, logarithmic],
+  );
 
   const xs = useMemo(() => eraStart.map((seconds) => x(new Date(seconds * 1000))), [eraStart, x]);
 
@@ -144,9 +216,9 @@ export function BandedLineChart({
       if (!svg) return;
       const rect = svg.getBoundingClientRect();
       // Drawn 1:1, so client px map straight to chart coordinates.
-      setFocusIndex(nearestIndex(xs, event.clientX - rect.left - margin.left));
+      setFocusIndex(nearestIndex(xs, event.clientX - rect.left - box.margin.left));
     },
-    [xs, margin.left],
+    [xs, box.margin.left],
   );
 
   const handleKey = useCallback(
@@ -231,7 +303,7 @@ export function BandedLineChart({
           </defs>
         ) : null}
 
-        <g transform={`translate(${margin.left}, ${margin.top})`}>
+        <g transform={`translate(${box.margin.left}, ${box.margin.top})`}>
           <Grid box={box} yScale={y} />
 
           {/* Layers 1-4 are the only things a y-axis cap may crop. The axis
@@ -251,8 +323,8 @@ export function BandedLineChart({
                     }))
                     .map((p) => ({
                       x: p.x,
-                      lo: p.lo == null ? null : y(p.lo),
-                      hi: p.hi == null ? null : y(p.hi),
+                      lo: at(p.lo),
+                      hi: at(p.hi),
                     })),
                 )}
                 fill="var(--band-fill)"
@@ -266,7 +338,7 @@ export function BandedLineChart({
                 d={linePath(
                   eras.map((_, i) => ({
                     x: xs[i] ?? 0,
-                    y: band.mid[i] == null ? null : y(band.mid[i]!),
+                    y: at(band.mid[i]),
                   })),
                 )}
                 fill="none"
@@ -283,7 +355,7 @@ export function BandedLineChart({
                 d={linePath(
                   eras.map((_, i) => ({
                     x: xs[i] ?? 0,
-                    y: reference.values[i] == null ? null : y(reference.values[i]!),
+                    y: at(reference.values[i]),
                   })),
                 )}
                 fill="none"
@@ -300,7 +372,7 @@ export function BandedLineChart({
               const d = linePath(
                 eras.map((_, i) => ({
                   x: xs[i] ?? 0,
-                  y: s.values[i] == null ? null : y(s.values[i]!),
+                  y: at(s.values[i]),
                 })),
               );
               return (
@@ -338,7 +410,7 @@ export function BandedLineChart({
                   <circle
                     key={s.id}
                     cx={xs[active]}
-                    cy={y(value)}
+                    cy={at(value) ?? 0}
                     r={4}
                     fill={SERIES_TOKENS[index]}
                     stroke="var(--surface-1)"
@@ -358,7 +430,7 @@ export function BandedLineChart({
             ? spreadLabels(
                 capped.slice(0, 4).map((s) => {
                   const last = lastDefined(s.values);
-                  return last == null ? null : y(last.value);
+                  return last == null ? null : at(last.value);
                 }),
                 13,
                 { top: 0, bottom: box.innerHeight },
@@ -380,10 +452,10 @@ export function BandedLineChart({
           <YAxis
             box={box}
             scale={y}
-            // Terser on the axis than in the tooltip: "20%" down the gutter,
-            // "19.81%" where the precision is actually wanted. At narrow
-            // widths the left margin cannot fit the long form and clips it.
-            format={tickFormat ?? ((v) => format(v))}
+            // The same formatter the gutter was sized from, or the width and
+            // the labels could disagree. Terser than the tooltip by design:
+            // "20%" down the gutter, "19.81%" where precision is wanted.
+            format={formatTick}
             {...(yLabel ? { label: yLabel } : {})}
           />
           <XAxis box={box} scale={x} />
@@ -400,9 +472,9 @@ export function BandedLineChart({
             background: 'var(--surface-2)',
             // Flip to the left of the crosshair past the midpoint so the
             // tooltip never runs off the right edge.
-            left: (xs[active] ?? 0) + margin.left,
+            left: (xs[active] ?? 0) + box.margin.left,
             transform:
-              ((xs[active] ?? 0) + margin.left) / width > 0.6
+              ((xs[active] ?? 0) + box.margin.left) / width > 0.6
                 ? 'translateX(-100%) translateX(-12px)'
                 : 'translateX(12px)',
           }}

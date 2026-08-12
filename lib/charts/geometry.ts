@@ -1,4 +1,4 @@
-import { scaleLinear, scaleUtc } from 'd3-scale';
+import { scaleLinear, scaleLog, scaleUtc } from 'd3-scale';
 import { line as d3Line, area as d3Area, curveMonotoneX } from 'd3-shape';
 
 /**
@@ -52,7 +52,16 @@ export function plotBox(width: number, height: number, margin: Margin = DEFAULT_
 // ---------------------------------------------------------------------------
 
 export type LinearScale = ReturnType<typeof scaleLinear<number, number>>;
+export type LogScale = ReturnType<typeof scaleLog<number, number>>;
 export type TimeScale = ReturnType<typeof scaleUtc<number, number>>;
+
+/**
+ * Either kind of value axis.
+ *
+ * Grid and `YAxis` only need `ticks`, `domain` and the call signature, and both
+ * scales provide them, so the chrome does not have to know which it is drawing.
+ */
+export type ValueScale = LinearScale | LogScale;
 
 /**
  * The x scale: **time, not era index**.
@@ -191,6 +200,63 @@ export function valueScale(
     .nice();
 }
 
+/**
+ * A logarithmic value axis, for series that span orders of magnitude.
+ *
+ * Some of this data genuinely does. Polymesh's first week paid 12,564% because
+ * 0.08% of supply was staked; a validator's first era pays a similar multiple
+ * because it is exposed on its own bond with no nominators — measured, a Huobi
+ * node earned 2,959% in era 1660 on 50,000 POLYX and 20-26% every era after.
+ * On a linear axis those points either own the chart or have to be clipped
+ * away. On a log axis they and the ordinary range are legible together, which
+ * is the only presentation that shows both the spike and what followed it.
+ *
+ * **Non-positive values are gaps, not points.** `log(0)` is undefined and
+ * negatives have no log at all, so a zero cannot be placed on this axis. The
+ * caller must drop them — `positiveOrNull` is here for that — and a broken line
+ * is the correct rendering: an era an operator scored nothing in is an era it
+ * has no return for, which is exactly what a gap means everywhere else here.
+ */
+export function logValueScale(
+  series: readonly (readonly (number | null)[])[],
+  innerHeight: number,
+  { padding = 0.08 }: { padding?: number } = {},
+): LogScale {
+  let lo = Number.POSITIVE_INFINITY;
+  let hi = Number.NEGATIVE_INFINITY;
+
+  for (const column of series) {
+    for (const value of column) {
+      // Only positive values define a log domain; the rest are gaps.
+      if (value == null || !Number.isFinite(value) || value <= 0) continue;
+      if (value < lo) lo = value;
+      if (value > hi) hi = value;
+    }
+  }
+
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    lo = 1;
+    hi = 10;
+  }
+  if (lo === hi) {
+    lo /= 2;
+    hi *= 2;
+  }
+
+  // Padding is multiplicative here. Adding a fraction of the *extent* would be
+  // meaningless on a log axis, where equal distances are equal ratios.
+  const factor = (hi / lo) ** padding;
+
+  return scaleLog<number, number>()
+    .domain([lo / factor, hi * factor])
+    .range([innerHeight, 0]);
+}
+
+/** A value a log axis can plot, or null for the gap it has to become. */
+export function positiveOrNull(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
@@ -307,6 +373,34 @@ export function responsiveMargin(width: number): Margin {
     // Narrower gutter on small screens; tick labels are abbreviated to match.
     left: width < 420 ? 40 : 52,
   };
+}
+
+/**
+ * Left gutter wide enough for the widest tick label it has to hold.
+ *
+ * `responsiveMargin` returns a fixed 52px, which is fine for "20%" and not for
+ * "10,000%" — the latter rendered as "0,000%", silently losing a digit and
+ * turning 10,000% into something that reads as 0. A log axis makes this routine
+ * rather than rare, since its whole purpose is spanning magnitudes.
+ *
+ * Width is estimated from character count rather than measured in the DOM.
+ * Tick labels are tabular figures at a known size, so ~6.2px a character is
+ * accurate to a pixel or two, and measuring would mean a layout pass per
+ * render to save nothing.
+ */
+export function gutterFor(
+  ticks: readonly number[],
+  format: (value: number) => string,
+  fallback: number,
+): number {
+  let longest = 0;
+  for (const tick of ticks) longest = Math.max(longest, format(tick).length);
+  // 6.8px a character at the 11px tabular figures `YAxis` uses, plus the 8px
+  // the label is offset from the plot and a little slack. A first attempt at
+  // 6.2 + 10 landed a "10,000%" tick exactly on the boundary and it still
+  // clipped, so this errs wide: a slightly generous gutter costs a few pixels
+  // of plot, a tight one silently turns 10,000% into 0,000%.
+  return Math.max(fallback, Math.ceil(longest * 6.8) + 14);
 }
 
 export interface LabelPlacement {

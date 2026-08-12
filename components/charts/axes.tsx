@@ -1,6 +1,6 @@
 'use client';
 
-import { tickCount, type LinearScale, type PlotBox, type TimeScale } from '@/lib/charts/geometry';
+import { tickCount, type PlotBox, type TimeScale, type ValueScale } from '@/lib/charts/geometry';
 
 /**
  * Axes and grid.
@@ -13,8 +13,60 @@ import { tickCount, type LinearScale, type PlotBox, type TimeScale } from '@/lib
  * table, and announcing every gridline would be noise.
  */
 
-export function Grid({ box, yScale }: { box: PlotBox; yScale: LinearScale }) {
-  const ticks = yScale.ticks(tickCount(box.innerHeight, 48));
+/**
+ * The ticks to draw for a value axis.
+ *
+ * `scaleLinear.ticks(n)` already honours `n`, so its output is used as-is.
+ * `scaleLog.ticks(n)` does not — it returns every power of ten in the domain
+ * and, where the domain is narrow, every multiple of each. Twenty gridlines is
+ * not a grid, so a log axis is thinned to roughly the count a linear one would
+ * have used.
+ *
+ * **Thinned evenly, with nothing appended.** A first attempt force-kept the
+ * top tick so the highest value was always labelled, which on a *linear* axis
+ * produced 10 / 30 / 50 / 60 — three even gaps and then a half one, which
+ * reads as a mistake in the data rather than in the axis. Taking every Nth and
+ * stopping is uniform in whatever space the scale works in: linear ticks stay
+ * evenly spaced, and log ticks stay one decade apart.
+ */
+function valueTicks(scale: ValueScale, count: number): number[] {
+  // `base()` exists only on a log scale, and is the one structural difference
+  // between the two that does not need the caller to say which it is.
+  if (!('base' in scale)) return scale.ticks(count);
+
+  const [lo, hi] = scale.domain() as [number, number];
+  if (!(lo > 0) || !(hi > lo)) return scale.ticks(count);
+
+  /**
+   * The 1-2-5 ladder, which is what a log axis is expected to be labelled with.
+   *
+   * `scaleLog.ticks()` returns every integer multiple within a decade, and
+   * thinning that evenly produced 20% / 70% / 300% / 800% / 4,000% — each value
+   * correct and the set as a whole unreadable, because nothing about it says
+   * "each step is a power of ten". Generating the ladder and thinning *it*
+   * keeps whatever survives recognisable.
+   */
+  const ladder: number[] = [];
+  const first = Math.floor(Math.log10(lo));
+  const last = Math.ceil(Math.log10(hi));
+  for (let power = first; power <= last; power += 1) {
+    for (const mantissa of [1, 2, 5]) {
+      const value = mantissa * 10 ** power;
+      if (value >= lo && value <= hi) ladder.push(value);
+    }
+  }
+
+  // Too few rungs in range to be a ladder — a domain inside one decade, say.
+  // d3's own set is denser and better than three labels.
+  if (ladder.length < 3) return scale.ticks(count);
+  if (ladder.length <= count) return ladder;
+
+  const step = Math.ceil(ladder.length / count);
+  return ladder.filter((_, i) => i % step === 0);
+}
+
+export function Grid({ box, yScale }: { box: PlotBox; yScale: ValueScale }) {
+  const ticks = valueTicks(yScale, tickCount(box.innerHeight, 48));
 
   return (
     <g aria-hidden="true">
@@ -43,13 +95,13 @@ export function YAxis({
   label,
 }: {
   box: PlotBox;
-  scale: LinearScale;
+  scale: ValueScale;
   format: (value: number) => string;
   // Explicitly `| undefined`: callers pass a conditional label, and under
   // exactOptionalPropertyTypes an absent property differs from an explicit one.
   label?: string | undefined;
 }) {
-  const ticks = scale.ticks(tickCount(box.innerHeight, 48));
+  const ticks = valueTicks(scale, tickCount(box.innerHeight, 48));
 
   return (
     <g aria-hidden="true">

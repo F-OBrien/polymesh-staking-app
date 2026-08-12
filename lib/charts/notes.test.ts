@@ -72,6 +72,16 @@ describe('outlierCap', () => {
     expect(outlierCap([0.1, 0.2, 0.3, 0.4, 50], pct)).toBeNull();
   });
 
+  it('takes the reason for the outliers from the caller', () => {
+    // Hardcoding it produced "in the chain's earliest weeks" on an operator
+    // page, where the spike is that validator's own first era. A confidently
+    // wrong explanation is worse than none.
+    const values = [...Array.from({ length: 40 }, () => 0.2), 30];
+    const cap = outlierCap(values, pct, { because: 'when the node had just joined' });
+    expect(cap?.note).toContain('when the node had just joined');
+    expect(cap?.note).not.toContain('chain');
+  });
+
   it('says nothing with too little data to judge', () => {
     expect(outlierCap([1, 100], pct)).toBeNull();
     expect(outlierCap([], pct)).toBeNull();

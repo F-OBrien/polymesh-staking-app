@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChartFrame } from './chart-frame';
 import { MAX_NAMED_SERIES } from '@/lib/charts/palette';
 import { BandedLineChart, type NamedSeries } from './banded-line-chart';
@@ -60,8 +60,25 @@ export interface EraSeriesChartProps {
    * looking authoritative. The caller knows the resolution; the chart cannot.
    */
   pointNoun?: string | undefined;
-  /** Hard ceiling for the y axis; see `BandedLineChartProps.yMax`. */
-  yMax?: number | undefined;
+  /**
+   * An axis ceiling and the sentence that has to accompany it.
+   *
+   * Taken as one value rather than a `yMax` and a `note`, because the two are
+   * only ever true together: on a log axis nothing is clipped, so a note
+   * claiming "33 points run off the top" would be describing a chart the
+   * reader is not looking at. Passing them separately made that mismatch
+   * possible; passing them joined does not. See `outlierCap`.
+   */
+  cap?: { max: number; note: string } | null | undefined;
+  /**
+   * Offers a linear/log switch above the plot, starting on `linear`.
+   *
+   * Only for charts whose data actually spans orders of magnitude — a return
+   * series carrying a validator's first era, or the chain's own first weeks.
+   * On a series that does not, the two views are identical and the control is
+   * just another thing to read.
+   */
+  offerLogScale?: boolean | undefined;
   loading?: boolean | undefined;
   error?: Error | null | undefined;
   onRetry?: (() => void) | undefined;
@@ -84,13 +101,16 @@ export function EraSeriesChart({
   includeZero = false,
   note,
   pointNoun = 'eras',
-  yMax,
+  cap,
+  offerLogScale = false,
   loading,
   error,
   onRetry,
   actions,
   onRemoveOperator,
 }: EraSeriesChartProps) {
+  const [scaleType, setScaleType] = useState<'linear' | 'log'>('linear');
+
   // A module-level constant, not a fresh `[]` per render: an inline fallback
   // is a new reference every time, which would invalidate the memos below on
   // every render and defeat them entirely.
@@ -106,8 +126,16 @@ export function EraSeriesChart({
     const from = formatEraDate(eraStart[0], { withYear: true });
     const to = formatEraDate(eraStart.at(-1), { withYear: true });
     const span = `${eras.length} ${pointNoun} · ${from} – ${to}`;
-    return note ? `${span}. ${note}` : span;
-  }, [eras.length, eraStart, note, pointNoun]);
+    // A log axis has to be declared. Equal vertical distances are equal
+    // *ratios*, so a reader who assumes linear will misread every gap on it.
+    const parts = [
+      span,
+      note,
+      // Only while the cap is actually in force.
+      scaleType === 'linear' ? cap?.note : 'Logarithmic scale — every point is in place.',
+    ].filter(Boolean);
+    return parts.join('. ').replace(/\.\./g, '.');
+  }, [eras.length, eraStart, note, pointNoun, scaleType, cap]);
 
   const legendItems = useMemo<LegendItem[]>(() => {
     const items: LegendItem[] = operators.slice(0, MAX_NAMED_SERIES).map((op) => ({
@@ -169,12 +197,50 @@ export function EraSeriesChart({
 
   const isEmpty = !loading && !error && eras.length === 0;
 
+  const scaleControl = offerLogScale ? (
+    <div
+      role="group"
+      aria-label="Value axis scale"
+      className="flex items-center gap-0.5 rounded-full border p-0.5 text-xs"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      {(['linear', 'log'] as const).map((option) => {
+        const on = option === scaleType;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => setScaleType(option)}
+            aria-pressed={on}
+            className="rounded-full px-2 py-0.5 capitalize transition-colors"
+            style={{
+              color: on ? 'var(--text-primary)' : 'var(--text-muted)',
+              background: on ? 'var(--surface-2)' : 'transparent',
+              fontWeight: on ? 600 : 400,
+            }}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
   return (
     <ChartFrame
       title={title}
       subtitle={subtitle}
       coverage={coverage}
-      actions={actions}
+      actions={
+        scaleControl ? (
+          <div className="flex items-center gap-2">
+            {actions}
+            {scaleControl}
+          </div>
+        ) : (
+          actions
+        )
+      }
       height={height}
       loading={loading}
       error={error}
@@ -202,7 +268,8 @@ export function EraSeriesChart({
           yLabel={yLabel}
           height={height}
           includeZero={includeZero}
-          yMax={yMax}
+          yMax={scaleType === 'linear' ? cap?.max : undefined}
+          scaleType={scaleType}
         />
         {/* A second, visually-hidden copy of the table, so a screen reader
             reaches the data without having to find and operate the tab. */}

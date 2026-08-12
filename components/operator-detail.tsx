@@ -12,7 +12,7 @@ import { StatTile } from '@/components/stat-tile';
 import { AsOf, EmptyState, ErrorState } from '@/components/states';
 import { explorerAccountUrl } from '@/config/networks';
 import { CopyAddress } from '@/components/copy-address';
-import { axisRangeNote } from '@/lib/charts/notes';
+import { axisRangeNote, outlierCap } from '@/lib/charts/notes';
 import {
   formatNumber,
   formatPercent,
@@ -67,6 +67,37 @@ export function OperatorDetail({ address }: { address: string }) {
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }
     : undefined;
   const chartError = isError ? ((error as Error | null) ?? new Error('Unknown error')) : null;
+
+  /**
+   * A ceiling for the return chart, across the operator *and* the field.
+   *
+   * A validator's first era is exposed on its own bond with no nominators and
+   * takes a full share of points, so it pays a multiple of anything that
+   * follows — a Huobi node earned 2,959% in era 1660 and 20-26% every era
+   * after. One such point sets a 3,000% axis and flattens the operator, the
+   * band, the median and the network average into a line along the bottom.
+   *
+   * Taken across every series drawn, not the operator alone: capping to the
+   * operator's range while the field's p90 still reached 12,000% would press
+   * the band flat against the top of the plot instead.
+   */
+  const aprCap = useMemo(
+    () =>
+      outlierCap(
+        [
+          ...(derived?.apr.net ?? []),
+          ...(series?.network.aprP90 ?? []),
+          ...(series?.network.avgApr ?? []),
+        ],
+        (v) => formatPercent(v, { decimals: 0 }),
+        {
+          because:
+            "in an operator's first era, or the chain's own first weeks — both times when very " +
+            'little stake was backing a full share of the rewards',
+        },
+      ),
+    [derived, series],
+  );
 
   const percent = (v: number | null) => formatPercent(v, { decimals: 2 });
   const polyx = (v: number | null) => (v == null ? '—' : formatPolyx(v, { compact: true }));
@@ -262,6 +293,12 @@ export function OperatorDetail({ address }: { address: string }) {
                 <LazyEraSeriesChart
                   title="Return, after commission"
                   subtitle="The shaded band is the 10th–90th percentile of all operators, so this line can be read in context."
+                  // A validator's first era pays a return unlike anything that
+                  // follows — its own bond, no nominators, a full share of
+                  // points. Measured on a Huobi node: 2,959% in era 1660 on
+                  // 50,000 POLYX, then 20-26% every era after. Linear either
+                  // lets that point own the axis or hides it.
+                  offerLogScale
                   series={series}
                   operators={
                     derived ? [{ id: address, label, values: derived.apr.net } as NamedSeries] : []
@@ -273,6 +310,7 @@ export function OperatorDetail({ address }: { address: string }) {
                   format={percent}
                   tickFormat={(v) => formatPercent(v, { decimals: 0 })}
                   yLabel="APR"
+                  cap={aprCap}
                   loading={isLoading}
                   error={chartError}
                 />

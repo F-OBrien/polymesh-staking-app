@@ -18,6 +18,7 @@ import { useLive } from '@/lib/data/use-live';
 import { useEraClock } from '@/lib/data/use-era-clock';
 import { ErrorState, Skeleton } from '@/components/states';
 import { formatPercent, formatPolyx } from '@/lib/format';
+import { outlierCap } from '@/lib/charts/notes';
 import type { NamedSeries } from '@/components/charts/banded-line-chart';
 
 /**
@@ -108,6 +109,29 @@ export function OperatorsView() {
   const band = series
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }
     : undefined;
+
+  /**
+   * A ceiling for the return chart. See the note in `operator-detail.tsx`: an
+   * operator's first era pays a multiple of everything after it, and one such
+   * point flattens the whole plot. Taken across every series drawn.
+   */
+  const aprCap = useMemo(
+    () =>
+      outlierCap(
+        [
+          ...aprSeries.flatMap((s) => s.values),
+          ...(series?.network.aprP90 ?? []),
+          ...(series?.network.avgApr ?? []),
+        ],
+        (v) => formatPercent(v, { decimals: 0 }),
+        {
+          because:
+            "in an operator's first era, or the chain's own first weeks — both times when very " +
+            'little stake was backing a full share of the rewards',
+        },
+      ),
+    [aprSeries, series],
+  );
 
   const chartError = isError ? ((error as Error | null) ?? new Error('Unknown error')) : null;
   const percent = (v: number | null) => formatPercent(v, { decimals: 2 });
@@ -202,6 +226,8 @@ export function OperatorsView() {
             <LazyEraSeriesChart
               title="Return, after commission"
               subtitle="How do these operators compare with the field?"
+              offerLogScale
+              cap={aprCap}
               series={series}
               operators={aprSeries}
               band={band}

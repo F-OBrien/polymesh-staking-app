@@ -12,6 +12,7 @@ import { OperatorPicker } from '@/components/operator-picker';
 import { LazyChart, LazyEraSeriesChart } from '@/components/charts/lazy-chart';
 import { EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { SERIES_TOKENS } from '@/lib/charts/palette';
+import { outlierCap } from '@/lib/charts/notes';
 import { buildLabeller } from '@/lib/data/operator-label';
 import { CopyAddress } from '@/components/copy-address';
 import { formatNumber, formatPercent, formatPolyx, truncateAddress } from '@/lib/format';
@@ -186,6 +187,25 @@ export function CompareView() {
   const band = series
     ? { lo: series.network.aprP10, mid: series.network.aprP50, hi: series.network.aprP90 }
     : undefined;
+  /** See the note in `operator-detail.tsx`. Taken across every series drawn. */
+  const aprCap = useMemo(
+    () =>
+      outlierCap(
+        [
+          ...aprSeries.flatMap((s) => s.values),
+          ...(series?.network.aprP90 ?? []),
+          ...(series?.network.avgApr ?? []),
+        ],
+        (v) => formatPercent(v, { decimals: 0 }),
+        {
+          because:
+            "in an operator's first era, or the chain's own first weeks — both times when very " +
+            'little stake was backing a full share of the rewards',
+        },
+      ),
+    [aprSeries, series],
+  );
+
   const chartError = isError ? ((error as Error | null) ?? new Error('Unknown error')) : null;
 
   if (manifest.isError && latest.isError) {
@@ -310,6 +330,11 @@ export function CompareView() {
                 <LazyEraSeriesChart
                   title="Return, after commission"
                   subtitle="The shaded band is the 10th–90th percentile of all operators."
+                  // Comparing operators with different join dates puts a first
+                  // era — a multiple of anything after it — next to settled
+                  // history. See the note in `operator-detail.tsx`.
+                  offerLogScale
+                  cap={aprCap}
                   series={series}
                   operators={aprSeries}
                   band={band}

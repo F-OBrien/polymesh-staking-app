@@ -93,6 +93,7 @@ export function NetworkAnalytics() {
           ...(series?.network.aprP10 ?? []),
         ],
         (v) => formatPercent(v, { decimals: 0 }),
+        { because: "in the chain's first weeks, when almost none of the supply was staked" },
       ),
     [series],
   );
@@ -245,8 +246,12 @@ export function NetworkAnalytics() {
               <LazyEraSeriesChart
                 title="Average return over time"
                 pointNoun={pointNoun}
-                yMax={aprCap?.max}
-                note={[grain, aprCap?.note].filter(Boolean).join(' ') || null}
+                // The chain's first weeks are two orders of magnitude above
+                // everything since, so this is the one network chart where log
+                // shows the outlier and the ordinary range at the same time.
+                offerLogScale
+                cap={aprCap}
+                note={grain}
                 subtitle="Stake-weighted, after commission — what the network actually paid."
                 series={series}
                 operators={[]}
