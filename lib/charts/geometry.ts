@@ -149,6 +149,19 @@ export function valueScale(
     hi = 1;
   }
 
+  /**
+   * Whether the data itself ever goes below zero.
+   *
+   * Captured here, before padding or the flat-series nudge, because both can
+   * push the domain below a floor the data never crosses. A count of operators
+   * ranging 3 to 108 padded by 8% asks for an axis starting at -5.4, and an
+   * axis offering "-5 operators" is nonsense — as is negative stake, negative
+   * points, or a negative reward. Series that genuinely go negative (a
+   * deviation from a baseline, say) are unaffected: this only clamps what was
+   * already non-negative.
+   */
+  const neverNegative = lo >= 0;
+
   if (includeZero) {
     lo = Math.min(lo, 0);
     hi = Math.max(hi, 0);
@@ -168,6 +181,7 @@ export function valueScale(
   const pad = (cappedHi - lo) * padding;
   let domainMin = lo - pad;
   let domainMax = cappedHi + pad;
+  if (neverNegative) domainMin = Math.max(domainMin, 0);
   if (min != null) domainMin = Math.max(domainMin, min);
   if (max != null) domainMax = Math.min(domainMax, max);
 

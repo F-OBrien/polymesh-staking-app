@@ -274,3 +274,31 @@ describe('spreadLabels', () => {
     expect(spreadLabels([], 13, bounds)).toEqual([]);
   });
 });
+
+describe('valueScale and negative space', () => {
+  it('does not pad a non-negative series below zero', () => {
+    // Reported: the active-set count runs 3 to 108 over the chain's life, and
+    // 8% of padding asked for an axis starting at -5.4 operators.
+    const [lo] = valueScale([[3, 50, 108]], 100).domain();
+    expect(lo).toBeGreaterThanOrEqual(0);
+  });
+
+  it('still pads a series that genuinely goes negative', () => {
+    // A deviation from a baseline must keep its room below zero, or the
+    // clamp would crop exactly the half of the chart that carries the finding.
+    const [lo] = valueScale([[-4, 0, 6]], 100).domain();
+    expect(lo).toBeLessThan(-4);
+  });
+
+  it('does not nudge a flat non-negative series below zero', () => {
+    const [lo] = valueScale([[0, 0, 0]], 100).domain();
+    expect(lo).toBeGreaterThanOrEqual(0);
+  });
+
+  it('leaves a rate series unclamped where padding never reaches zero', () => {
+    // The clamp must not become a de-facto zero baseline: forcing zero onto a
+    // 19-22% APR chart is the thing `includeZero` defaults to false to avoid.
+    const [lo] = valueScale([[0.19, 0.22]], 100).domain();
+    expect(lo).toBeGreaterThan(0.1);
+  });
+});
