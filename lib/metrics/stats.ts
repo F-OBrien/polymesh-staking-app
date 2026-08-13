@@ -72,6 +72,53 @@ export function mean(values: readonly (number | null)[]): number | null {
   return n > 0 ? sum / n : null;
 }
 
+/**
+ * Median. The typical era, rather than the average one.
+ *
+ * **Why the summary columns do not use `mean`.** A validator's first era in the
+ * set is exposed on its own bond with no nominators and takes a full share of
+ * points, so it pays a multiple of anything that follows. Measured on mainnet: a
+ * Huobi node earning 18–25% every era of its life reported a *mean* return of
+ * **48.59%** over a 365-era window, because one era in ninety paid 2,474%. A
+ * nominator reading that column would conclude the wrong thing about the
+ * operator they are about to back.
+ *
+ * A first era is not an outlier to be shrugged off, it is a different regime —
+ * and so is the first era after an operator rejoins the set. The median ignores
+ * both without having to know which is which.
+ */
+export function median(values: readonly (number | null)[]): number | null {
+  return quantile(values, 0.5);
+}
+
+/**
+ * Robust spread: the median absolute deviation, scaled to be comparable with a
+ * standard deviation.
+ *
+ * The partner to `median`, and needed for the same reason. `stdDev` squares
+ * every deviation, so the same single 2,474% era that moved that node's mean by
+ * 28 points moved its reported steadiness to ±188% — a number that says the
+ * operator is wildly erratic when in fact it has been within a few points of the
+ * field every era it has run.
+ *
+ * The 1.4826 factor makes this an unbiased estimator of σ for normally
+ * distributed data, so a reader comparing it against a σ they remember is not
+ * comparing different units.
+ */
+const MAD_TO_SIGMA = 1.4826;
+
+export function robustSpread(values: readonly (number | null)[]): number | null {
+  const clean = cleanSorted(values);
+  if (clean.length < 2) return null;
+
+  const centre = quantileSorted(clean, 0.5);
+  if (centre == null) return null;
+
+  const deviations = clean.map((v) => Math.abs(v - centre)).sort((a, b) => a - b);
+  const mad = quantileSorted(deviations, 0.5);
+  return mad == null ? null : mad * MAD_TO_SIGMA;
+}
+
 /** Sample standard deviation (n-1). Returns null for fewer than two values. */
 export function stdDev(values: readonly (number | null)[]): number | null {
   const clean = cleanSorted(values);

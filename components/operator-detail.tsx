@@ -226,10 +226,11 @@ export function OperatorDetail({ address }: { address: string }) {
 
           <section aria-label="Key figures" className="mt-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {/* Three periods, not one. "Return" meaning a mean over
+              {/* Three periods, not one. "Return" meaning a summary over
                   whatever range was selected — and saying so only in a hint —
                   conflated what this operator is earning now with what it has
-                  averaged. All three are after commission. */}
+                  earned over time. All three are after commission, and the
+                  third is a median: see `lib/metrics/stats.ts`. */}
               <StatTile
                 emphasis
                 label="Return, this era"
@@ -249,14 +250,14 @@ export function OperatorDetail({ address }: { address: string }) {
                 loading={isLoading}
               />
               <StatTile
-                label="Return, mean"
-                value={percent(row?.aprMean ?? null)}
-                hint="after commission, across the selected range"
+                label="Return, typical era"
+                value={percent(row?.aprMedian ?? null)}
+                hint="median after commission, across the selected range"
                 loading={isLoading}
               />
               <StatTile
                 label="Steadiness"
-                value={row?.aprStdDev == null ? '—' : `±${percent(row.aprStdDev)}`}
+                value={row?.aprSpread == null ? '—' : `±${percent(row.aprSpread)}`}
                 hint="lower means a less variable return"
                 loading={isLoading}
               />

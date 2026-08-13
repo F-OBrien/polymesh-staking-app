@@ -101,8 +101,8 @@ function columns({ basis, rangeEras, lastEra, eraProgress }: ColumnContext): Col
               ? ` The era is ${elapsed}% elapsed, so this is close to settled.`
               : ` The era is just ${elapsed}% elapsed, so treat it as a rough signal.`}{' '}
           Either way, sorting by it puts the operators that have been <em>lucky</em> so far near the
-          top alongside the ones genuinely performing — compare against Last era and Mean before
-          reading much into it.
+          top alongside the ones genuinely performing — compare against Last era and Typical era
+          before reading much into it.
           <br />
           <br />
           Turn on Live to have it update as each block arrives rather than every 15 minutes.
@@ -125,29 +125,33 @@ function columns({ basis, rangeEras, lastEra, eraProgress }: ColumnContext): Col
       ),
     },
     {
-      key: 'mean',
-      label: 'Mean',
+      key: 'typical',
+      label: 'Typical era',
       ...(rangeEras != null ? { note: `${rangeEras} eras` } : {}),
-      sortByBasis: { net: 'aprMean', gross: 'aprMeanGross' },
+      sortByBasis: { net: 'aprMedian', gross: 'aprMedianGross' },
       numeric: true,
       help: (
         <>
-          <strong>The long view.</strong> Average of the per-era returns across the era range
-          selected above{rangeEras != null ? ` — ${rangeEras} eras` : ''}, {suffix}. One good or bad
-          era moves this very little, which is the point of it.
+          <strong>The long view.</strong> The middle of the per-era returns across the era range
+          selected above{rangeEras != null ? ` — ${rangeEras} eras` : ''}, {suffix}. A median rather
+          than an average, because an operator&rsquo;s first era in the set pays on its own bond
+          with no nominators: one Huobi node earning 18–25% all year averaged 48.59% on the strength
+          of a single era that paid 2,474%.
         </>
       ),
     },
     {
-      key: 'aprStdDev',
+      key: 'aprSpread',
       label: 'Steadiness',
-      sortByBasis: { net: 'aprStdDev', gross: 'aprStdDevGross' },
+      sortByBasis: { net: 'aprSpread', gross: 'aprSpreadGross' },
       numeric: true,
       hideBelow: 'md',
       help: (
         <>
-          Standard deviation of the per-era return over the selected range — lower is steadier. Two
-          operators with the same mean are not equivalent if one of them halves some weeks.
+          How far a typical era sits from this operator&rsquo;s middle, over the selected range —
+          lower is steadier. Two operators with the same typical return are not equivalent if one of
+          them halves some weeks. Measured robustly, like the column beside it: squaring the
+          deviations let one first era report a steady node as &plusmn;188%.
         </>
       ),
     },
@@ -213,7 +217,7 @@ export interface OperatorsTableProps {
   selectionFull: boolean;
   maxSelected: number;
   loading?: boolean;
-  /** Eras in the selected range, so the Mean column can say how many. */
+  /** Eras in the selected range, so the Typical era column can say how many. */
   rangeEras?: number | null;
   /** 0–1 through the current era, for reading the estimate honestly. */
   eraProgress?: number | null;
@@ -446,8 +450,8 @@ function Row({
   const net = basis === 'net';
   const thisEra = net ? row.aprThisEra : row.aprThisEraGross;
   const lastEra = net ? row.aprLastEra : row.aprLastEraGross;
-  const meanApr = net ? row.aprMean : row.aprMeanGross;
-  const spread = net ? row.aprStdDev : row.aprStdDevGross;
+  const typicalApr = net ? row.aprMedian : row.aprMedianGross;
+  const spread = net ? row.aprSpread : row.aprSpreadGross;
   const cell = 'border-b px-2 py-2 whitespace-nowrap';
   const border = { borderColor: 'var(--border)' };
 
@@ -482,7 +486,7 @@ function Row({
 
       <Numeric>{formatPercent(thisEra, { decimals: 2 })}</Numeric>
       <Numeric hide="sm">{formatPercent(lastEra, { decimals: 2 })}</Numeric>
-      <Numeric>{formatPercent(meanApr, { decimals: 2 })}</Numeric>
+      <Numeric>{formatPercent(typicalApr, { decimals: 2 })}</Numeric>
       <Numeric hide="md">
         {spread == null ? '—' : `±${formatPercent(spread, { decimals: 2 })}`}
       </Numeric>

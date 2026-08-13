@@ -6,8 +6,10 @@ import {
   herfindahlIndex,
   lorenzCurve,
   mean,
+  median,
   nakamotoCoefficient,
   quantile,
+  robustSpread,
   stdDev,
   topNShare,
 } from './stats';
@@ -87,6 +89,49 @@ describe('mean and stdDev', () => {
 
   it('needs at least two values', () => {
     expect(stdDev([5])).toBeNull();
+  });
+});
+
+describe('median and robustSpread', () => {
+  /**
+   * The case these exist for, from mainnet.
+   *
+   * A Huobi node's first era in the set paid 2,474% — its own bond, no
+   * nominators, a full share of points — against 18–25% for every era since.
+   */
+  const huobi = [24.74, ...Array.from({ length: 89 }, (_, i) => 0.18 + (i % 8) * 0.01)];
+
+  it('is not moved by a first era that pays a hundred times the rest', () => {
+    expect(mean(huobi)).toBeGreaterThan(0.4);
+    expect(median(huobi)).toBeLessThan(0.26);
+  });
+
+  it('reports a steady operator as steady despite that era', () => {
+    // The same point put this node's standard deviation at ±188%, which reads
+    // as wildly erratic for an operator that tracked the field all year.
+    expect(stdDev(huobi)!).toBeGreaterThan(1);
+    expect(robustSpread(huobi)!).toBeLessThan(0.05);
+  });
+
+  it('ignores absent eras rather than treating them as zero', () => {
+    expect(median([1, null, 3])).toBe(2);
+  });
+
+  it('agrees with the standard deviation on clean, symmetric data', () => {
+    // The 1.4826 scaling is what makes the two comparable, so a reader is not
+    // silently handed a different unit.
+    const spread = robustSpread([-2, -1, 0, 1, 2]);
+    expect(spread).toBeCloseTo(1 * 1.4826, 6);
+  });
+
+  it('returns null rather than NaN when there is nothing to measure', () => {
+    expect(median([null, null])).toBeNull();
+    expect(robustSpread([null])).toBeNull();
+    expect(robustSpread([5])).toBeNull();
+  });
+
+  it('reports no spread for a flat series', () => {
+    expect(robustSpread([3, 3, 3, 3])).toBe(0);
   });
 });
 

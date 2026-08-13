@@ -18,11 +18,11 @@ const row = (address: string, overrides: Partial<OperatorRow> = {}): OperatorRow
   aprLastEra: null,
   aprLastEraGross: null,
   lastEraIndex: null,
-  aprMeanGross: null,
-  aprStdDevGross: null,
+  aprMedianGross: null,
+  aprSpreadGross: null,
   pointsThisEra: null,
-  aprMean: 0.2,
-  aprStdDev: 0.01,
+  aprMedian: 0.2,
+  aprSpread: 0.01,
   aprSeries: [],
   pointsShare: 0.01,
   ...overrides,
@@ -32,7 +32,7 @@ const apr: MetricDefinition = {
   key: 'apr',
   label: 'Return',
   polarity: 'higher',
-  value: (r) => r.aprMean,
+  value: (r) => r.aprMedian,
   format: (v) => (v == null ? '—' : v.toFixed(3)),
   notableSpread: 0.01,
 };
@@ -56,7 +56,7 @@ const stake: MetricDefinition = {
 
 describe('buildComparison', () => {
   it('marks the highest value best when higher is better', () => {
-    const [result] = buildComparison([row('a', { aprMean: 0.2 }), row('b', { aprMean: 0.25 })], [apr]);
+    const [result] = buildComparison([row('a', { aprMedian: 0.2 }), row('b', { aprMedian: 0.25 })], [apr]);
     expect(result!.cells.map((c) => c.best)).toEqual([false, true]);
   });
 
@@ -79,7 +79,7 @@ describe('buildComparison', () => {
 
   it('marks every tied operator best, not an arbitrary one', () => {
     const [result] = buildComparison(
-      [row('a', { aprMean: 0.2 }), row('b', { aprMean: 0.2 }), row('c', { aprMean: 0.1 })],
+      [row('a', { aprMedian: 0.2 }), row('b', { aprMedian: 0.2 }), row('c', { aprMedian: 0.1 })],
       [apr],
     );
     // 'a' and 'b' tie at the top, so both are best and 'c' is not.
@@ -92,7 +92,7 @@ describe('buildComparison', () => {
     // decimal is an artefact, not a finding. A third, clearly lower, keeps this
     // distinct from the all-tied case.
     const [result] = buildComparison(
-      [row('a', { aprMean: 0.1 + 0.2 }), row('b', { aprMean: 0.3 }), row('c', { aprMean: 0.2 })],
+      [row('a', { aprMedian: 0.1 + 0.2 }), row('b', { aprMedian: 0.3 }), row('c', { aprMedian: 0.2 })],
       [apr],
     );
     expect(0.1 + 0.2).not.toBe(0.3);
@@ -107,7 +107,7 @@ describe('buildComparison', () => {
   });
 
   it('marks nothing best when only one operator has a value', () => {
-    const [result] = buildComparison([row('a', { aprMean: 0.2 }), row('b', { aprMean: null })], [apr]);
+    const [result] = buildComparison([row('a', { aprMedian: 0.2 }), row('b', { aprMedian: null })], [apr]);
     expect(result!.cells.every((c) => !c.best)).toBe(true);
   });
 
@@ -122,20 +122,20 @@ describe('buildComparison', () => {
 
   it('computes the spread from known values only', () => {
     const [result] = buildComparison(
-      [row('a', { aprMean: 0.1 }), row('b', { aprMean: null }), row('c', { aprMean: 0.3 })],
+      [row('a', { aprMedian: 0.1 }), row('b', { aprMedian: null }), row('c', { aprMedian: 0.3 })],
       [apr],
     );
     expect(result!.spread).toBeCloseTo(0.2, 12);
   });
 
   it('has a null spread when fewer than two values are known', () => {
-    const [result] = buildComparison([row('a', { aprMean: 0.1 })], [apr]);
+    const [result] = buildComparison([row('a', { aprMedian: 0.1 })], [apr]);
     expect(result!.spread).toBeNull();
     expect(result!.notable).toBe(false);
   });
 
   it('formats every cell, including missing ones', () => {
-    const [result] = buildComparison([row('a', { aprMean: null })], [apr]);
+    const [result] = buildComparison([row('a', { aprMedian: null })], [apr]);
     expect(result!.cells[0]!.display).toBe('—');
   });
 
@@ -150,8 +150,8 @@ describe('notableDifferences', () => {
     const rows = buildComparison(
       // APR spread 0.05 (> 0.01, notable); commission spread 0.001 (< 0.02, not).
       [
-        row('a', { aprMean: 0.2, commission: 0.1 }),
-        row('b', { aprMean: 0.25, commission: 0.101 }),
+        row('a', { aprMedian: 0.2, commission: 0.1 }),
+        row('b', { aprMedian: 0.25, commission: 0.101 }),
       ],
       [apr, commission],
     );
@@ -164,8 +164,8 @@ describe('notableDifferences', () => {
     // the more surprising of the two, so it must rank first.
     const rows = buildComparison(
       [
-        row('a', { aprMean: 0.2, commission: 0.0 }),
-        row('b', { aprMean: 0.28, commission: 0.1 }),
+        row('a', { aprMedian: 0.2, commission: 0.0 }),
+        row('b', { aprMedian: 0.28, commission: 0.1 }),
       ],
       [commission, apr],
     );

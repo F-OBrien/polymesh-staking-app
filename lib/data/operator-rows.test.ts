@@ -25,11 +25,11 @@ function row(partial: Partial<OperatorRow> & { address: string }): OperatorRow {
     aprLastEra: null,
     aprLastEraGross: null,
     lastEraIndex: null,
-    aprMeanGross: null,
-    aprStdDevGross: null,
+    aprMedianGross: null,
+    aprSpreadGross: null,
     pointsThisEra: null,
-    aprMean: 0.2,
-    aprStdDev: 0.01,
+    aprMedian: 0.2,
+    aprSpread: 0.01,
     aprSeries: [0.2],
     pointsShare: 0.01,
     ...partial,
@@ -61,17 +61,17 @@ describe('sortRows', () => {
     // operator whose data has not loaded, and ascending must not float it to
     // the top as though it were the best.
     const withGap = [
-      row({ address: 'known-low', aprMean: 0.1 }),
-      row({ address: 'unknown', aprMean: null }),
-      row({ address: 'known-high', aprMean: 0.3 }),
+      row({ address: 'known-low', aprMedian: 0.1 }),
+      row({ address: 'unknown', aprMedian: null }),
+      row({ address: 'known-high', aprMedian: 0.3 }),
     ];
 
-    expect(sortRows(withGap, 'aprMean', 'desc').map((r) => r.address)).toEqual([
+    expect(sortRows(withGap, 'aprMedian', 'desc').map((r) => r.address)).toEqual([
       'known-high',
       'known-low',
       'unknown',
     ]);
-    expect(sortRows(withGap, 'aprMean', 'asc').map((r) => r.address)).toEqual([
+    expect(sortRows(withGap, 'aprMedian', 'asc').map((r) => r.address)).toEqual([
       'known-low',
       'known-high',
       'unknown',
@@ -270,9 +270,9 @@ describe('buildOperatorRows', () => {
 
     // Reward 100 * 500/1000 = 50 on stake 500 -> 0.1/era, net of 10%
     // commission -> 0.09, annualised by 365.
-    expect(historic.aprMean).toBeCloseTo(0.09 * 365, 6);
+    expect(historic.aprMedian).toBeCloseTo(0.09 * 365, 6);
     // Two identical eras: no spread.
-    expect(historic.aprStdDev).toBeCloseTo(0, 10);
+    expect(historic.aprSpread).toBeCloseTo(0, 10);
   });
 
   it('uses registry naming, falling back to the address', () => {
@@ -306,7 +306,7 @@ describe('rowsToCsv', () => {
   });
 
   it('writes an empty field for an unknown value rather than "null"', () => {
-    const csv = rowsToCsv([row({ address: 'a', name: 'A', aprMean: null })]);
+    const csv = rowsToCsv([row({ address: 'a', name: 'A', aprMedian: null })]);
     expect(csv).not.toContain('null');
   });
 });

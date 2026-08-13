@@ -93,19 +93,33 @@ export function fetchManifest(options?: FetchOptions): Promise<Manifest> {
 /**
  * One chunk, preferring the IndexedDB copy.
  *
- * Complete chunks are immutable, so a cache hit needs no revalidation at all.
- * The trailing incomplete chunk changes when an era lands, but its hash changes
- * with it, so a key miss handles that without any freshness logic.
+ * **The hash goes in the URL, and that is load-bearing.** This used to fetch
+ * `chunks/1632.json` with `cache: 'force-cache'` on the reasoning that a
+ * complete chunk is immutable. It is not: the archive backfill rewrote 55 of
+ * them, filling in eras they had never held. `force-cache` serves a cached
+ * response without revalidating *at all*, so every browser that had visited
+ * before the backfill kept its old copy of that URL indefinitely — and then
+ * wrote those stale bytes into IndexedDB under the *new* manifest hash, which
+ * made the mistake permanent even after the HTTP entry expired.
+ *
+ * Reported as a gap in the charts across eras 1344–1359 and 1632–1659. Those
+ * are not arbitrary: they are the halves of chunks 1344 and 1632 that had not
+ * been ingested yet when those copies were cached. On disk both files are
+ * complete, which is why it reproduced for one reader and for nobody else.
+ *
+ * Putting the content hash in the query string makes every URL genuinely
+ * immutable — different content, different URL — so a stale entry can never be
+ * served under a name that now means something else. `force-cache` then
+ * applies to every chunk rather than only the complete ones, which also removes
+ * the revalidation round trip for the trailing chunk.
  */
 export async function fetchChunk(ref: ChunkRef, options?: FetchOptions): Promise<Chunk> {
   const cached = await readCachedChunk(ref.hash);
   if (cached) return cached;
 
-  const chunk = await fetchJson(ref.path, 'chunk', {
+  const chunk = await fetchJson(`${ref.path}?v=${ref.hash}`, 'chunk', {
     ...options,
-    // Complete chunks are served with a long immutable max-age, so force-cache
-    // lets the HTTP layer answer before we ever reach the network.
-    cache: ref.complete ? 'force-cache' : 'default',
+    cache: 'force-cache',
   });
 
   await writeCachedChunk(ref.hash, chunk);

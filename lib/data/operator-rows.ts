@@ -1,5 +1,5 @@
 import { deriveEstimatedEraApr, deriveOperatorApr, lastDefinedAt } from '@/lib/metrics/derive';
-import { mean, stdDev } from '@/lib/metrics/stats';
+import { median, robustSpread } from '@/lib/metrics/stats';
 import type { Latest, OperatorRegistry } from '@/lib/schemas/data';
 import type { StitchedSeries } from './series';
 
@@ -63,17 +63,26 @@ export interface OperatorRow {
   aprLastEraGross: number | null;
   /** Which era `aprLastEra` refers to, so the column can name it. */
   lastEraIndex: number | null;
-  /** Mean across the visible era range. */
-  aprMean: number | null;
-  aprMeanGross: number | null;
   /**
-   * Standard deviation of per-era APR. Lower is steadier.
+   * The typical era across the visible range — a median, not a mean.
+   *
+   * A mean here reported a Huobi node at 48.59% over a year in which it earned
+   * 18–25% every era but one. See `median` in `lib/metrics/stats.ts` for the
+   * measurement and why a first era is a different regime rather than a bad
+   * data point.
+   */
+  aprMedian: number | null;
+  aprMedianGross: number | null;
+  /**
+   * Spread of per-era APR. Lower is steadier.
    *
    * Presented as "consistency" rather than raw σ: two operators with the same
-   * average return are not equivalent if one of them halves some weeks.
+   * typical return are not equivalent if one of them halves some weeks. Robust,
+   * for the same reason the centre is — squaring the deviations put that same
+   * node at ±188% when it had in fact tracked the field all year.
    */
-  aprStdDev: number | null;
-  aprStdDevGross: number | null;
+  aprSpread: number | null;
+  aprSpreadGross: number | null;
   /** Points scored so far in the era now running, from the snapshot or Live. */
   pointsThisEra: number | null;
   /** Eras present in the visible range, for the sparkline. */
@@ -204,10 +213,10 @@ export function buildOperatorRows({
       aprLastEra: lastNet?.value ?? null,
       aprLastEraGross: lastGross?.value ?? null,
       lastEraIndex: lastNet != null ? (series?.eras[lastNet.index] ?? null) : null,
-      aprMean: mean(aprSeries),
-      aprMeanGross: mean(apr.gross),
-      aprStdDev: stdDev(aprSeries),
-      aprStdDevGross: stdDev(apr.gross),
+      aprMedian: median(aprSeries),
+      aprMedianGross: median(apr.gross),
+      aprSpread: robustSpread(aprSeries),
+      aprSpreadGross: robustSpread(apr.gross),
       pointsThisEra,
       aprSeries,
       pointsShare,
@@ -231,10 +240,10 @@ export type SortKey =
   | 'aprThisEraGross'
   | 'aprLastEra'
   | 'aprLastEraGross'
-  | 'aprMean'
-  | 'aprMeanGross'
-  | 'aprStdDev'
-  | 'aprStdDevGross'
+  | 'aprMedian'
+  | 'aprMedianGross'
+  | 'aprSpread'
+  | 'aprSpreadGross'
   | 'pointsThisEra'
   | 'pointsShare';
 
@@ -366,9 +375,9 @@ export function rowsToCsv(rows: readonly OperatorRow[]): string {
       num(row.aprLastEra),
       num(row.aprLastEraGross),
       num(row.lastEraIndex),
-      num(row.aprMean),
-      num(row.aprMeanGross),
-      num(row.aprStdDev),
+      num(row.aprMedian),
+      num(row.aprMedianGross),
+      num(row.aprSpread),
       num(row.pointsThisEra),
       num(row.pointsShare),
       num(row.pageCount),

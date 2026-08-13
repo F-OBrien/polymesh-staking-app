@@ -43,6 +43,7 @@ import { AsOf, EmptyState, ErrorState, Skeleton } from '@/components/states';
 import { idleStake, type TargetAllocation } from '@/lib/chain/allocation';
 import { buildLabeller } from '@/lib/data/operator-label';
 import { CopyAddress } from '@/components/copy-address';
+import { outlierCap } from '@/lib/charts/notes';
 import { looksLikeAddress } from '@/lib/chain/wallet';
 import { explorerAccountUrl, explorerEventUrl } from '@/config/networks';
 import {
@@ -263,6 +264,30 @@ export function MyStakingView() {
       return [{ id: address, label: labelOf(address), values: net }];
     });
   }, [series, nominations, labelOf, manifest.data?.erasPerYear]);
+
+  /**
+   * See the note in `operator-detail.tsx`. Taken across every series drawn.
+   *
+   * This chart needs it as much as any: a nominator commonly backs an operator
+   * that joined recently, and a first era on its own bond with no nominators
+   * pays a multiple of everything after it. One such point sets the axis and
+   * presses this address's other seven operators, the band and the median into
+   * a line along the bottom.
+   */
+  const aprCap = useMemo(
+    () =>
+      outlierCap(
+        [
+          ...myAprSeries.flatMap((s) => s.values),
+          ...(series?.network.aprP90 ?? []),
+          ...(series?.network.avgApr ?? []),
+        ],
+        (v) => formatPercent(v, { decimals: 0 }),
+        { because: 'in a first era' },
+      ),
+    [myAprSeries, series],
+  );
+
   const allocation = useStakeAllocation(stash, activeEra, nominations);
   const currentTargets = allocation.data?.current.targets;
   const assignedByOperator = useMemo(() => {
@@ -711,13 +736,16 @@ export function MyStakingView() {
                     tickFormat={(v) => formatPercent(v, { decimals: 0 })}
                     yLabel="APR"
                     height={300}
+                    offerLogScale
+                    cap={aprCap}
+                    // Kept short. It sits beside the frame's controls, and
+                    // every line it wraps to moves the Expand button down the
+                    // page. The full version of this caveat is in the subtitle
+                    // and in `lib/metrics/production.ts`.
                     note={
-                      `A single era's return is mostly slot luck — the field's per-era spread is ` +
-                      `about 8%, which is what chance alone gives — so a line crossing another for ` +
-                      `a few eras means nothing. A sustained dip is an outage and does mean ` +
-                      `something.` +
+                      `One era's return is mostly slot luck; a sustained dip is an outage.` +
                       (myAprSeries.length < nominations.length
-                        ? ` ${nominations.length - myAprSeries.length} of ${nominations.length} nominated operators are not drawn: the palette holds eight, or they have no history in this range.`
+                        ? ` ${nominations.length - myAprSeries.length} of ${nominations.length} not drawn.`
                         : '')
                     }
                   />
@@ -1196,8 +1224,21 @@ function NominationsTable({
             <th scope="col" className="p-2 text-right font-medium">
               Assigned this era
             </th>
+            {/* Two eras, not a mean. The mean over the selected range is
+                dominated by an operator's *first* era, which pays on its own
+                bond with no nominators and a full share of points — one Huobi
+                node read 48.59% here against about 20% for every era since. A
+                nominator reading that column would conclude the wrong thing
+                about the operator they are about to back, which is the one
+                mistake this table exists to prevent. */}
             <th scope="col" className="p-2 text-right font-medium">
-              Return
+              This era
+              <span className="block text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
+                so far
+              </span>
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              Last era
             </th>
             <th scope="col" className="p-2 text-right font-medium">
               Commission
@@ -1234,7 +1275,13 @@ function NominationsTable({
                     </span>
                   )}
                 </td>
-                <td className="p-2 text-right">{formatPercent(row.aprMean, { decimals: 2 })}</td>
+                <td className="p-2 text-right">{formatPercent(row.aprThisEra, { decimals: 2 })}</td>
+                <td
+                  className="p-2 text-right"
+                  title={row.lastEraIndex == null ? undefined : `Era ${row.lastEraIndex}`}
+                >
+                  {formatPercent(row.aprLastEra, { decimals: 2 })}
+                </td>
                 <td className="p-2 text-right">{formatPercent(row.commission, { decimals: 2 })}</td>
                 <td className="p-2">
                   {warnings.length === 0 ? (
@@ -1258,6 +1305,10 @@ function NominationsTable({
               <th scope="row" className="p-2 text-left font-normal">
                 <CopyAddress address={address} />
               </th>
+              {/* Assigned, this era, last era, commission — one dash each, so
+                  the row keeps the header's column count. */}
+              <td className="p-2 text-right">—</td>
+              <td className="p-2 text-right">—</td>
               <td className="p-2 text-right">—</td>
               <td className="p-2 text-right">—</td>
               <td className="p-2" style={{ color: 'var(--text-muted)' }}>
@@ -1279,6 +1330,7 @@ function NominationsTable({
                 />
               </th>
               <td className="p-2 text-right">{formatPolyx(toPolyx(holder.value))}</td>
+              <td className="p-2 text-right">—</td>
               <td className="p-2 text-right">—</td>
               <td className="p-2 text-right">—</td>
               <td className="p-2">

@@ -595,6 +595,54 @@ points, no era anywhere in `public/data` has every operator null (the worst is
 six of 131, at era 430), and the weekly rollup has no era hole either. What
 covered those eras on screen was the shading above.
 
+### `force-cache` served a rewritten chunk for a month
+
+The reported gap turned out to be real after all, and it was ours. Reported as
+missing eras 1344–1359 and 1632–1659 on one machine and reproducible on no
+other. Those ranges are not arbitrary: they are the *first halves* of chunks
+1344 and 1632 — precisely the eras those two files did not yet hold before the
+archive backfill filled them in.
+
+`fetchChunk` requested `chunks/1632.json` with `cache: 'force-cache'`, on the
+reasoning that a complete chunk is immutable. It is not — the backfill rewrote
+55 of them. `force-cache` returns a cached response *without revalidating at
+all*, so a browser that had visited before the backfill kept its old copy of
+that URL indefinitely. Worse, it then wrote those stale bytes into IndexedDB
+under the **new** manifest hash, so the content-hash key became a lie and the
+mistake survived the HTTP entry expiring.
+
+Two changes, both needed:
+
+- The content hash goes in the URL (`chunks/1632.json?v=<hash>`), which makes
+  every chunk URL genuinely immutable. `force-cache` now applies to incomplete
+  chunks too, since their URLs cannot go stale either — one fewer round trip
+  per era on the trailing chunk.
+- `CACHE_EPOCH` in `lib/data/cache.ts` namespaces the IndexedDB keys, so
+  readers already holding a poisoned entry abandon it. `pruneCache` collects
+  the orphans on the next visit.
+
+The general lesson: **immutability has to be a property of the name, not a
+claim about the content.** A flag in the manifest cannot make a URL immutable
+when nothing consults the manifest before answering from cache.
+
+### The mean return was a first-era artefact
+
+An operator's first era in the set is exposed on its own bond with no
+nominators and takes a full share of points, so it pays a multiple of anything
+that follows. Over a 365-era window a Huobi node that earned 18–25% every era
+of its life reported a **mean of 48.59%** and a steadiness of **±188%** — one
+era in ninety paid 2,474%.
+
+Both summary columns are now robust: `median` for the centre and `robustSpread`
+(MAD × 1.4826) for the spread. The same three nodes read 19.9–20.4% and
+±1.6–1.9%. The 1.4826 scaling matters — without it a reader comparing against a
+σ they remember is comparing different units.
+
+A first era is not an outlier to be trimmed, it is a different regime, and so is
+the first era after an operator rejoins. A median ignores both without needing
+to know which is which. `mean`/`stdDev` remain for the calculator, which
+projects from the *network* series.
+
 ### The anchors the backfill exposed
 
 `ingest:era` recorded two approximations that were invisible until a second

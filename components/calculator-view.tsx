@@ -95,8 +95,8 @@ export function CalculatorView() {
       if (row) {
         return {
           label: row.name,
-          apr: row.aprMean,
-          stdDev: row.aprStdDev,
+          apr: row.aprMedian,
+          stdDev: row.aprSpread,
           commission: row.commission,
         };
       }
